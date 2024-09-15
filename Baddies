@@ -1,0 +1,86 @@
+-- Load Fluent and setup
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+-- Create the Fluent window
+local Window = Fluent:CreateWindow({
+    Title = "AstroClient",
+    SubTitle = "Made by Finny<3",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
+
+-- Create tabs
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main" })
+}
+
+-- Initialize autofarm toggle
+local autofarmEnabled = false
+
+local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
+    Title = "Enable Autofarm",
+    Default = false
+})
+
+AutofarmToggle:OnChanged(function(value)
+    autofarmEnabled = value
+    getgenv().farm = autofarmEnabled -- Set global farm variable based on toggle state
+end)
+
+-- Autofarm functionality
+local function getMoney()
+    local allCashCollected = true
+    for _, m in pairs(workspace.Cash:GetChildren()) do
+        if m.Name == "Cash" and (m.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude <= 25 then
+            allCashCollected = false
+            fireproximityprompt(m.ProximityPrompt, 6)
+            task.wait(0.35)
+        end
+        if not getgenv().farm then
+            return allCashCollected
+        end
+    end
+    return allCashCollected
+end
+
+-- Main loop to handle damageables and cash collection
+while true do
+    task.wait(1) -- Prevents continuous looping without pause
+    if getgenv().farm then
+        pcall(function()
+            for _, a in ipairs(workspace.Damageables:GetChildren()) do
+                if not getgenv().farm then
+                    break
+                end
+                if a.Damageable.Value > 0 then
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                    task.wait(1)
+                    
+                    repeat
+                        if not getgenv().farm then
+                            break
+                        end
+                        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                        game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
+                        task.wait(0.5)
+                    until a.Damageable.Value <= 0
+                    
+                    task.wait(1)
+                    
+                    -- Ensure all nearby cash is collected before moving on
+                    local allCashCollected = getMoney()
+                    while not allCashCollected do
+                        task.wait(0.3) -- Delay before checking again
+                        allCashCollected = getMoney()
+                    end
+                    task.wait(0.3) -- Longer delay before moving to the next ATM
+                end
+            end
+        end)
+    end
+end
