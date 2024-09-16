@@ -16,7 +16,8 @@ local Window = Fluent:CreateWindow({
 
 -- Create tabs
 local Tabs = {
-    Main = Window:AddTab({ Title = "Main" })
+    Main = Window:AddTab({ Title = "Main" }),
+    Settings = Window:AddTab({ Title = "Settings" })
 }
 
 -- Initialize autofarm toggle
@@ -30,6 +31,7 @@ local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
 AutofarmToggle:OnChanged(function(value)
     autofarmEnabled = value
     getgenv().farm = autofarmEnabled -- Set global farm variable based on toggle state
+    print("Autofarm is now:", getgenv().farm) -- Debugging
 end)
 
 -- Autofarm functionality
@@ -37,10 +39,12 @@ local plr = game.Players.LocalPlayer
 local cash = workspace.Cash
 local dmg = workspace.Damageables
 
+-- Disable player idling to avoid AFK kicks
 for _, v in next, getconnections(plr.Idled) do 
     v:Disable() 
 end
 
+-- Function to collect nearby money
 local function getMoney()
     local cashPickedUp = false
     for _, m in pairs(cash:GetChildren()) do
@@ -53,53 +57,59 @@ local function getMoney()
     return cashPickedUp
 end
 
-while getgenv().farm do
-    pcall(function()
-        for _, a in ipairs(dmg:GetChildren()) do
-            if not getgenv().farm then
-                break
-            end
-            if a.Damageable.Value > 0 then
-                -- Skip ATMs with the part name "CashRegister"
-                if a.Name == "CashRegister" then
-                    continue
-                end
+-- Autofarm loop
+spawn(function()
+    while true do
+        if getgenv().farm then
+            pcall(function()
+                for _, a in ipairs(dmg:GetChildren()) do
+                    if not getgenv().farm then
+                        break
+                    end
+                    if a.Damageable.Value > 0 then
+                        -- Skip ATMs with the part name "CashRegister"
+                        if a.Name == "CashRegister" then
+                            continue
+                        end
 
-                -- Teleport to the ATM
-                plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
-                task.wait(1)
-                
-                -- Break the ATM and pick up cash within range
-                repeat
-                    if not getgenv().farm then
-                        break
+                        -- Teleport to the ATM
+                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                        task.wait(1)
+                        
+                        -- Break the ATM and pick up cash within range
+                        repeat
+                            if not getgenv().farm then
+                                break
+                            end
+                            plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                            game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
+                            task.wait(0.5)
+                        until a.Damageable.Value <= 0
+                        
+                        -- Wait for 2 seconds to pick up cash
+                        local endTime = tick() + 2
+                        local cashPickedUp
+                        repeat
+                            if not getgenv().farm then
+                                break
+                            end
+                            cashPickedUp = getMoney()
+                            task.wait(0.1)
+                        until tick() >= endTime and not cashPickedUp
+                        
+                        -- If no cash was picked up, move to the next ATM
+                        if not cashPickedUp then
+                            task.wait(1)
+                        end
                     end
-                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
-                    game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
-                    task.wait(0.5)
-                until a.Damageable.Value <= 0
-                
-                -- Wait for 2 seconds to pick up cash
-                local endTime = tick() + 2
-                local cashPickedUp
-                repeat
-                    if not getgenv().farm then
-                        break
-                    end
-                    cashPickedUp = getMoney()
-                    task.wait(0.1)
-                until tick() >= endTime and not cashPickedUp
-                
-                -- If no cash was picked up, move to the next ATM
-                if not cashPickedUp then
-                    task.wait(1)
                 end
-            end
+            end)
         end
-    end)
-    task.wait(1)
-end
+        task.wait(1)
+    end
+end)
 
+-- Fluent Save Manager setup
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
