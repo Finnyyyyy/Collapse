@@ -20,12 +20,26 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings" }) -- Added Settings Tab
 }
 
--- Initialize autofarm toggle
+-- Initialize toggles
 local autofarmEnabled = false
+local cashAuraEnabled = false
 
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
-    Title = "Enable Autofarm",
+    Title = "Autofarm (Enable Punch before toggling)",
     Default = false
+})
+
+local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
+    Title = "CashAura",
+    Default = false, -- Set default to false
+    Callback = function(value)
+        cashAuraEnabled = value
+        getgenv().cashAura = cashAuraEnabled
+
+        if cashAuraEnabled then
+            startCashAura()
+        end
+    end
 })
 
 -- Autofarm functionality
@@ -48,10 +62,10 @@ local function startAutofarm()
     local function getMoney()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 100 then
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 35 then
                 cashPickedUp = true
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1)
+                task.wait(0.2)
             end
         end
         return cashPickedUp
@@ -86,16 +100,49 @@ local function startAutofarm()
 
                     -- Move to next ATM if no cash was picked up
                     if not cashPickedUp then
-                        task.wait(1)
+                        task.wait(.5)
                     end
                 end
             end
+        end)
+        task.wait(.5)
+    end
+end
+
+-- CashAura functionality
+local function startCashAura()
+    local plr = game.Players.LocalPlayer
+    local cash = workspace:FindFirstChild("Cash")
+
+    if not cash then
+        warn("Cash folder not found in the workspace.")
+        return
+    end
+
+    -- Increase the pickup radius
+    local function getMoney()
+        local cashPickedUp = false
+        for _, m in pairs(cash:GetChildren()) do
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
+                cashPickedUp = true
+                fireproximityprompt(m.ProximityPrompt, 6)
+                task.wait(0.1)
+            end
+        end
+        return cashPickedUp
+    end
+
+    -- Main cash aura loop
+    while getgenv().cashAura do
+        pcall(function()
+            getMoney()
+            task.wait(1) -- Check every 1 second
         end)
         task.wait(1)
     end
 end
 
--- Trigger autofarm when toggle is enabled
+-- Toggle actions
 AutofarmToggle:OnChanged(function(value)
     autofarmEnabled = value
     getgenv().farm = autofarmEnabled
