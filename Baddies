@@ -5,7 +5,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 
 -- Create the Fluent window
 local Window = Fluent:CreateWindow({
-    Title = "AstroClient",
+    Title = "AstroClient-Baddies",
     SubTitle = "Made by Finny<3",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
@@ -19,89 +19,91 @@ local Tabs = {
     Main = Window:AddTab({ Title = "Main" }),
     Settings = Window:AddTab({ Title = "Settings" }) -- Added Settings Tab
 }
---Anti Afk
-for _, v in next, getconnections(plr.Idled) do 
-    v:Disable() 
-end
 
 -- Initialize autofarm toggle
 local autofarmEnabled = false
 
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
-    Title = "Autofarm (equip punch before enable)",
+    Title = "Enable Autofarm",
     Default = false
 })
 
+-- Autofarm functionality
+local function startAutofarm()
+    local plr = game.Players.LocalPlayer
+    local cash = workspace:FindFirstChild("Cash")
+    local dmg = workspace:FindFirstChild("Damageables")
+
+    if not cash or not dmg then
+        warn("Cash or Damageables folder not found in the workspace.")
+        return
+    end
+
+    -- Prevent player from being idled
+    for _, v in next, getconnections(plr.Idled) do
+        v:Disable()
+    end
+
+    -- Increase the pickup radius
+    local function getMoney()
+        local cashPickedUp = false
+        for _, m in pairs(cash:GetChildren()) do
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 100 then
+                cashPickedUp = true
+                fireproximityprompt(m.ProximityPrompt, 6)
+                task.wait(0.1)
+            end
+        end
+        return cashPickedUp
+    end
+
+    -- Main autofarm loop
+    while getgenv().farm do
+        pcall(function()
+            for _, a in ipairs(dmg:GetChildren()) do
+                if not getgenv().farm then break end
+                if a:FindFirstChild("Damageable") and a.Damageable.Value > 0 and a.Name ~= "CashRegister" then
+                    -- Teleport to the ATM
+                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                    task.wait(1)
+
+                    -- Break the ATM
+                    repeat
+                        if not getgenv().farm then break end
+                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                        game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
+                        task.wait(0.5)
+                    until a.Damageable.Value <= 0
+
+                    -- Pick up cash for 2 seconds
+                    local endTime = tick() + 2
+                    local cashPickedUp
+                    repeat
+                        if not getgenv().farm then break end
+                        cashPickedUp = getMoney()
+                        task.wait(0.1)
+                    until tick() >= endTime and not cashPickedUp
+
+                    -- Move to next ATM if no cash was picked up
+                    if not cashPickedUp then
+                        task.wait(1)
+                    end
+                end
+            end
+        end)
+        task.wait(1)
+    end
+end
+
+-- Trigger autofarm when toggle is enabled
 AutofarmToggle:OnChanged(function(value)
     autofarmEnabled = value
-    getgenv().farm = autofarmEnabled -- Set global farm variable based on toggle state
-end)
+    getgenv().farm = autofarmEnabled
 
--- Autofarm functionality
-local plr = game.Players.LocalPlayer
-local cash = workspace.Cash
-local dmg = workspace.Damageables
-
-
-local function getMoney()
-    local cashPickedUp = false
-    for _, m in pairs(cash:GetChildren()) do
-        -- Increase the pickup radius by modifying the magnitude comparison
-        if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).magnitude <= 100 then
-            cashPickedUp = true
-            fireproximityprompt(m.ProximityPrompt, 6)
-            task.wait(0.1) -- Adjusted cash pickup time
-        end
+    if autofarmEnabled then
+        startAutofarm()
     end
-    return cashPickedUp
-end
-
-while getgenv().farm do
-    pcall(function()
-        for _, a in ipairs(dmg:GetChildren()) do
-            if not getgenv().farm then
-                break
-            end
-            if a.Damageable.Value > 0 then
-                -- Skip ATMs with the part name "CashRegister"
-                if a.Name == "CashRegister" then
-                    continue
-                end
-
-                -- Teleport to the ATM
-                plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
-                task.wait(1)
-                
-                -- Break the ATM and pick up cash within range
-                repeat
-                    if not getgenv().farm then
-                        break
-                    end
-                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
-                    game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
-                    task.wait(0.5)
-                until a.Damageable.Value <= 0
-                
-                -- Wait for 2 seconds to pick up cash
-                local endTime = tick() + 2
-                local cashPickedUp
-                repeat
-                    if not getgenv().farm then
-                        break
-                    end
-                    cashPickedUp = getMoney()
-                    task.wait(0.1)
-                until tick() >= endTime and not cashPickedUp
-                
-                -- If no cash was picked up, move to the next ATM
-                if not cashPickedUp then
-                    task.wait(1)
-                end
-            end
-        end
-    end)
-    task.wait(1)
-end
+end)
 
 -- Settings and Save Manager Integration
 SaveManager:SetLibrary(Fluent)
