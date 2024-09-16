@@ -28,7 +28,7 @@ end
 local autofarmEnabled = false
 
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
-    Title = "Enable Autofarm",
+    Title = "Autofarm (equip punch before enable)",
     Default = false
 })
 
