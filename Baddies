@@ -58,14 +58,15 @@ local function startAutofarm()
         v:Disable()
     end
 
-    -- Increase the pickup radius
+    -- Function to pick up cash
     local function getMoney()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 35 then
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
                 cashPickedUp = true
+                plr.Character.HumanoidRootPart.CFrame = m.CFrame
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.2)
+                task.wait(0.1) -- Increased delay for picking up cash
             end
         end
         return cashPickedUp
@@ -77,35 +78,35 @@ local function startAutofarm()
             for _, a in ipairs(dmg:GetChildren()) do
                 if not getgenv().farm then break end
                 if a:FindFirstChild("Damageable") and a.Damageable.Value > 0 and a.Name ~= "CashRegister" then
-                    -- Teleport to the ATM
-                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                    -- Teleport to 3 studs above the ATM
+                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 3, 2)
                     task.wait(1)
 
                     -- Break the ATM
                     repeat
                         if not getgenv().farm then break end
-                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 2)
+                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 3, 2)
                         game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
                         task.wait(0.5)
                     until a.Damageable.Value <= 0
 
-                    -- Pick up cash for 2 seconds
+                    -- Ensure all cash is picked up before moving to the next ATM
                     local endTime = tick() + 2
                     local cashPickedUp
                     repeat
                         if not getgenv().farm then break end
                         cashPickedUp = getMoney()
-                        task.wait(0.1)
+                        task.wait(0.1) -- Increased delay for picking up cash
                     until tick() >= endTime and not cashPickedUp
 
                     -- Move to next ATM if no cash was picked up
                     if not cashPickedUp then
-                        task.wait(.5)
+                        task.wait(0.5)
                     end
                 end
             end
         end)
-        task.wait(.5)
+        task.wait(1)
     end
 end
 
@@ -119,14 +120,14 @@ local function startCashAura()
         return
     end
 
-    -- Increase the pickup radius
+    -- Function to pick up cash
     local function getMoney()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
             if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
                 cashPickedUp = true
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1)
+                task.wait(0.1) -- Increased delay for picking up cash
             end
         end
         return cashPickedUp
