@@ -1,9 +1,20 @@
--- Load Fluent and setup
+--[[
+    Complete Roblox Script with Fluent GUI
+    Features:
+    - Autofarm Toggle
+    - Cash Aura Toggle
+    - Box ESP Toggle (Disabled by default)
+    - Health ESP Toggle (Disabled by default)
+    - Settings and Save Manager
+    Author: Finny<3
+--]]
+
+-- Load Fluent and its Addons
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Create the Fluent window
+-- Create the Fluent Window
 local Window = Fluent:CreateWindow({
     Title = "AstroClient-Baddies",
     SubTitle = "Made by Finny<3",
@@ -14,27 +25,28 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create tabs
+-- Create Tabs
 local Tabs = {
     Main = Window:AddTab({ Title = "Main" }),
-    Visuals = Window:AddTab({ Title = "Visuals" }), -- Added Visuals Tab
-    Settings = Window:AddTab({ Title = "Settings" }) -- Added Settings Tab
+    Visuals = Window:AddTab({ Title = "Visuals" }),
+    Settings = Window:AddTab({ Title = "Settings" })
 }
 
--- Initialize toggles
+-- Initialize Toggle States
 local autofarmEnabled = false
 local cashAuraEnabled = false
-local boxESPEnabled = false
-local healthESPEnabled = false
+local boxESPEnabled = false -- Disabled by default
+local healthESPEnabled = false -- Disabled by default
 
+-- Add Toggles to Main Tab
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
     Title = "Autofarm (Enable Punch before toggling)",
     Default = false
 })
 
 local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
-    Title = "CashAura",
-    Default = false, -- Set default to false
+    Title = "Cash Aura",
+    Default = false, -- Disabled by default
     Callback = function(value)
         cashAuraEnabled = value
         getgenv().cashAura = cashAuraEnabled
@@ -45,26 +57,48 @@ local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
     end
 })
 
--- Visuals Tab Toggles
+-- Add Toggles to Visuals Tab
 local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
     Title = "Box ESP",
-    Default = true,
-    Callback = function(value)
-        boxESPEnabled = value
-        updateESP()
-    end
+    Default = false, -- Disabled by default
+    -- Callback removed; using OnChanged instead
 })
 
 local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
     Title = "Health ESP",
-    Default = true,
-    Callback = function(value)
-        healthESPEnabled = value
-        updateESP()
-    end
+    Default = false, -- Disabled by default
+    -- Callback removed; using OnChanged instead
 })
 
--- Autofarm functionality
+-- Table to Track ESP Elements per Player
+local ESPElements = {}
+
+-- ESP Configuration Table
+local Config = {
+    -- Box Settings
+    Box = true, -- Enable or disable the box around players
+    BoxColor = Color3.fromRGB(255, 255, 255), -- Color of the box border (white)
+    BoxThickness = 1, -- Thickness of the box border
+
+    -- Box Outline Settings
+    BoxOutline = true, -- Enable or disable the box outline
+    BoxOutlineColor = Color3.fromRGB(255, 255, 255), -- Color of the box outline (white)
+    BoxOutlineThickness = 1, -- Thickness of the box outline border
+
+    -- Health Bar Settings
+    HealthBar = true, -- Enable or disable the health bar
+    HealthBarSide = "Left", -- Side of the box where the health bar appears ("Left", "Bottom", "Right")
+
+    -- Name Display Settings
+    Names = true, -- Enable or disable the name display
+    NamesColor = Color3.fromRGB(255, 255, 255), -- Color of the name text (white)
+    NamesOutline = true, -- Enable or disable the outline around the name text
+    NamesOutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the name text outline (black)
+    NamesFont = 2, -- Font style (0: SciFi, 1: System, 2: Parchment, 3: SourceSans)
+    NamesSize = 13 -- Size of the name text
+}
+
+-- Autofarm Functionality
 local function startAutofarm()
     local plr = game.Players.LocalPlayer
     local cash = workspace:FindFirstChild("Cash")
@@ -76,8 +110,10 @@ local function startAutofarm()
     end
 
     -- Prevent player from being idled
-    for _, v in next, getconnections(plr.Idled) do
-        v:Disable()
+    if plr and plr.Idled then
+        for _, connection in pairs(getconnections(plr.Idled)) do
+            connection:Disable()
+        end
     end
 
     -- Function to pick up cash
@@ -132,7 +168,7 @@ local function startAutofarm()
     end
 end
 
--- CashAura functionality
+-- CashAura Functionality
 local function startCashAura()
     local plr = game.Players.LocalPlayer
     local cash = workspace:FindFirstChild("Cash")
@@ -165,7 +201,166 @@ local function startCashAura()
     end
 end
 
--- Toggle actions
+-- Function to Create ESP for a Player
+local function CreateEsp(Player)
+    if ESPElements[Player] then return end -- Prevent duplicate ESPs
+
+    -- Create Drawing objects for ESP elements
+    local Box = Drawing.new("Square")
+    local BoxOutline = Drawing.new("Square")
+    local Name = Drawing.new("Text")
+    local HealthBar = Drawing.new("Square")
+
+    -- Initial configuration for ESP elements
+    Box.Filled = false -- Transparent inside
+    Box.Color = Config.BoxColor
+    Box.Thickness = Config.BoxThickness
+    Box.ZIndex = 69
+    Box.Visible = boxESPEnabled -- Initially visible based on toggle
+
+    BoxOutline.Filled = false -- Transparent outline fill
+    BoxOutline.Color = Config.BoxOutlineColor
+    BoxOutline.Thickness = Config.BoxOutlineThickness
+    BoxOutline.ZIndex = 68 -- Ensure it's behind the Box
+    BoxOutline.Visible = Config.BoxOutline and boxESPEnabled -- Initially visible based on toggle
+
+    Name.Visible = false
+    Name.Center = true
+    Name.Color = Config.NamesColor
+    Name.Font = Config.NamesFont
+    Name.Size = Config.NamesSize
+    Name.Outline = Config.NamesOutline
+    Name.OutlineColor = Config.NamesOutlineColor
+    Name.ZIndex = 69
+
+    HealthBar.Filled = true
+    HealthBar.Color = Color3.fromRGB(0, 255, 0) -- Initial color (green)
+    HealthBar.ZIndex = 70
+    HealthBar.Visible = healthESPEnabled -- Initially visible based on toggle
+
+    -- Store ESP elements in the table
+    ESPElements[Player] = {
+        Box = Box,
+        BoxOutline = BoxOutline,
+        Name = Name,
+        HealthBar = HealthBar,
+        IsVisible = false
+    }
+
+    -- Connect to player updates
+    local Updater = game:GetService("RunService").RenderStepped:Connect(function()
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Head") and Player.Character.Humanoid.Health > 0 then
+            local Humanoid = Player.Character.Humanoid
+            local HRP = Player.Character.HumanoidRootPart
+            local Camera = workspace.CurrentCamera
+
+            -- Get the 2D position and visibility of the HumanoidRootPart
+            local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(HRP.Position)
+
+            -- Calculate scale factor based on distance
+            local distance = (Camera.CFrame.p - HRP.Position).Magnitude
+            local scale_factor = 1 / (distance * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
+            local width, height = math.floor(30 * scale_factor), math.floor(45 * scale_factor) -- Adjust box size
+
+            -- Store visibility state
+            ESPElements[Player].IsVisible = IsVisible
+
+            -- Update Box ESP
+            if boxESPEnabled then
+                Box.Visible = IsVisible
+                Box.Size = Vector2.new(width, height)
+                Box.Position = Vector2.new(Target2dPosition.X - Box.Size.X / 2, Target2dPosition.Y - Box.Size.Y / 2)
+            else
+                Box.Visible = false
+            end
+
+            -- Update Box Outline
+            if Config.BoxOutline and boxESPEnabled then
+                BoxOutline.Visible = IsVisible
+                BoxOutline.Size = Vector2.new(width, height)
+                BoxOutline.Position = Vector2.new(Target2dPosition.X - BoxOutline.Size.X / 2, Target2dPosition.Y - BoxOutline.Size.Y / 2)
+            else
+                BoxOutline.Visible = false
+            end
+
+            -- Update Health Bar ESP
+            if healthESPEnabled then
+                HealthBar.Visible = IsVisible
+
+                -- Set Health Bar Size and Position based on the side
+                local barWidth = Config.BoxThickness -- Health bar width matches the box thickness
+                local barHeight = height * (Humanoid.Health / Humanoid.MaxHealth) -- Full height of the ESP box
+
+                if Config.HealthBarSide == "Left" then
+                    HealthBar.Size = Vector2.new(barWidth, barHeight)
+                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1) -- Position adjusted slightly down
+                elseif Config.HealthBarSide == "Bottom" then
+                    HealthBar.Size = Vector2.new(width - 6, 2)
+                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
+                end
+
+                -- Set Health Bar Color (Red to Green)
+                local healthPercent = Humanoid.Health / Humanoid.MaxHealth
+                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), healthPercent)
+            else
+                HealthBar.Visible = false
+            end
+
+            -- Update Name Display ESP
+            if Config.Names then
+                Name.Visible = IsVisible
+                Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
+                Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
+            else
+                Name.Visible = false
+            end
+
+        else
+            -- Hide ESP elements if player is not valid
+            Box.Visible = false
+            BoxOutline.Visible = false
+            Name.Visible = false
+            HealthBar.Visible = false
+        end
+    end)
+
+    -- Handle Player Removal
+    Player.CharacterRemoving:Connect(function()
+        Box:Remove()
+        BoxOutline:Remove()
+        Name:Remove()
+        HealthBar:Remove()
+        Updater:Disconnect()
+        ESPElements[Player] = nil
+    end)
+end
+
+-- Function to Update ESP Visibility Based on Toggles
+local function updateESPVisibility()
+    for _, elements in pairs(ESPElements) do
+        if elements.Box and elements.BoxOutline then
+            elements.Box.Visible = boxESPEnabled and elements.IsVisible
+            elements.BoxOutline.Visible = boxESPEnabled and Config.BoxOutline and elements.IsVisible
+        end
+
+        if elements.HealthBar then
+            elements.HealthBar.Visible = healthESPEnabled and elements.IsVisible
+        end
+    end
+end
+
+-- Connect OnChanged Events for BoxESP and HealthESP Toggles
+BoxToggle:OnChanged(function(value)
+    boxESPEnabled = value
+    updateESPVisibility()
+end)
+
+HealthToggle:OnChanged(function(value)
+    healthESPEnabled = value
+    updateESPVisibility()
+end)
+
+-- Connect OnChanged Event for Autofarm Toggle
 AutofarmToggle:OnChanged(function(value)
     autofarmEnabled = value
     getgenv().farm = autofarmEnabled
@@ -175,164 +370,55 @@ AutofarmToggle:OnChanged(function(value)
     end
 end)
 
--- ESP Configuration Table
-local Config = {
-    -- Box Settings
-    Box               = true, -- Enable or disable the box around players
-    BoxColor          = Color3.fromRGB(255, 255, 255), -- Color of the box border (white)
-    BoxThickness      = 1, -- Thickness of the box border
-    
-    -- Box Outline Settings
-    BoxOutline        = true, -- Enable or disable the box outline
-    BoxOutlineColor   = Color3.fromRGB(255, 255, 255), -- Color of the box outline (white)
-    BoxOutlineThickness = 1, -- Thickness of the box outline border
-    
-    -- Health Bar Settings
-    HealthBar         = true, -- Enable or disable the health bar
-    HealthBarSide     = "Left", -- Side of the box where the health bar appears ("Left", "Bottom", "Right")
-    
-    -- Name Display Settings
-    Names             = true, -- Enable or disable the name display
-    NamesColor        = Color3.fromRGB(255, 255, 255), -- Color of the name text (white)
-    NamesOutline      = true, -- Enable or disable the outline around the name text
-    NamesOutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the name text outline (black)
-    NamesFont         = 2, -- Font style (0: SciFi, 1: System, 2: Parchment, 3: SourceSans)
-    NamesSize         = 13, -- Size of the name text
-}
-
--- Function to Create ESP for a Player
-local function CreateEsp(Player)
-    -- Create Drawing objects for ESP elements
-    local Box = Drawing.new("Square")
-    local BoxOutline = Drawing.new("Square")
-    local Name = Drawing.new("Text")
-    local HealthBar = Drawing.new("Square")
-    
-    -- Initial configuration for ESP elements
-    Box.Filled = false -- Transparent inside
-    Box.Color = Config.BoxColor
-    Box.Thickness = Config.BoxThickness
-    Box.ZIndex = 69
-    
-    BoxOutline.Filled = false -- Transparent outline fill
-    BoxOutline.Color = Config.BoxOutlineColor
-    BoxOutline.Thickness = Config.BoxOutlineThickness
-    BoxOutline.ZIndex = 68 -- Ensure it's behind the Box
-    BoxOutline.Visible = Config.BoxOutline
-    
-    Name.Visible = false
-    Name.Center = true
-    Name.Color = Config.NamesColor
-    Name.Font = Config.NamesFont
-    Name.Size = Config.NamesSize
-    Name.Outline = Config.NamesOutline
-    Name.OutlineColor = Config.NamesOutlineColor
-    Name.ZIndex = 69
-    
-    HealthBar.Filled = true
-    HealthBar.Color = Color3.fromRGB(0, 255, 0) -- Initial color (green)
-    HealthBar.ZIndex = 70
-    
-    -- Connect to player updates
-    local Updater = game:GetService("RunService").RenderStepped:Connect(function()
-        if Player.Character and Player.Character:FindFirstChild("Humanoid") and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Head") and Player.Character.Humanoid.Health > 0 then
-            local Humanoid = Player.Character.Humanoid
-            local HRP = Player.Character.HumanoidRootPart
-            local Camera = workspace.CurrentCamera
-            
-            -- Get the 2D position and visibility of the HumanoidRootPart
-            local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(HRP.Position)
-            
-            -- Calculate scale factor based on distance
-            local scale_factor = 1 / (Target2dPosition.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
-            local width, height = math.floor(30 * scale_factor), math.floor(45 * scale_factor) -- Adjust box size
-            
-            -- Update Box ESP
-            if boxESPEnabled then
-                Box.Visible = IsVisible
-                Box.Size = Vector2.new(width, height)
-                Box.Position = Vector2.new(Target2dPosition.X - Box.Size.X / 2, Target2dPosition.Y - Box.Size.Y / 2)
-            else
-                Box.Visible = false
-            end
-            
-            -- Update Box Outline
-            if Config.BoxOutline then
-                BoxOutline.Visible = IsVisible
-                BoxOutline.Size = Vector2.new(width, height)
-                BoxOutline.Position = Vector2.new(Target2dPosition.X - BoxOutline.Size.X / 2, Target2dPosition.Y - BoxOutline.Size.Y / 2)
-            else
-                BoxOutline.Visible = false
-            end
-            
-            -- Update Health Bar ESP
-            if healthESPEnabled then
-                HealthBar.Visible = IsVisible
-                
-                -- Set Health Bar Size and Position based on the side
-                local barWidth = Config.BoxThickness -- Health bar width matches the box thickness
-                local barHeight = height * (Humanoid.Health / Humanoid.MaxHealth) -- Full height of the ESP box
-                
-                if Config.HealthBarSide == "Left" then
-                    HealthBar.Size = Vector2.new(barWidth, barHeight)
-                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1) -- Position adjusted slightly down
-                elseif Config.HealthBarSide == "Bottom" then
-                    HealthBar.Size = Vector2.new(width - 6, 2)
-                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
-                end
-                
-                -- Set Health Bar Color (Red to Green)
-                local healthPercent = Humanoid.Health / Humanoid.MaxHealth
-                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), healthPercent)
-            else
-                HealthBar.Visible = false
-            end
-            
-            -- Update Name Display ESP
-            if Config.Names then
-                Name.Visible = IsVisible
-                Name.Text = Player.Name.." "..math.floor((Camera.CFrame.p - HRP.Position).magnitude).."m"
-                Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
-            else
-                Name.Visible = false
-            end
-            
-        else
-            Box.Visible = false
-            BoxOutline.Visible = false
-            Name.Visible = false
-            HealthBar.Visible = false
-            if not Player then
-                Box:Remove()
-                BoxOutline:Remove()
-                Name:Remove()
-                HealthBar:Remove()
-                Updater:Disconnect()
-            end
+-- Function to Create ESP for All Current Players
+local function initializeESP()
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game.Players.LocalPlayer then
+            CreateEsp(player)
+            player.CharacterAdded:Connect(function()
+                CreateEsp(player)
+            end)
         end
-    end)
+    end
 end
 
--- Create ESP for all players
-for _, v in pairs(game:GetService("Players"):GetPlayers()) do
-    if v ~= game:GetService("Players").LocalPlayer then
-        CreateEsp(v)
-        v.CharacterAdded:Connect(function()
-            CreateEsp(v)
+-- Initialize ESP for Existing Players
+initializeESP()
+
+-- Connect to New Players Joining the Game
+game:GetService("Players").PlayerAdded:Connect(function(player)
+    if player ~= game.Players.LocalPlayer then
+        CreateEsp(player)
+        player.CharacterAdded:Connect(function()
+            CreateEsp(player)
         end)
     end
-end
+end)
 
--- Function to update ESP based on toggles
-local function updateESP()
-    for _, v in pairs(game:GetService("Players"):GetPlayers()) do
-        if v ~= game:GetService("Players").LocalPlayer then
-            CreateEsp(v)
-        end
+-- Clean Up ESP When Players Leave
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if ESPElements[player] then
+        ESPElements[player].Box:Remove()
+        ESPElements[player].BoxOutline:Remove()
+        ESPElements[player].Name:Remove()
+        ESPElements[player].HealthBar:Remove()
+        ESPElements[player] = nil
     end
+end)
+
+-- Function to Start Cash Aura (if enabled)
+-- Already implemented in CashAuraToggle Callback
+
+-- Function to Start Autofarm (if enabled)
+-- Already implemented in AutofarmToggle Callback
+
+-- ESP Update Function (optional, can be used for additional updates)
+local function updateESP()
+    -- Currently handled within CreateEsp via RenderStepped
+    -- This function can be expanded if needed
 end
 
--- Ensure all GUI elements are updated
+-- Ensure All GUI Elements are Updated and Saved
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
@@ -343,3 +429,6 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings) -- Added settings section
 SaveManager:BuildConfigSection(Tabs.Settings) -- Added config section
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
+
+-- Optional: Initialize any additional settings or configurations here
+
