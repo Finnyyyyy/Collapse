@@ -38,6 +38,8 @@ local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
 
         if cashAuraEnabled then
             startCashAura()
+        else
+            getgenv().cashAura = false
         end
     end
 })
@@ -150,6 +152,17 @@ AutofarmToggle:OnChanged(function(value)
 
     if autofarmEnabled then
         startAutofarm()
+    end
+end)
+
+CashAuraToggle:OnChanged(function(value)
+    cashAuraEnabled = value
+    getgenv().cashAura = cashAuraEnabled
+
+    if cashAuraEnabled then
+        startCashAura()
+    else
+        getgenv().cashAura = false
     end
 end)
 
