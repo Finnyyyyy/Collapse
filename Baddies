@@ -5,6 +5,7 @@
     - Cash Aura Toggle
     - Box ESP Toggle (Disabled by default)
     - Health ESP Toggle (Disabled by default)
+    - Name ESP Toggle (Disabled by default)
     - Settings and Save Manager
     Author: Finny<3
 --]]
@@ -37,6 +38,7 @@ local autofarmEnabled = false
 local cashAuraEnabled = false
 local boxESPEnabled = false -- Disabled by default
 local healthESPEnabled = false -- Disabled by default
+local nameESPEnabled = false -- Disabled by default
 
 -- Add Toggles to Main Tab
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
@@ -70,6 +72,12 @@ local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
     -- Callback removed; using OnChanged instead
 })
 
+-- **New Toggle: Name ESP**
+local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
+    Title = "Name ESP",
+    Default = false, -- Disabled by default
+})
+
 -- Table to Track ESP Elements per Player
 local ESPElements = {}
 
@@ -90,7 +98,7 @@ local Config = {
     HealthBarSide = "Left", -- Side of the box where the health bar appears ("Left", "Bottom", "Right")
 
     -- Name Display Settings
-    Names = true, -- Enable or disable the name display
+    Names = false, -- Disable the name display by default
     NamesColor = Color3.fromRGB(255, 255, 255), -- Color of the name text (white)
     NamesOutline = true, -- Enable or disable the outline around the name text
     NamesOutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the name text outline (black)
@@ -120,11 +128,12 @@ local function startAutofarm()
     local function getMoney()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
-                cashPickedUp = true
-                plr.Character.HumanoidRootPart.CFrame = m.CFrame
-                fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1) -- Increased delay for picking up cash
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 15 then
+                if m:FindFirstChild("ProximityPrompt") then
+                    cashPickedUp = true
+                    fireproximityprompt(m.ProximityPrompt, 1) -- Reduced hold duration
+                    task.wait(0.1) -- Increased delay for picking up cash
+                end
             end
         end
         return cashPickedUp
@@ -182,10 +191,12 @@ local function startCashAura()
     local function getMoney()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
-                cashPickedUp = true
-                fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1) -- Increased delay for picking up cash
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 15 then
+                if m:FindFirstChild("ProximityPrompt") then
+                    cashPickedUp = true
+                    fireproximityprompt(m.ProximityPrompt, 1) -- Reduced hold duration
+                    task.wait(0.1) -- Increased delay for picking up cash
+                end
             end
         end
         return cashPickedUp
@@ -346,6 +357,10 @@ local function updateESPVisibility()
         if elements.HealthBar then
             elements.HealthBar.Visible = healthESPEnabled and elements.IsVisible
         end
+
+        if elements.Name then
+            elements.Name.Visible = Config.Names and elements.IsVisible
+        end
     end
 end
 
@@ -360,6 +375,13 @@ HealthToggle:OnChanged(function(value)
     updateESPVisibility()
 end)
 
+-- **Connect OnChanged Event for NameESP Toggle**
+NameToggle:OnChanged(function(value)
+    nameESPEnabled = value
+    Config.Names = nameESPEnabled
+    updateESPVisibility()
+end)
+
 -- Connect OnChanged Event for Autofarm Toggle
 AutofarmToggle:OnChanged(function(value)
     autofarmEnabled = value
@@ -369,6 +391,9 @@ AutofarmToggle:OnChanged(function(value)
         startAutofarm()
     end
 end)
+
+-- Connect OnChanged Event for CashAura Toggle
+-- (Already connected above in the CashAuraToggle definition)
 
 -- Function to Create ESP for All Current Players
 local function initializeESP()
@@ -431,4 +456,3 @@ Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
 
 -- Optional: Initialize any additional settings or configurations here
-
