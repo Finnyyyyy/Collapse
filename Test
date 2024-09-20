@@ -66,9 +66,9 @@ local Config = {
     NamesFont = 2, -- Font style (0: SciFi, 1: System, 2: Parchment, 3: SourceSans)
     NamesSize = 13, -- Size of the name text
 
-    -- Tracer Settings
+    -- **Tracer Settings**
     Tracers = false, -- Disable tracers by default
-    TracerColor = Color3.fromRGB(0, 255, 50), -- Color of the tracers (green)
+    TracerColor = Color3.fromRGB(255, 255, 255), -- **Changed to white**
     TracerThickness = 1.4, -- Thickness of the tracers
     TracerTransparency = 1, -- Transparency of the tracers (1: Fully Visible, 0: Invisible)
 }
@@ -265,7 +265,7 @@ local function CreateEsp(Player)
     HealthBar.Visible = healthESPEnabled -- Initially visible based on toggle
 
     -- **Tracer Configuration**
-    Tracer.From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+    Tracer.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y)
     Tracer.To = Vector2.new(0, 0)
     Tracer.Color = Config.TracerColor
     Tracer.Thickness = Config.TracerThickness
