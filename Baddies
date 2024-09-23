@@ -6,6 +6,7 @@
     - Box ESP Toggle (Disabled by default)
     - Health ESP Toggle (Disabled by default)
     - Name ESP Toggle (Disabled by default)
+    - Tracers Toggle (Disabled by default)
     - Settings and Save Manager
     Author: Finny<3
 --]]
@@ -39,47 +40,7 @@ local cashAuraEnabled = false
 local boxESPEnabled = false -- Disabled by default
 local healthESPEnabled = false -- Disabled by default
 local nameESPEnabled = false -- Disabled by default
-
--- Add Toggles to Main Tab
-local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
-    Title = "Autofarm (Enable Punch before toggling)",
-    Default = false
-})
-
-local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
-    Title = "Cash Aura",
-    Default = false, -- Disabled by default
-    Callback = function(value)
-        cashAuraEnabled = value
-        getgenv().cashAura = cashAuraEnabled
-
-        if cashAuraEnabled then
-            startCashAura()
-        end
-    end
-})
-
--- Add Toggles to Visuals Tab
-local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
-    Title = "Box ESP",
-    Default = false, -- Disabled by default
-    -- Callback removed; using OnChanged instead
-})
-
-local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
-    Title = "Health ESP",
-    Default = false, -- Disabled by default
-    -- Callback removed; using OnChanged instead
-})
-
--- **New Toggle: Name ESP**
-local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
-    Title = "Name ESP",
-    Default = false, -- Disabled by default
-})
-
--- Table to Track ESP Elements per Player
-local ESPElements = {}
+local tracersEnabled = false -- Disabled by default
 
 -- ESP Configuration Table
 local Config = {
@@ -103,10 +64,71 @@ local Config = {
     NamesOutline = true, -- Enable or disable the outline around the name text
     NamesOutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the name text outline (black)
     NamesFont = 2, -- Font style (0: SciFi, 1: System, 2: Parchment, 3: SourceSans)
-    NamesSize = 13 -- Size of the name text
+    NamesSize = 13, -- Size of the name text
+
+    -- Tracer Settings
+    Tracers = false, -- Disable tracers by default
+    TracerColor = Color3.fromRGB(255, 255, 255), -- Changed to white
+    TracerThickness = 1.4, -- Thickness of the tracers
+    TracerTransparency = 1, -- Transparency of the tracers (1: Fully Visible, 0: Invisible)
 }
 
--- Autofarm Functionality
+-- Add Toggles to Main Tab
+local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
+    Title = "Autofarm (Enable Punch before toggling)",
+    Default = false
+})
+
+local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
+    Title = "Cash Aura",
+    Default = false, -- Disabled by default
+    Callback = function(value)
+        cashAuraEnabled = value
+        getgenv().cashAura = cashAuraEnabled
+
+        if cashAuraEnabled and not getgenv().cashAuraRunning then
+            getgenv().cashAuraRunning = true
+            -- Start Cash Aura in a separate thread to prevent blocking
+            spawn(function()
+                startCashAura()
+                getgenv().cashAuraRunning = false
+            end)
+        elseif not cashAuraEnabled and getgenv().cashAuraRunning then
+            -- Cash Aura will stop automatically as the loop checks getgenv().cashAura
+            -- Optionally, you can add a notification or log
+            print("Cash Aura has been disabled.")
+        end
+    end
+})
+
+-- Add Toggles to Visuals Tab
+local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
+    Title = "Box ESP",
+    Default = false, -- Disabled by default
+    -- Callback removed; using OnChanged instead
+})
+
+local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
+    Title = "Health ESP",
+    Default = false, -- Disabled by default
+    -- Callback removed; using OnChanged instead
+})
+
+-- New Toggles: Name ESP and Tracers
+local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
+    Title = "Name ESP",
+    Default = false, -- Disabled by default
+})
+
+local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
+    Title = "Tracers",
+    Default = false, -- Disabled by default
+})
+
+-- Table to Track ESP Elements per Player
+local ESPElements = {}
+
+-- Autofarm Functionality (As per User's Code)
 local function startAutofarm()
     local plr = game.Players.LocalPlayer
     local cash = workspace:FindFirstChild("Cash")
@@ -118,22 +140,22 @@ local function startAutofarm()
     end
 
     -- Prevent player from being idled
-    if plr and plr.Idled then
-        for _, connection in pairs(getconnections(plr.Idled)) do
-            connection:Disable()
-        end
+    for _, v in next, getconnections(plr.Idled) do
+        v:Disable()
     end
 
-    -- Function to pick up cash
-    local function getMoney()
+    -- Function to pick up cash with teleportation
+    local function getMoneyAutofarm()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 15 then
-                if m:FindFirstChild("ProximityPrompt") then
-                    cashPickedUp = true
-                    fireproximityprompt(m.ProximityPrompt, 1) -- Reduced hold duration
-                    task.wait(0.1) -- Increased delay for picking up cash
-                end
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
+                cashPickedUp = true
+                plr.Character.HumanoidRootPart.CFrame = m.CFrame
+                fireproximityprompt(m.ProximityPrompt, 6)
+                task.wait(0.1) -- Increased delay for picking up cash
+            end
+            if not getgenv().farm then
+                break
             end
         end
         return cashPickedUp
@@ -162,7 +184,7 @@ local function startAutofarm()
                     local cashPickedUp
                     repeat
                         if not getgenv().farm then break end
-                        cashPickedUp = getMoney()
+                        cashPickedUp = getMoneyAutofarm()
                         task.wait(0.1) -- Increased delay for picking up cash
                     until tick() >= endTime and not cashPickedUp
 
@@ -177,7 +199,7 @@ local function startAutofarm()
     end
 end
 
--- CashAura Functionality
+-- Cash Aura Functionality (As per User's Code)
 local function startCashAura()
     local plr = game.Players.LocalPlayer
     local cash = workspace:FindFirstChild("Cash")
@@ -187,16 +209,17 @@ local function startCashAura()
         return
     end
 
-    -- Function to pick up cash
-    local function getMoney()
+    -- Function to pick up cash without teleporting
+    local function getMoneyAura()
         local cashPickedUp = false
         for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 15 then
-                if m:FindFirstChild("ProximityPrompt") then
-                    cashPickedUp = true
-                    fireproximityprompt(m.ProximityPrompt, 1) -- Reduced hold duration
-                    task.wait(0.1) -- Increased delay for picking up cash
-                end
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
+                cashPickedUp = true
+                fireproximityprompt(m.ProximityPrompt, 6)
+                task.wait(0.1) -- Increased delay for picking up cash
+            end
+            if not getgenv().cashAura then
+                break
             end
         end
         return cashPickedUp
@@ -205,12 +228,27 @@ local function startCashAura()
     -- Main cash aura loop
     while getgenv().cashAura do
         pcall(function()
-            getMoney()
+            getMoneyAura()
             task.wait(1) -- Check every 1 second
         end)
         task.wait(1)
     end
 end
+
+-- Toggle Actions for Autofarm
+AutofarmToggle:OnChanged(function(value)
+    autofarmEnabled = value
+    getgenv().farm = autofarmEnabled
+
+    if autofarmEnabled then
+        spawn(function()
+            startAutofarm()
+        end)
+    end
+end)
+
+-- Toggle Actions for Cash Aura
+-- Already handled in the CashAuraToggle's Callback above
 
 -- Function to Create ESP for a Player
 local function CreateEsp(Player)
@@ -221,6 +259,7 @@ local function CreateEsp(Player)
     local BoxOutline = Drawing.new("Square")
     local Name = Drawing.new("Text")
     local HealthBar = Drawing.new("Square")
+    local Tracer = Drawing.new("Line") -- Tracer Drawing
 
     -- Initial configuration for ESP elements
     Box.Filled = false -- Transparent inside
@@ -249,12 +288,21 @@ local function CreateEsp(Player)
     HealthBar.ZIndex = 70
     HealthBar.Visible = healthESPEnabled -- Initially visible based on toggle
 
+    -- Tracer Configuration
+    Tracer.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y)
+    Tracer.To = Vector2.new(0, 0)
+    Tracer.Color = Config.TracerColor
+    Tracer.Thickness = Config.TracerThickness
+    Tracer.Transparency = Config.TracerTransparency
+    Tracer.Visible = tracersEnabled -- Initially visible based on toggle
+
     -- Store ESP elements in the table
     ESPElements[Player] = {
         Box = Box,
         BoxOutline = BoxOutline,
         Name = Name,
         HealthBar = HealthBar,
+        Tracer = Tracer, -- Store Tracer
         IsVisible = false
     }
 
@@ -326,12 +374,22 @@ local function CreateEsp(Player)
                 Name.Visible = false
             end
 
+            -- Update Tracer ESP
+            if Config.Tracers then
+                Tracer.Visible = IsVisible
+                Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                Tracer.To = Vector2.new(Target2dPosition.X, Target2dPosition.Y)
+            else
+                Tracer.Visible = false
+            end
+
         else
             -- Hide ESP elements if player is not valid
             Box.Visible = false
             BoxOutline.Visible = false
             Name.Visible = false
             HealthBar.Visible = false
+            Tracer.Visible = false -- Hide Tracer
         end
     end)
 
@@ -341,6 +399,7 @@ local function CreateEsp(Player)
         BoxOutline:Remove()
         Name:Remove()
         HealthBar:Remove()
+        Tracer:Remove() -- Remove Tracer
         Updater:Disconnect()
         ESPElements[Player] = nil
     end)
@@ -361,39 +420,39 @@ local function updateESPVisibility()
         if elements.Name then
             elements.Name.Visible = Config.Names and elements.IsVisible
         end
+
+        if elements.Tracer then
+            elements.Tracer.Visible = Config.Tracers and elements.IsVisible
+        end
     end
 end
 
 -- Connect OnChanged Events for BoxESP and HealthESP Toggles
 BoxToggle:OnChanged(function(value)
     boxESPEnabled = value
+    Config.Box = boxESPEnabled
     updateESPVisibility()
 end)
 
 HealthToggle:OnChanged(function(value)
     healthESPEnabled = value
+    Config.HealthBar = healthESPEnabled
     updateESPVisibility()
 end)
 
--- **Connect OnChanged Event for NameESP Toggle**
+-- Connect OnChanged Event for NameESP Toggle
 NameToggle:OnChanged(function(value)
     nameESPEnabled = value
     Config.Names = nameESPEnabled
     updateESPVisibility()
 end)
 
--- Connect OnChanged Event for Autofarm Toggle
-AutofarmToggle:OnChanged(function(value)
-    autofarmEnabled = value
-    getgenv().farm = autofarmEnabled
-
-    if autofarmEnabled then
-        startAutofarm()
-    end
+-- Connect OnChanged Event for Tracers Toggle
+TracerToggle:OnChanged(function(value)
+    tracersEnabled = value
+    Config.Tracers = tracersEnabled
+    updateESPVisibility()
 end)
-
--- Connect OnChanged Event for CashAura Toggle
--- (Already connected above in the CashAuraToggle definition)
 
 -- Function to Create ESP for All Current Players
 local function initializeESP()
@@ -427,15 +486,10 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
         ESPElements[player].BoxOutline:Remove()
         ESPElements[player].Name:Remove()
         ESPElements[player].HealthBar:Remove()
+        ESPElements[player].Tracer:Remove() -- Remove Tracer
         ESPElements[player] = nil
     end
 end)
-
--- Function to Start Cash Aura (if enabled)
--- Already implemented in CashAuraToggle Callback
-
--- Function to Start Autofarm (if enabled)
--- Already implemented in AutofarmToggle Callback
 
 -- ESP Update Function (optional, can be used for additional updates)
 local function updateESP()
@@ -455,4 +509,3 @@ SaveManager:BuildConfigSection(Tabs.Settings) -- Added config section
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
 
--- Optional: Initialize any additional settings or configurations here
