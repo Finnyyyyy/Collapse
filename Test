@@ -206,7 +206,7 @@ local function startCashAura()
                 print("No cash collected this loop. Retrying...")
             end
             
-            task.wait(1)
+            task.wait(0.1)
         end
     end
 
