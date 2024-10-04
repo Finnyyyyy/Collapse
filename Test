@@ -2,12 +2,12 @@
     Complete Roblox Script with Fluent GUI
     Features:
     - Autofarm Toggle
-    - Cash Aura Toggle (Updated)
-    - Box ESP Toggle (Disabled by default)
-    - Health ESP Toggle (Disabled by default)
-    - Name ESP Toggle (Disabled by default)
-    - Tracers Toggle (Disabled by default)
-    - Skeleton ESP Toggle (Disabled by default)
+    - Cash Aura Toggle (Updated and Fixed)
+    - Box ESP Toggle
+    - Health ESP Toggle
+    - Name ESP Toggle
+    - Tracers Toggle
+    - Skeleton ESP Toggle
     - Settings and Save Manager
     Author: Finny<3
 --]]
@@ -46,13 +46,13 @@ local skeletonESPEnabled = false
 
 -- ESP Configuration Table
 local Config = {
-    Box = true,
+    Box = false,
     BoxColor = Color3.fromRGB(255, 255, 255),
     BoxThickness = 1,
     BoxOutline = true,
     BoxOutlineColor = Color3.fromRGB(255, 255, 255),
     BoxOutlineThickness = 1,
-    HealthBar = true,
+    HealthBar = false,
     HealthBarSide = "Left",
     Names = false,
     NamesColor = Color3.fromRGB(255, 255, 255),
@@ -169,6 +169,8 @@ local function startAutofarm()
 end
 
 -- Updated Cash Aura Functionality
+local cashAuraConnection = nil
+
 local function startCashAura()
     local player = game.Players.LocalPlayer
     local cashFolder = workspace:FindFirstChild("Cash")
@@ -208,7 +210,14 @@ local function startCashAura()
         end
     end
 
-    spawn(collectCash)
+    cashAuraConnection = spawn(collectCash)
+end
+
+local function stopCashAura()
+    if cashAuraConnection then
+        cashAuraConnection:Disconnect()
+        cashAuraConnection = nil
+    end
 end
 
 -- Add Toggles to Main Tab
@@ -219,15 +228,7 @@ local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
 
 local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
     Title = "Cash Aura",
-    Default = false,
-    Callback = function(value)
-        cashAuraEnabled = value
-        if cashAuraEnabled then
-            startCashAura()
-        else
-            print("Cash Aura has been disabled.")
-        end
-    end
+    Default = false
 })
 
 -- Add Toggles to Visuals Tab
@@ -376,16 +377,14 @@ local function CreateEsp(Player)
                 end
 
                 local healthPercent = Humanoid.Health / Humanoid.MaxHealth
-                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), health
-
-local healthPercent = Humanoid.Health / Humanoid.MaxHealth
                 HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), healthPercent)
             else
                 HealthBar.Visible = false
             end
 
             if Config.Names then
-                Name.Visible = IsVisible
+
+Name.Visible = IsVisible
                 Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
                 Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
             else
@@ -569,6 +568,16 @@ AutofarmToggle:OnChanged(function(value)
         spawn(function()
             startAutofarm()
         end)
+    end
+end)
+
+-- Toggle Actions for Cash Aura
+CashAuraToggle:OnChanged(function(value)
+    cashAuraEnabled = value
+    if cashAuraEnabled then
+        startCashAura()
+    else
+        stopCashAura()
     end
 end)
 
