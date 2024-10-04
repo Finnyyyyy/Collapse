@@ -93,7 +93,7 @@ local function startAutofarm()
                 cashPickedUp = true
                 plr.Character.HumanoidRootPart.CFrame = m.CFrame
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1)
+                task.wait(0.2)
             end
             if not getgenv().farm then
                 break
@@ -194,7 +194,7 @@ local function startCashAura()
                 if cash:IsA("Part") and cash:FindFirstChild("ProximityPrompt") then
                     local distance = (cash.Position - player.Character.HumanoidRootPart.Position).Magnitude
 
-                    if distance <= 10 then
+                    if distance <= 25 then
                         cashCollected = true
                         fireproximityprompt(cash.ProximityPrompt, 6)
                         task.wait(0.1)
