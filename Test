@@ -2,14 +2,14 @@
     Complete Roblox Script with Fluent GUI
     Features:
     - Autofarm Toggle
-    - Cash Aura Toggle
+    - Cash Aura Toggle (Updated)
     - Box ESP Toggle (Disabled by default)
     - Health ESP Toggle (Disabled by default)
     - Name ESP Toggle (Disabled by default)
     - Tracers Toggle (Disabled by default)
-    - Skeleton ESP Toggle (New feature, disabled by default)
+    - Skeleton ESP Toggle (Disabled by default)
     - Settings and Save Manager
-    Author: Finny<3 (Updated by Assistant)
+    Author: Finny<3
 --]]
 
 -- Load Fluent and its Addons
@@ -38,47 +38,178 @@ local Tabs = {
 -- Initialize Toggle States
 local autofarmEnabled = false
 local cashAuraEnabled = false
-local boxESPEnabled = false -- Disabled by default
-local healthESPEnabled = false -- Disabled by default
-local nameESPEnabled = false -- Disabled by default
-local tracersEnabled = false -- Disabled by default
-local skeletonESPEnabled = false -- New: Disabled by default
+local boxESPEnabled = false
+local healthESPEnabled = false
+local nameESPEnabled = false
+local tracersEnabled = false
+local skeletonESPEnabled = false
 
 -- ESP Configuration Table
 local Config = {
-    -- Box Settings
     Box = true,
     BoxColor = Color3.fromRGB(255, 255, 255),
     BoxThickness = 1,
-
-    -- Box Outline Settings
     BoxOutline = true,
     BoxOutlineColor = Color3.fromRGB(255, 255, 255),
     BoxOutlineThickness = 1,
-
-    -- Health Bar Settings
     HealthBar = true,
     HealthBarSide = "Left",
-
-    -- Name Display Settings
     Names = false,
     NamesColor = Color3.fromRGB(255, 255, 255),
     NamesOutline = true,
     NamesOutlineColor = Color3.fromRGB(0, 0, 0),
     NamesFont = 2,
     NamesSize = 13,
-
-    -- Tracer Settings
     Tracers = false,
     TracerColor = Color3.fromRGB(255, 255, 255),
     TracerThickness = 1.4,
     TracerTransparency = 1,
-
-    -- Skeleton Settings (New)
     Skeleton = false,
     SkeletonColor = Color3.fromRGB(255, 255, 255),
     SkeletonThickness = 1
 }
+
+-- Autofarm Functionality
+local function startAutofarm()
+    local plr = game.Players.LocalPlayer
+    local cash = workspace:FindFirstChild("Cash")
+    local dmg = workspace:FindFirstChild("Damageables")
+
+    if not cash or not dmg then
+        warn("Cash or Damageables folder not found in the workspace.")
+        return
+    end
+
+    -- Prevent player from being idled
+    for _, v in next, getconnections(plr.Idled) do
+        v:Disable()
+    end
+
+    -- Function to pick up cash with teleportation
+    local function getMoneyAutofarm()
+        local cashPickedUp = false
+        for _, m in pairs(cash:GetChildren()) do
+            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
+                cashPickedUp = true
+                plr.Character.HumanoidRootPart.CFrame = m.CFrame
+                fireproximityprompt(m.ProximityPrompt, 6)
+                task.wait(0.1)
+            end
+            if not getgenv().farm then
+                break
+            end
+        end
+        return cashPickedUp
+    end
+
+    -- Main autofarm loop
+    while getgenv().farm do
+        pcall(function()
+            local Noclip = nil
+            local Clip = nil
+
+            function noclip()
+                Clip = false
+                local function Nocl()
+                    if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+                        for _,v in pairs(game.Workspace.Damageables:GetDescendants()) do
+                            if v:IsA('Model') and v.Name == 'ATM' then
+                                for _, part in pairs(v:GetDescendants()) do
+                                    if part:IsA('BasePart') and part.CanCollide then
+                                        part.CanCollide = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    wait(0.21)
+                end
+                Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+            end
+
+            function clip()
+                if Noclip then Noclip:Disconnect() end
+                Clip = true
+            end
+
+            noclip()
+
+            for _, a in ipairs(dmg:GetChildren()) do
+                if not getgenv().farm then break end
+                if a:FindFirstChild("Damageable") and a.Damageable.Value > 0 and a.Name ~= "CashRegister" then
+                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 0)
+                    task.wait(0.3)
+
+                    -- Break the ATM
+                    repeat
+                        if not getgenv().farm then break end
+                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 0)
+                        game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
+                        task.wait(0.5)
+                    until a.Damageable.Value <= 0
+
+                    -- Ensure all cash is picked up before moving to the next ATM
+                    local endTime = tick() + 2
+                    local cashPickedUp
+                    repeat
+                        if not getgenv().farm then break end
+                        cashPickedUp = getMoneyAutofarm()
+                        task.wait(0.2)
+                    until tick() >= endTime and not cashPickedUp
+
+                    -- Move to next ATM if no cash was picked up
+                    if not cashPickedUp then
+                        task.wait(0.5)
+                    end
+                end
+            end
+        end)
+        task.wait(1)
+    end
+end
+
+-- Updated Cash Aura Functionality
+local function startCashAura()
+    local player = game.Players.LocalPlayer
+    local cashFolder = workspace:FindFirstChild("Cash")
+
+    if not cashFolder then
+        warn("Cash folder not found in the workspace.")
+        return
+    end
+
+    -- Prevent player from being idled
+    for _, connection in ipairs(getconnections(player.Idled)) do
+        connection:Disable()
+    end
+
+    -- Function to collect cash
+    local function collectCash()
+        while cashAuraEnabled do
+            local cashCollected = false
+            
+            for _, cash in pairs(cashFolder:GetChildren()) do
+                if cash:IsA("Part") and cash:FindFirstChild("ProximityPrompt") then
+                    local distance = (cash.Position - player.Character.HumanoidRootPart.Position).Magnitude
+
+                    if distance <= 10 then
+                        cashCollected = true
+                        fireproximityprompt(cash.ProximityPrompt, 6)
+                        task.wait(0.1)
+                    end
+                end
+            end
+
+            if not cashCollected then
+                print("No cash collected this loop. Retrying...")
+            end
+            
+            task.wait(1)
+        end
+    end
+
+    spawn(collectCash)
+end
 
 -- Add Toggles to Main Tab
 local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
@@ -91,15 +222,9 @@ local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
     Default = false,
     Callback = function(value)
         cashAuraEnabled = value
-        getgenv().cashAura = cashAuraEnabled
-
-        if cashAuraEnabled and not getgenv().cashAuraRunning then
-            getgenv().cashAuraRunning = true
-            spawn(function()
-                startCashAura()
-                getgenv().cashAuraRunning = false
-            end)
-        elseif not cashAuraEnabled and getgenv().cashAuraRunning then
+        if cashAuraEnabled then
+            startCashAura()
+        else
             print("Cash Aura has been disabled.")
         end
     end
@@ -126,7 +251,6 @@ local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
     Default = false,
 })
 
--- New Skeleton Toggle
 local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
     Title = "Skeleton ESP",
     Default = false,
@@ -134,116 +258,6 @@ local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
 
 -- Table to Track ESP Elements per Player
 local ESPElements = {}
-
--- Autofarm Functionality
-local function startAutofarm()
-    local plr = game.Players.LocalPlayer
-    local cash = workspace:FindFirstChild("Cash")
-    local dmg = workspace:FindFirstChild("Damageables")
-
-    if not cash or not dmg then
-        warn("Cash or Damageables folder not found in the workspace.")
-        return
-    end
-
-    for _, v in next, getconnections(plr.Idled) do
-        v:Disable()
-    end
-
-    local function getMoneyAutofarm()
-        local cashPickedUp = false
-        for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
-                cashPickedUp = true
-                plr.Character.HumanoidRootPart.CFrame = m.CFrame
-                fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1)
-            end
-            if not getgenv().farm then
-                break
-            end
-        end
-        return cashPickedUp
-    end
-
-    while getgenv().farm do
-        pcall(function()
-            for _, a in ipairs(dmg:GetChildren()) do
-                if not getgenv().farm then break end
-                if a:FindFirstChild("Damageable") and a.Damageable.Value > 0 and a.Name ~= "CashRegister" then
-                    plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 3, 2)
-                    task.wait(1)
-
-                    repeat
-                        if not getgenv().farm then break end
-                        plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 3, 2)
-                        game:GetService("ReplicatedStorage"):WaitForChild("PUNCHEVENT"):FireServer(1)
-                        task.wait(0.5)
-                    until a.Damageable.Value <= 0
-
-                    local endTime = tick() + 2
-                    local cashPickedUp
-                    repeat
-                        if not getgenv().farm then break end
-                        cashPickedUp = getMoneyAutofarm()
-                        task.wait(0.1)
-                    until tick() >= endTime and not cashPickedUp
-
-                    if not cashPickedUp then
-                        task.wait(0.5)
-                    end
-                end
-            end
-        end)
-        task.wait(1)
-    end
-end
-
--- Cash Aura Functionality
-local function startCashAura()
-    local plr = game.Players.LocalPlayer
-    local cash = workspace:FindFirstChild("Cash")
-
-    if not cash then
-        warn("Cash folder not found in the workspace.")
-        return
-    end
-
-    local function getMoneyAura()
-        local cashPickedUp = false
-        for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
-                cashPickedUp = true
-                fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1)
-            end
-            if not getgenv().cashAura then
-                break
-            end
-        end
-        return cashPickedUp
-    end
-
-    while getgenv().cashAura do
-        pcall(function()
-            getMoneyAura()
-            task.wait(1)
-        end)
-        task.wait(1)
-    end
-end
-
--- Toggle Actions for Autofarm
-AutofarmToggle:OnChanged(function(value)
-    autofarmEnabled = value
-    getgenv().farm = autofarmEnabled
-
-    if autofarmEnabled then
-        spawn(function()
-            startAutofarm()
-        end)
-    end
-end)
 
 -- Function to Create ESP for a Player
 local function CreateEsp(Player)
@@ -254,8 +268,6 @@ local function CreateEsp(Player)
     local Name = Drawing.new("Text")
     local HealthBar = Drawing.new("Square")
     local Tracer = Drawing.new("Line")
-    
-    -- New: Skeleton Lines
     local SkeletonLines = {
         Head = Drawing.new("Line"),
         UpperTorso = Drawing.new("Line"),
@@ -303,7 +315,6 @@ local function CreateEsp(Player)
     Tracer.Transparency = Config.TracerTransparency
     Tracer.Visible = tracersEnabled
 
-    -- Configure Skeleton Lines
     for _, line in pairs(SkeletonLines) do
         line.Thickness = Config.SkeletonThickness
         line.Color = Config.SkeletonColor
@@ -365,6 +376,9 @@ local function CreateEsp(Player)
                 end
 
                 local healthPercent = Humanoid.Health / Humanoid.MaxHealth
+                HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), health
+
+local healthPercent = Humanoid.Health / Humanoid.MaxHealth
                 HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), healthPercent)
             else
                 HealthBar.Visible = false
@@ -380,14 +394,12 @@ local function CreateEsp(Player)
 
             if Config.Tracers then
                 Tracer.Visible = IsVisible
-                Tracer.From =</antArtifact>
-Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                 Tracer.To = Vector2.new(Target2dPosition.X, Target2dPosition.Y)
             else
                 Tracer.Visible = false
             end
 
-            -- Update Skeleton ESP
             if Config.Skeleton then
                 local function worldToViewportPoint(position)
                     local screenPosition, onScreen = Camera:WorldToViewportPoint(position)
@@ -423,7 +435,6 @@ Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                     line.Visible = false
                 end
             end
-
         else
             Box.Visible = false
             BoxOutline.Visible = false
@@ -546,6 +557,18 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
             line:Remove()
         end
         ESPElements[player] = nil
+    end
+end)
+
+-- Toggle Actions for Autofarm
+AutofarmToggle:OnChanged(function(value)
+    autofarmEnabled = value
+    getgenv().farm = autofarmEnabled
+
+    if autofarmEnabled then
+        spawn(function()
+            startAutofarm()
+        end)
     end
 end)
 
