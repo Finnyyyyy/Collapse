@@ -2,11 +2,12 @@
     Complete Roblox Script with Fluent GUI
     Features:
     - Autofarm Toggle
-    - Cash Aura Toggle
-    - Box ESP Toggle (Disabled by default)
-    - Health ESP Toggle (Disabled by default)
-    - Name ESP Toggle (Disabled by default)
-    - Tracers Toggle (Disabled by default)
+    - Cash Aura Toggle (Updated and Fixed)
+    - Box ESP Toggle
+    - Health ESP Toggle
+    - Name ESP Toggle
+    - Tracers Toggle
+    - Skeleton ESP Toggle
     - Settings and Save Manager
     Author: Finny<3
 --]]
@@ -37,110 +38,38 @@ local Tabs = {
 -- Initialize Toggle States
 local autofarmEnabled = false
 local cashAuraEnabled = false
-local boxESPEnabled = false -- Disabled by default
-local healthESPEnabled = false -- Disabled by default
-local nameESPEnabled = false -- Disabled by default
-local tracersEnabled = false -- Disabled by default
-local skeletonESPEnabled = false -- New: Disabled by default
+local boxESPEnabled = false
+local healthESPEnabled = false
+local nameESPEnabled = false
+local tracersEnabled = false
+local skeletonESPEnabled = false
 
 -- ESP Configuration Table
 local Config = {
-    -- Box Settings
-    Box = true, -- Enable or disable the box around players
-    BoxColor = Color3.fromRGB(255, 255, 255), -- Color of the box border (white)
-    BoxThickness = 1, -- Thickness of the box border
-
-    -- Box Outline Settings
-    BoxOutline = true, -- Enable or disable the box outline
-    BoxOutlineColor = Color3.fromRGB(255, 255, 255), -- Color of the box outline (white)
-    BoxOutlineThickness = 1, -- Thickness of the box outline border
-
-    -- Health Bar Settings
-    HealthBar = true, -- Enable or disable the health bar
-    HealthBarSide = "Left", -- Side of the box where the health bar appears ("Left", "Bottom", "Right")
-
-    -- Name Display Settings
-    Names = false, -- Disable the name display by default
-    NamesColor = Color3.fromRGB(255, 255, 255), -- Color of the name text (white)
-    NamesOutline = true, -- Enable or disable the outline around the name text
-    NamesOutlineColor = Color3.fromRGB(0, 0, 0), -- Color of the name text outline (black)
-    NamesFont = 2, -- Font style (0: SciFi, 1: System, 2: Parchment, 3: SourceSans)
-    NamesSize = 13, -- Size of the name text
-
-    -- Tracer Settings
-    Tracers = false, -- Disable tracers by default
-    TracerColor = Color3.fromRGB(255, 255, 255), -- Changed to white
-    TracerThickness = 1.4, -- Thickness of the tracers
-    TracerTransparency = 1, -- Transparency of the tracers (1: Fully Visible, 0: Invisible)
-
-     -- Skeleton Settings (New)
-     Skeleton = false,
-     SkeletonColor = Color3.fromRGB(255, 255, 255),
-     SkeletonThickness = 1
+    Box = false,
+    BoxColor = Color3.fromRGB(255, 255, 255),
+    BoxThickness = 1,
+    BoxOutline = true,
+    BoxOutlineColor = Color3.fromRGB(255, 255, 255),
+    BoxOutlineThickness = 1,
+    HealthBar = false,
+    HealthBarSide = "Left",
+    Names = false,
+    NamesColor = Color3.fromRGB(255, 255, 255),
+    NamesOutline = true,
+    NamesOutlineColor = Color3.fromRGB(0, 0, 0),
+    NamesFont = 2,
+    NamesSize = 13,
+    Tracers = false,
+    TracerColor = Color3.fromRGB(255, 255, 255),
+    TracerThickness = 1.4,
+    TracerTransparency = 1,
+    Skeleton = false,
+    SkeletonColor = Color3.fromRGB(255, 255, 255),
+    SkeletonThickness = 1
 }
 
--- Add Toggles to Main Tab
-local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
-    Title = "Autofarm (Enable Punch before toggling)",
-    Default = false
-})
-
-local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
-    Title = "Cash Aura",
-    Default = false, -- Disabled by default
-    Callback = function(value)
-        cashAuraEnabled = value
-        getgenv().cashAura = cashAuraEnabled
-
-        if cashAuraEnabled and not getgenv().cashAuraRunning then
-            getgenv().cashAuraRunning = true
-            -- Start Cash Aura in a separate thread to prevent blocking
-            spawn(function()
-                startCashAura()
-                getgenv().cashAuraRunning = false
-            end)
-        elseif not cashAuraEnabled and getgenv().cashAuraRunning then
-            -- Cash Aura will stop automatically as the loop checks getgenv().cashAura
-            -- Optionally, you can add a notification or log
-            print("Cash Aura has been disabled.")
-        end
-    end
-})
-
--- Add Toggles to Visuals Tab
-local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
-    Title = "Box ESP",
-    Default = false, -- Disabled by default
-    -- Callback removed; using OnChanged instead
-})
-
-local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
-    Title = "Health ESP",
-    Default = false, -- Disabled by default
-    -- Callback removed; using OnChanged instead
-})
-
--- New Toggles: Name ESP and Tracers
-local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
-    Title = "Name ESP",
-    Default = false, -- Disabled by default
-})
-
-local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
-    Title = "Tracers",
-    Default = false, -- Disabled by default
-})
-
--- New Skeleton Toggle
-local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
-    Title = "Skeleton ESP",
-    Default = false,
-})
-
--- Table to Track ESP Elements per Player
-local ESPElements = {}
-
--- Autofarm Functionality (As per User's Code)
+-- Autofarm Functionality
 local function startAutofarm()
     local plr = game.Players.LocalPlayer
     local cash = workspace:FindFirstChild("Cash")
@@ -164,7 +93,7 @@ local function startAutofarm()
                 cashPickedUp = true
                 plr.Character.HumanoidRootPart.CFrame = m.CFrame
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1) -- Increased delay for picking up cash
+                task.wait(0.1)
             end
             if not getgenv().farm then
                 break
@@ -176,37 +105,34 @@ local function startAutofarm()
     -- Main autofarm loop
     while getgenv().farm do
         pcall(function()
-            --[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
-local Noclip = nil
-local Clip = nil
+            local Noclip = nil
+            local Clip = nil
 
-function noclip()
-	Clip = false
-	local function Nocl()
-		if Clip == false and game.Players.LocalPlayer.Character ~= nil then
-			for _,v in pairs(game.Workspace.Damageables:GetDescendants()) do
-				if v:IsA('Model') and v.Name == 'ATM' then
-					for _, part in pairs(v:GetDescendants()) do
-						if part:IsA('BasePart') and part.CanCollide then
-							part.CanCollide = false
-						end
-					end
-				end
-			end
-		end
-		wait(0.21) -- basic optimization
-	end
-	Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
-end
+            function noclip()
+                Clip = false
+                local function Nocl()
+                    if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+                        for _,v in pairs(game.Workspace.Damageables:GetDescendants()) do
+                            if v:IsA('Model') and v.Name == 'ATM' then
+                                for _, part in pairs(v:GetDescendants()) do
+                                    if part:IsA('BasePart') and part.CanCollide then
+                                        part.CanCollide = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    wait(0.21)
+                end
+                Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+            end
 
-function clip()
-	if Noclip then Noclip:Disconnect() end
-	Clip = true
-end
+            function clip()
+                if Noclip then Noclip:Disconnect() end
+                Clip = true
+            end
 
-noclip() -- to toggle noclip() and clip()
+            noclip()
 
             for _, a in ipairs(dmg:GetChildren()) do
                 if not getgenv().farm then break end
@@ -228,7 +154,7 @@ noclip() -- to toggle noclip() and clip()
                     repeat
                         if not getgenv().farm then break end
                         cashPickedUp = getMoneyAutofarm()
-                        task.wait(0.2) -- Increased delay for picking up cash
+                        task.wait(0.2)
                     until tick() >= endTime and not cashPickedUp
 
                     -- Move to next ATM if no cash was picked up
@@ -242,67 +168,107 @@ noclip() -- to toggle noclip() and clip()
     end
 end
 
--- Cash Aura Functionality (As per User's Code)
-local function startCashAura()
-    local plr = game.Players.LocalPlayer
-    local cash = workspace:FindFirstChild("Cash")
+-- Updated Cash Aura Functionality
+local cashAuraConnection = nil
 
-    if not cash then
+local function startCashAura()
+    local player = game.Players.LocalPlayer
+    local cashFolder = workspace:FindFirstChild("Cash")
+
+    if not cashFolder then
         warn("Cash folder not found in the workspace.")
         return
     end
 
-    -- Function to pick up cash without teleporting
-    local function getMoneyAura()
-        local cashPickedUp = false
-        for _, m in pairs(cash:GetChildren()) do
-            if m.Name == "Cash" and (m.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 300 then
-                cashPickedUp = true
-                fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.1) -- Increased delay for picking up cash
-            end
-            if not getgenv().cashAura then
-                break
-            end
-        end
-        return cashPickedUp
+    -- Prevent player from being idled
+    for _, connection in ipairs(getconnections(player.Idled)) do
+        connection:Disable()
     end
 
-    -- Main cash aura loop
-    while getgenv().cashAura do
-        pcall(function()
-            getMoneyAura()
-            task.wait(1) -- Check every 1 second
-        end)
-        task.wait(1)
+    -- Function to collect cash
+    local function collectCash()
+        while cashAuraEnabled do
+            local cashCollected = false
+            
+            for _, cash in pairs(cashFolder:GetChildren()) do
+                if cash:IsA("Part") and cash:FindFirstChild("ProximityPrompt") then
+                    local distance = (cash.Position - player.Character.HumanoidRootPart.Position).Magnitude
+
+                    if distance <= 10 then
+                        cashCollected = true
+                        fireproximityprompt(cash.ProximityPrompt, 6)
+                        task.wait(0.1)
+                    end
+                end
+            end
+
+            if not cashCollected then
+                print("No cash collected this loop. Retrying...")
+            end
+            
+            task.wait(0.1)
+        end
+    end
+
+    cashAuraConnection = spawn(collectCash)
+end
+
+local function stopCashAura()
+    if cashAuraConnection then
+        cashAuraConnection:Disconnect()
+        cashAuraConnection = nil
     end
 end
 
--- Toggle Actions for Autofarm
-AutofarmToggle:OnChanged(function(value)
-    autofarmEnabled = value
-    getgenv().farm = autofarmEnabled
+-- Add Toggles to Main Tab
+local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
+    Title = "Autofarm (Enable Punch before toggling)",
+    Default = false
+})
 
-    if autofarmEnabled then
-        spawn(function()
-            startAutofarm()
-        end)
-    end
-end)
+local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
+    Title = "Cash Aura",
+    Default = false
+})
 
--- Toggle Actions for Cash Aura
--- Already handled in the CashAuraToggle's Callback above
+-- Add Toggles to Visuals Tab
+local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
+    Title = "Box ESP",
+    Default = false,
+})
+
+local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
+    Title = "Health ESP",
+    Default = false,
+})
+
+local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
+    Title = "Name ESP",
+    Default = false,
+})
+
+local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
+    Title = "Tracers",
+    Default = false,
+})
+
+local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
+    Title = "Skeleton ESP",
+    Default = false,
+})
+
+-- Table to Track ESP Elements per Player
+local ESPElements = {}
 
 -- Function to Create ESP for a Player
 local function CreateEsp(Player)
-    if ESPElements[Player] then return end -- Prevent duplicate ESPs
+    if ESPElements[Player] then return end
 
-    -- Create Drawing objects for ESP elements
     local Box = Drawing.new("Square")
     local BoxOutline = Drawing.new("Square")
     local Name = Drawing.new("Text")
     local HealthBar = Drawing.new("Square")
-    local Tracer = Drawing.new("Line") -- Tracer Drawing
+    local Tracer = Drawing.new("Line")
     local SkeletonLines = {
         Head = Drawing.new("Line"),
         UpperTorso = Drawing.new("Line"),
@@ -317,18 +283,17 @@ local function CreateEsp(Player)
         RightLowerLeg = Drawing.new("Line")
     }
 
-    -- Initial configuration for ESP elements
-    Box.Filled = false -- Transparent inside
+    Box.Filled = false
     Box.Color = Config.BoxColor
     Box.Thickness = Config.BoxThickness
     Box.ZIndex = 69
-    Box.Visible = boxESPEnabled -- Initially visible based on toggle
+    Box.Visible = boxESPEnabled
 
-    BoxOutline.Filled = false -- Transparent outline fill
+    BoxOutline.Filled = false
     BoxOutline.Color = Config.BoxOutlineColor
     BoxOutline.Thickness = Config.BoxOutlineThickness
-    BoxOutline.ZIndex = 68 -- Ensure it's behind the Box
-    BoxOutline.Visible = Config.BoxOutline and boxESPEnabled -- Initially visible based on toggle
+    BoxOutline.ZIndex = 68
+    BoxOutline.Visible = Config.BoxOutline and boxESPEnabled
 
     Name.Visible = false
     Name.Center = true
@@ -340,55 +305,47 @@ local function CreateEsp(Player)
     Name.ZIndex = 69
 
     HealthBar.Filled = true
-    HealthBar.Color = Color3.fromRGB(0, 255, 0) -- Initial color (green)
+    HealthBar.Color = Color3.fromRGB(0, 255, 0)
     HealthBar.ZIndex = 70
-    HealthBar.Visible = healthESPEnabled -- Initially visible based on toggle
+    HealthBar.Visible = healthESPEnabled
 
-    -- Tracer Configuration
     Tracer.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y)
     Tracer.To = Vector2.new(0, 0)
     Tracer.Color = Config.TracerColor
     Tracer.Thickness = Config.TracerThickness
     Tracer.Transparency = Config.TracerTransparency
-    Tracer.Visible = tracersEnabled -- Initially visible based on toggle
+    Tracer.Visible = tracersEnabled
 
-        -- Configure Skeleton Lines
-        for _, line in pairs(SkeletonLines) do
-            line.Thickness = Config.SkeletonThickness
-            line.Color = Config.SkeletonColor
-            line.Visible = skeletonESPEnabled
-        end
+    for _, line in pairs(SkeletonLines) do
+        line.Thickness = Config.SkeletonThickness
+        line.Color = Config.SkeletonColor
+        line.Visible = skeletonESPEnabled
+    end
 
-    -- Store ESP elements in the table
     ESPElements[Player] = {
         Box = Box,
         BoxOutline = BoxOutline,
         Name = Name,
         HealthBar = HealthBar,
-        Tracer = Tracer, -- Store Tracer
+        Tracer = Tracer,
         SkeletonLines = SkeletonLines,
         IsVisible = false
     }
 
-    -- Connect to player updates
     local Updater = game:GetService("RunService").RenderStepped:Connect(function()
         if Player.Character and Player.Character:FindFirstChild("Humanoid") and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Head") and Player.Character.Humanoid.Health > 0 then
             local Humanoid = Player.Character.Humanoid
             local HRP = Player.Character.HumanoidRootPart
             local Camera = workspace.CurrentCamera
 
-            -- Get the 2D position and visibility of the HumanoidRootPart
             local Target2dPosition, IsVisible = Camera:WorldToViewportPoint(HRP.Position)
 
-            -- Calculate scale factor based on distance
             local distance = (Camera.CFrame.p - HRP.Position).Magnitude
             local scale_factor = 1 / (distance * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
-            local width, height = math.floor(30 * scale_factor), math.floor(45 * scale_factor) -- Adjust box size
+            local width, height = math.floor(30 * scale_factor), math.floor(45 * scale_factor)
 
-            -- Store visibility state
             ESPElements[Player].IsVisible = IsVisible
 
-            -- Update Box ESP
             if boxESPEnabled then
                 Box.Visible = IsVisible
                 Box.Size = Vector2.new(width, height)
@@ -397,7 +354,6 @@ local function CreateEsp(Player)
                 Box.Visible = false
             end
 
-            -- Update Box Outline
             if Config.BoxOutline and boxESPEnabled then
                 BoxOutline.Visible = IsVisible
                 BoxOutline.Size = Vector2.new(width, height)
@@ -406,39 +362,35 @@ local function CreateEsp(Player)
                 BoxOutline.Visible = false
             end
 
-            -- Update Health Bar ESP
             if healthESPEnabled then
                 HealthBar.Visible = IsVisible
 
-                -- Set Health Bar Size and Position based on the side
-                local barWidth = Config.BoxThickness -- Health bar width matches the box thickness
-                local barHeight = height * (Humanoid.Health / Humanoid.MaxHealth) -- Full height of the ESP box
+                local barWidth = Config.BoxThickness
+                local barHeight = height * (Humanoid.Health / Humanoid.MaxHealth)
 
                 if Config.HealthBarSide == "Left" then
                     HealthBar.Size = Vector2.new(barWidth, barHeight)
-                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1) -- Position adjusted slightly down
+                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1)
                 elseif Config.HealthBarSide == "Bottom" then
                     HealthBar.Size = Vector2.new(width - 6, 2)
                     HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
                 end
 
-                -- Set Health Bar Color (Red to Green)
                 local healthPercent = Humanoid.Health / Humanoid.MaxHealth
                 HealthBar.Color = Color3.fromRGB(255, 0, 0):lerp(Color3.fromRGB(0, 255, 0), healthPercent)
             else
                 HealthBar.Visible = false
             end
 
-            -- Update Name Display ESP
             if Config.Names then
-                Name.Visible = IsVisible
+
+Name.Visible = IsVisible
                 Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
                 Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
             else
                 Name.Visible = false
             end
 
-            -- Update Tracer ESP
             if Config.Tracers then
                 Tracer.Visible = IsVisible
                 Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
@@ -446,8 +398,8 @@ local function CreateEsp(Player)
             else
                 Tracer.Visible = false
             end
-             -- Update Skeleton ESP
-             if Config.Skeleton then
+
+            if Config.Skeleton then
                 local function worldToViewportPoint(position)
                     local screenPosition, onScreen = Camera:WorldToViewportPoint(position)
                     return Vector2.new(screenPosition.X, screenPosition.Y), onScreen
@@ -482,30 +434,24 @@ local function CreateEsp(Player)
                     line.Visible = false
                 end
             end
-
         else
-
-
-            -- Hide ESP elements if player is not valid
             Box.Visible = false
             BoxOutline.Visible = false
             Name.Visible = false
             HealthBar.Visible = false
-            Tracer.Visible = false -- Hide Tracer
+            Tracer.Visible = false
             for _, line in pairs(SkeletonLines) do
                 line.Visible = false
             end
         end
     end)
 
-
-    -- Handle Player Removal
     Player.CharacterRemoving:Connect(function()
         Box:Remove()
         BoxOutline:Remove()
         Name:Remove()
         HealthBar:Remove()
-        Tracer:Remove() -- Remove Tracer
+        Tracer:Remove()
         for _, line in pairs(SkeletonLines) do
             line:Remove()
         end
@@ -532,17 +478,17 @@ local function updateESPVisibility()
 
         if elements.Tracer then
             elements.Tracer.Visible = Config.Tracers and elements.IsVisible
+        end
 
-            if elements.SkeletonLines then
-                for _, line in pairs(elements.SkeletonLines) do
-                    line.Visible = Config.Skeleton and elements.IsVisible
-                end
+        if elements.SkeletonLines then
+            for _, line in pairs(elements.SkeletonLines) do
+                line.Visible = Config.Skeleton and elements.IsVisible
             end
         end
     end
 end
 
--- Connect OnChanged Events for BoxESP and HealthESP Toggles
+-- Connect OnChanged Events for ESP Toggles
 BoxToggle:OnChanged(function(value)
     boxESPEnabled = value
     Config.Box = boxESPEnabled
@@ -555,14 +501,12 @@ HealthToggle:OnChanged(function(value)
     updateESPVisibility()
 end)
 
--- Connect OnChanged Event for NameESP Toggle
 NameToggle:OnChanged(function(value)
     nameESPEnabled = value
     Config.Names = nameESPEnabled
     updateESPVisibility()
 end)
 
--- Connect OnChanged Event for Tracers Toggle
 TracerToggle:OnChanged(function(value)
     tracersEnabled = value
     Config.Tracers = tracersEnabled
@@ -607,19 +551,35 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
         ESPElements[player].BoxOutline:Remove()
         ESPElements[player].Name:Remove()
         ESPElements[player].HealthBar:Remove()
-        ESPElements[player].Tracer:Remove() -- Remove Tracer
+        ESPElements[player].Tracer:Remove()
         for _, line in pairs(ESPElements[player].SkeletonLines) do
             line:Remove()
-         end
+        end
         ESPElements[player] = nil
     end
 end)
 
--- ESP Update Function (optional, can be used for additional updates)
-local function updateESP()
-    -- Currently handled within CreateEsp via RenderStepped
-    -- This function can be expanded if needed
-end
+-- Toggle Actions for Autofarm
+AutofarmToggle:OnChanged(function(value)
+    autofarmEnabled = value
+    getgenv().farm = autofarmEnabled
+
+    if autofarmEnabled then
+        spawn(function()
+            startAutofarm()
+        end)
+    end
+end)
+
+-- Toggle Actions for Cash Aura
+CashAuraToggle:OnChanged(function(value)
+    cashAuraEnabled = value
+    if cashAuraEnabled then
+        startCashAura()
+    else
+        stopCashAura()
+    end
+end)
 
 -- Ensure All GUI Elements are Updated and Saved
 SaveManager:SetLibrary(Fluent)
@@ -628,7 +588,7 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings) -- Added settings section
-SaveManager:BuildConfigSection(Tabs.Settings) -- Added config section
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
