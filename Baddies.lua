@@ -211,9 +211,8 @@ noclip() -- to toggle noclip() and clip()
             for _, a in ipairs(dmg:GetChildren()) do
                 if not getgenv().farm then break end
                 if a:FindFirstChild("Damageable") and a.Damageable.Value > 0 and a.Name ~= "CashRegister" then
-                    -- Teleport to 3 studs above the ATM
                     plr.Character.HumanoidRootPart.CFrame = a.Screen.CFrame * CFrame.new(0, 0, 0)
-                    task.wait(1)
+                    task.wait(0.3)
 
                     -- Break the ATM
                     repeat
@@ -229,7 +228,7 @@ noclip() -- to toggle noclip() and clip()
                     repeat
                         if not getgenv().farm then break end
                         cashPickedUp = getMoneyAutofarm()
-                        task.wait(0.1) -- Increased delay for picking up cash
+                        task.wait(0.2) -- Increased delay for picking up cash
                     until tick() >= endTime and not cashPickedUp
 
                     -- Move to next ATM if no cash was picked up
