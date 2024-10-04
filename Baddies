@@ -41,6 +41,7 @@ local boxESPEnabled = false -- Disabled by default
 local healthESPEnabled = false -- Disabled by default
 local nameESPEnabled = false -- Disabled by default
 local tracersEnabled = false -- Disabled by default
+local skeletonESPEnabled = false -- New: Disabled by default
 
 -- ESP Configuration Table
 local Config = {
@@ -71,6 +72,11 @@ local Config = {
     TracerColor = Color3.fromRGB(255, 255, 255), -- Changed to white
     TracerThickness = 1.4, -- Thickness of the tracers
     TracerTransparency = 1, -- Transparency of the tracers (1: Fully Visible, 0: Invisible)
+
+     -- Skeleton Settings (New)
+     Skeleton = false,
+     SkeletonColor = Color3.fromRGB(255, 255, 255),
+     SkeletonThickness = 1
 }
 
 -- Add Toggles to Main Tab
@@ -123,6 +129,12 @@ local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
 local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
     Title = "Tracers",
     Default = false, -- Disabled by default
+})
+
+-- New Skeleton Toggle
+local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
+    Title = "Skeleton ESP",
+    Default = false,
 })
 
 -- Table to Track ESP Elements per Player
@@ -292,6 +304,19 @@ local function CreateEsp(Player)
     local Name = Drawing.new("Text")
     local HealthBar = Drawing.new("Square")
     local Tracer = Drawing.new("Line") -- Tracer Drawing
+    local SkeletonLines = {
+        Head = Drawing.new("Line"),
+        UpperTorso = Drawing.new("Line"),
+        LowerTorso = Drawing.new("Line"),
+        LeftUpperArm = Drawing.new("Line"),
+        LeftLowerArm = Drawing.new("Line"),
+        RightUpperArm = Drawing.new("Line"),
+        RightLowerArm = Drawing.new("Line"),
+        LeftUpperLeg = Drawing.new("Line"),
+        LeftLowerLeg = Drawing.new("Line"),
+        RightUpperLeg = Drawing.new("Line"),
+        RightLowerLeg = Drawing.new("Line")
+    }
 
     -- Initial configuration for ESP elements
     Box.Filled = false -- Transparent inside
@@ -328,6 +353,13 @@ local function CreateEsp(Player)
     Tracer.Transparency = Config.TracerTransparency
     Tracer.Visible = tracersEnabled -- Initially visible based on toggle
 
+        -- Configure Skeleton Lines
+        for _, line in pairs(SkeletonLines) do
+            line.Thickness = Config.SkeletonThickness
+            line.Color = Config.SkeletonColor
+            line.Visible = skeletonESPEnabled
+        end
+
     -- Store ESP elements in the table
     ESPElements[Player] = {
         Box = Box,
@@ -335,6 +367,7 @@ local function CreateEsp(Player)
         Name = Name,
         HealthBar = HealthBar,
         Tracer = Tracer, -- Store Tracer
+        SkeletonLines = SkeletonLines,
         IsVisible = false
     }
 
@@ -414,16 +447,58 @@ local function CreateEsp(Player)
             else
                 Tracer.Visible = false
             end
+             -- Update Skeleton ESP
+             if Config.Skeleton then
+                local function worldToViewportPoint(position)
+                    local screenPosition, onScreen = Camera:WorldToViewportPoint(position)
+                    return Vector2.new(screenPosition.X, screenPosition.Y), onScreen
+                end
+
+                local function updateSkeletonLine(line, startPart, endPart)
+                    if startPart and endPart then
+                        local startPos, startVisible = worldToViewportPoint(startPart.Position)
+                        local endPos, endVisible = worldToViewportPoint(endPart.Position)
+                        line.From = startPos
+                        line.To = endPos
+                        line.Visible = startVisible and endVisible and IsVisible
+                    else
+                        line.Visible = false
+                    end
+                end
+
+                local character = Player.Character
+                updateSkeletonLine(SkeletonLines.Head, character:FindFirstChild("Head"), character:FindFirstChild("UpperTorso"))
+                updateSkeletonLine(SkeletonLines.UpperTorso, character:FindFirstChild("UpperTorso"), character:FindFirstChild("LowerTorso"))
+                updateSkeletonLine(SkeletonLines.LowerTorso, character:FindFirstChild("LowerTorso"), character:FindFirstChild("UpperTorso"))
+                updateSkeletonLine(SkeletonLines.LeftUpperArm, character:FindFirstChild("LeftUpperArm"), character:FindFirstChild("LeftLowerArm"))
+                updateSkeletonLine(SkeletonLines.LeftLowerArm, character:FindFirstChild("LeftLowerArm"), character:FindFirstChild("LeftHand"))
+                updateSkeletonLine(SkeletonLines.RightUpperArm, character:FindFirstChild("RightUpperArm"), character:FindFirstChild("RightLowerArm"))
+                updateSkeletonLine(SkeletonLines.RightLowerArm, character:FindFirstChild("RightLowerArm"), character:FindFirstChild("RightHand"))
+                updateSkeletonLine(SkeletonLines.LeftUpperLeg, character:FindFirstChild("LeftUpperLeg"), character:FindFirstChild("LeftLowerLeg"))
+                updateSkeletonLine(SkeletonLines.LeftLowerLeg, character:FindFirstChild("LeftLowerLeg"), character:FindFirstChild("LeftFoot"))
+                updateSkeletonLine(SkeletonLines.RightUpperLeg, character:FindFirstChild("RightUpperLeg"), character:FindFirstChild("RightLowerLeg"))
+                updateSkeletonLine(SkeletonLines.RightLowerLeg, character:FindFirstChild("RightLowerLeg"), character:FindFirstChild("RightFoot"))
+            else
+                for _, line in pairs(SkeletonLines) do
+                    line.Visible = false
+                end
+            end
 
         else
+
+
             -- Hide ESP elements if player is not valid
             Box.Visible = false
             BoxOutline.Visible = false
             Name.Visible = false
             HealthBar.Visible = false
             Tracer.Visible = false -- Hide Tracer
+            for _, line in pairs(SkeletonLines) do
+                line.Visible = false
+            end
         end
     end)
+
 
     -- Handle Player Removal
     Player.CharacterRemoving:Connect(function()
@@ -432,6 +507,9 @@ local function CreateEsp(Player)
         Name:Remove()
         HealthBar:Remove()
         Tracer:Remove() -- Remove Tracer
+        for _, line in pairs(SkeletonLines) do
+            line:Remove()
+        end
         Updater:Disconnect()
         ESPElements[Player] = nil
     end)
@@ -455,6 +533,12 @@ local function updateESPVisibility()
 
         if elements.Tracer then
             elements.Tracer.Visible = Config.Tracers and elements.IsVisible
+
+            if elements.SkeletonLines then
+                for _, line in pairs(elements.SkeletonLines) do
+                    line.Visible = Config.Skeleton and elements.IsVisible
+                end
+            end
         end
     end
 end
@@ -483,6 +567,12 @@ end)
 TracerToggle:OnChanged(function(value)
     tracersEnabled = value
     Config.Tracers = tracersEnabled
+    updateESPVisibility()
+end)
+
+SkeletonToggle:OnChanged(function(value)
+    skeletonESPEnabled = value
+    Config.Skeleton = skeletonESPEnabled
     updateESPVisibility()
 end)
 
@@ -519,6 +609,9 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
         ESPElements[player].Name:Remove()
         ESPElements[player].HealthBar:Remove()
         ESPElements[player].Tracer:Remove() -- Remove Tracer
+        for _, line in pairs(ESPElements[player].SkeletonLines) do
+            line:Remove()
+         end
         ESPElements[player] = nil
     end
 end)
@@ -540,7 +633,3 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings) -- Added settings section
 SaveManager:BuildConfigSection(Tabs.Settings) -- Added config section
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
-
-
-
-
