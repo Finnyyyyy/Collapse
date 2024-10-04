@@ -1,0 +1,44 @@
+-- Cash Collection Script
+
+local player = game.Players.LocalPlayer
+local cashFolder = workspace:FindFirstChild("Cash")
+
+if not cashFolder then
+    warn("Cash folder not found in the workspace.")
+    return
+end
+
+-- Prevent player from being idled
+for _, connection in ipairs(getconnections(player.Idled)) do
+    connection:Disable()
+end
+
+-- Function to collect cash
+local function collectCash()
+    while true do
+        local cashCollected = false -- Flag to track if cash is collected in this loop
+        
+        -- Iterate over each cash object in the cash folder
+        for _, cash in pairs(cashFolder:GetChildren()) do
+            if cash:IsA("Part") and cash:FindFirstChild("ProximityPrompt") then
+                local distance = (cash.Position - player.Character.HumanoidRootPart.Position).Magnitude
+
+                -- Check if within range (adjust this value as necessary)
+                if distance <= 10 then
+                    cashCollected = true
+                    fireproximityprompt(cash.ProximityPrompt, 6)
+                    task.wait(0.1) -- Wait briefly to avoid spamming
+                end
+            end
+        end
+
+        if not cashCollected then
+            print("No cash collected this loop. Retrying...")
+        end
+        
+        task.wait(1) -- Wait before the next iteration to reduce load
+    end
+end
+
+-- Start the cash collection process
+collectCash()
