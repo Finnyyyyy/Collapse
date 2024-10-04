@@ -232,17 +232,17 @@ local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
 })
 
 -- Add Toggles to Visuals Tab
-local BoxToggle = Tabs.Visuals:AddToggle("Box", {
+local BoxToggle = Tabs.Visuals:AddToggle("BoxESP", {
     Title = "Box ESP",
     Default = false,
 })
 
-local HealthToggle = Tabs.Visuals:AddToggle("Health", {
+local HealthToggle = Tabs.Visuals:AddToggle("HealthESP", {
     Title = "Health ESP",
     Default = false,
 })
 
-local NameToggle = Tabs.Visuals:AddToggle("Name", {
+local NameToggle = Tabs.Visuals:AddToggle("NameESP", {
     Title = "Name ESP",
     Default = false,
 })
@@ -252,7 +252,7 @@ local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
     Default = false,
 })
 
-local SkeletonToggle = Tabs.Visuals:AddToggle("Skeleton", {
+local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
     Title = "Skeleton ESP",
     Default = false,
 })
