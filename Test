@@ -2,14 +2,15 @@
     Complete Roblox Script with Fluent GUI
     Features:
     - Autofarm Toggle
-    - Cash Aura Toggle (Updated and Fixed)
+    - Cash Aura Toggle
     - Box ESP Toggle
     - Health ESP Toggle
     - Name ESP Toggle
     - Tracers Toggle
     - Skeleton ESP Toggle
+    - Autokill Toggle (New)
     - Settings and Save Manager
-    Author: Finny<3
+    Author: Finny<3 (with additions)
 --]]
 
 -- Load Fluent and its Addons
@@ -32,6 +33,7 @@ local Window = Fluent:CreateWindow({
 local Tabs = {
     Main = Window:AddTab({ Title = "Main" }),
     Visuals = Window:AddTab({ Title = "Visuals" }),
+    Combat = Window:AddTab({ Title = "Combat" }), -- New Combat tab
     Settings = Window:AddTab({ Title = "Settings" })
 }
 
@@ -43,6 +45,7 @@ local healthESPEnabled = false
 local nameESPEnabled = false
 local tracersEnabled = false
 local skeletonESPEnabled = false
+local autokillEnabled = false -- New autokill toggle state
 
 -- ESP Configuration Table
 local Config = {
@@ -93,7 +96,7 @@ local function startAutofarm()
                 cashPickedUp = true
                 plr.Character.HumanoidRootPart.CFrame = m.CFrame
                 fireproximityprompt(m.ProximityPrompt, 6)
-                task.wait(0.2)
+                task.wait(0.1)
             end
             if not getgenv().farm then
                 break
@@ -194,7 +197,7 @@ local function startCashAura()
                 if cash:IsA("Part") and cash:FindFirstChild("ProximityPrompt") then
                     local distance = (cash.Position - player.Character.HumanoidRootPart.Position).Magnitude
 
-                    if distance <= 25 then
+                    if distance <= 10 then
                         cashCollected = true
                         fireproximityprompt(cash.ProximityPrompt, 6)
                         task.wait(0.1)
@@ -255,6 +258,12 @@ local TracerToggle = Tabs.Visuals:AddToggle("Tracers", {
 local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
     Title = "Skeleton ESP",
     Default = false,
+})
+
+-- Add Autokill Toggle to Combat Tab
+local AutokillToggle = Tabs.Combat:AddToggle("AutokillToggle", {
+    Title = "Autokill",
+    Default = false
 })
 
 -- Table to Track ESP Elements per Player
@@ -373,7 +382,9 @@ local function CreateEsp(Player)
                     HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1)
                 elseif Config.HealthBarSide == "Bottom" then
                     HealthBar.Size = Vector2.new(width - 6, 2)
-                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
+                HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2, Target2dPosition.Y)
+
+HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
                 end
 
                 local healthPercent = Humanoid.Health / Humanoid.MaxHealth
@@ -383,8 +394,7 @@ local function CreateEsp(Player)
             end
 
             if Config.Names then
-
-Name.Visible = IsVisible
+                Name.Visible = IsVisible
                 Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
                 Name.Position = Vector2.new(Target2dPosition.X, Target2dPosition.Y - height * 0.5 - 15)
             else
@@ -578,6 +588,65 @@ CashAuraToggle:OnChanged(function(value)
         startCashAura()
     else
         stopCashAura()
+    end
+end)
+
+-- Autokill Functionality
+local autokillConnection = nil
+
+local function startAutokill()
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local punchRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Punch"):WaitForChild("PunchEvent")
+
+    local function getClosestPlayer()
+        local closestPlayer = nil
+        local shortestDistance = math.huge
+
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Humanoid") and otherPlayer.Character.Humanoid.Health > 0 then
+                local distance = (otherPlayer.Character.HumanoidRootPart.Position - character.HumanoidRootPart.Position).Magnitude
+                if distance < shortestDistance then
+                    closestPlayer = otherPlayer
+                    shortestDistance = distance
+                end
+            end
+        end
+
+        return closestPlayer
+    end
+
+    local function equipPunch()
+        humanoid:EquipTool(player.Backpack:FindFirstChild("Punch"))
+    end
+
+    autokillConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not autokillEnabled then return end
+
+        local targetPlayer = getClosestPlayer()
+        if targetPlayer then
+            equipPunch()
+            character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+            punchRemote:FireServer()
+        end
+    end)
+end
+
+local function stopAutokill()
+    if autokillConnection then
+        autokillConnection:Disconnect()
+        autokillConnection = nil
+    end
+end
+
+-- Toggle Actions for Autokill
+AutokillToggle:OnChanged(function(value)
+    autokillEnabled = value
+    if autokillEnabled then
+        startAutokill()
+    else
+        stopAutokill()
     end
 end)
 
