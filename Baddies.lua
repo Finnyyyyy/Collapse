@@ -1,3 +1,4 @@
+
 --[[
     Complete Roblox Script with Fluent GUI
     Features:
@@ -382,7 +383,7 @@ local function CreateEsp(Player)
                     HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 - barWidth - 2, Target2dPosition.Y + height / 2 - barHeight - 1)
                 elseif Config.HealthBarSide == "Bottom" then
                     HealthBar.Size = Vector2.new(width - 6, 2)
-                    HealthBar.Position = Vector .new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
+                    HealthBar.Position = Vector2.new(Target2dPosition.X - width / 2 + 3, Target2dPosition.Y + height / 2 + 5)
                 end
 
                 local healthPercent = Humanoid.Health / Humanoid.MaxHealth
@@ -390,7 +391,6 @@ local function CreateEsp(Player)
             else
                 HealthBar.Visible = false
             end
-
             if Config.Names then
                 Name.Visible = IsVisible
                 Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
@@ -632,8 +632,8 @@ local function startAutokill()
 
         if currentTarget then
             equipPunch()
-            character.HumanoidRootPart.CFrame = currentTarget.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 0)
-            punchRemote:FireServer()
+            character.HumanoidRootPart.CFrame = currentTarget.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1)
+            punchRemote:FireServer(1)  -- Use the correct argument
         end
     end)
 end
@@ -667,3 +667,4 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
+
