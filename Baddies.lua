@@ -10,6 +10,9 @@
     - Tracers Toggle
     - Skeleton ESP Toggle
     - Autokill Toggle (Enhanced)
+    - Hitbox Expander
+    - Hitbox Visualizer
+    - Hitbox Size Slider
     - Settings and Save Manager
     Author: Finny<3 (with additions)
 --]]
@@ -47,6 +50,9 @@ local nameESPEnabled = false
 local tracersEnabled = false
 local skeletonESPEnabled = false
 local autokillEnabled = false
+local hitboxExpanded = false
+local hitboxSize = 20  -- Default size
+local hitboxVisualized = false
 
 -- ESP Configuration Table
 local Config = {
@@ -261,6 +267,35 @@ local SkeletonToggle = Tabs.Visuals:AddToggle("SkeletonESP", {
     Default = false,
 })
 
+-- Add Combat Tab Features
+local HitboxExpanderToggle = Tabs.Combat:AddToggle("HitboxExpanderToggle", {
+    Title = "Hitbox Expander",
+    Default = false
+})
+
+local HitboxVisualizerToggle = Tabs.Combat:AddToggle("HitboxVisualizerToggle", {
+    Title = "Hitbox Visualizer",
+    Default = false
+})
+
+local HitboxSizeSlider = Tabs.Combat:AddSlider("HitboxSizeSlider", {
+    Title = "Hitbox Size",
+    Description = "Adjust the hitbox size",
+    Default = 20,
+    Min = 1,
+    Max = 150,
+    Rounding = 0,
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxExpanded then
+            updateHitboxes()
+        end
+        if hitboxVisualized then
+            updateHitboxVisualizer()
+        end
+    end
+})
+
 -- Add Autokill Toggle to Combat Tab
 local AutokillToggle = Tabs.Combat:AddToggle("AutokillToggle", {
     Title = "Autokill",
@@ -391,6 +426,7 @@ local function CreateEsp(Player)
             else
                 HealthBar.Visible = false
             end
+
             if Config.Names then
                 Name.Visible = IsVisible
                 Name.Text = Player.Name .. " " .. math.floor(distance) .. "m"
@@ -527,66 +563,62 @@ SkeletonToggle:OnChanged(function(value)
     updateESPVisibility()
 end)
 
--- Function to Create ESP for All Current Players
-local function initializeESP()
-    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
-        if player ~= game.Players.LocalPlayer then
-            CreateEsp(player)
-            player.CharacterAdded:Connect(function()
-                CreateEsp(player)
-            end)
+-- Hitbox Expander Function
+local function updateHitboxes()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            player.Character.HumanoidRootPart.Transparency = 1
+            player.Character.HumanoidRootPart.CanCollide = false
         end
     end
 end
 
--- Initialize ESP for Existing Players
-initializeESP()
+-- Hitbox Visualizer Function
+local visualizerParts = {}
 
--- Connect to New Players Joining the Game
-game:GetService("Players").PlayerAdded:Connect(function(player)
-    if player ~= game.Players.LocalPlayer then
-        CreateEsp(player)
-        player.CharacterAdded:Connect(function()
-            CreateEsp(player)
-        end)
+local function updateHitboxVisualizer()
+    for _, part in pairs(visualizerParts) do
+        part:Destroy()
     end
-end)
+    visualizerParts = {}
 
--- Clean Up ESP When Players Leave
-game:GetService("Players").PlayerRemoving:Connect(function(player)
-    if ESPElements[player] then
-        ESPElements[player].Box:Remove()
-        ESPElements[player].BoxOutline:Remove()
-        ESPElements[player].Name:Remove()
-        ESPElements[player].HealthBar:Remove()
-        ESPElements[player].Tracer:Remove()
-        for _, line in pairs(ESPElements[player].SkeletonLines) do
-            line:Remove()
+    if hitboxVisualized then
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local visualizer = Instance.new("Part")
+                visualizer.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                visualizer.CFrame = player.Character.HumanoidRootPart.CFrame
+                visualizer.Color = Color3.new(1, 0, 0)  -- Red color
+                visualizer.Transparency = 0.7
+                visualizer.CanCollide = false
+                visualizer.Anchored = true
+                visualizer.Parent = workspace
+                table.insert(visualizerParts, visualizer)
+            end
         end
-        ESPElements[player] = nil
     end
-end)
+end
 
--- Toggle Actions for Autofarm
-AutofarmToggle:OnChanged(function(value)
-    autofarmEnabled = value
-    getgenv().farm = autofarmEnabled
-
-    if autofarmEnabled then
-        spawn(function()
-            startAutofarm()
-        end)
-    end
-end)
-
--- Toggle Actions for Cash Aura
-CashAuraToggle:OnChanged(function(value)
-    cashAuraEnabled = value
-    if cashAuraEnabled then
-        startCashAura()
+-- Connect Combat Tab Toggle Actions
+HitboxExpanderToggle:OnChanged(function(value)
+    hitboxExpanded = value
+    if hitboxExpanded then
+        updateHitboxes()
     else
-        stopCashAura()
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)  -- Reset to default size
+                player.Character.HumanoidRootPart.Transparency = 1
+                player.Character.HumanoidRootPart.CanCollide = true
+            end
+        end
     end
+end)
+
+HitboxVisualizerToggle:OnChanged(function(value)
+    hitboxVisualized = value
+    updateHitboxVisualizer()
 end)
 
 -- Enhanced Autokill Functionality
@@ -656,6 +688,68 @@ AutokillToggle:OnChanged(function(value)
     end
 end)
 
+-- Function to Create ESP for All Current Players
+local function initializeESP()
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game.Players.LocalPlayer then
+            CreateEsp(player)
+            player.CharacterAdded:Connect(function()
+                CreateEsp(player)
+            end)
+        end
+    end
+end
+
+-- Initialize ESP for Existing Players
+initializeESP()
+
+-- Connect to New Players Joining the Game
+game:GetService("Players").PlayerAdded:Connect(function(player)
+    if player ~= game.Players.LocalPlayer then
+        CreateEsp(player)
+        player.CharacterAdded:Connect(function()
+            CreateEsp(player)
+        end)
+    end
+end)
+
+-- Clean Up ESP When Players Leave
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if ESPElements[player] then
+        ESPElements[player].Box:Remove()
+        ESPElements[player].BoxOutline:Remove()
+        ESPElements[player].Name:Remove()
+        ESPElements[player].HealthBar:Remove()
+        ESPElements[player].Tracer:Remove()
+        for _, line in pairs(ESPElements[player].SkeletonLines) do
+            line:Remove()
+        end
+        ESPElements[player] = nil
+    end
+end)
+
+-- Toggle Actions for Autofarm
+AutofarmToggle:OnChanged(function(value)
+    autofarmEnabled = value
+    getgenv().farm = autofarmEnabled
+
+    if autofarmEnabled then
+        spawn(function()
+            startAutofarm()
+        end)
+    end
+end)
+
+-- Toggle Actions for Cash Aura
+CashAuraToggle:OnChanged(function(value)
+    cashAuraEnabled = value
+    if cashAuraEnabled then
+        startCashAura()
+    else
+        stopCashAura()
+    end
+end)
+
 -- Ensure All GUI Elements are Updated and Saved
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
@@ -667,4 +761,3 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
-
