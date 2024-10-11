@@ -24,7 +24,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 
 -- Create the Fluent Window
 local Window = Fluent:CreateWindow({
-    Title = "AstroClient-Baddies",
+    Title = "Collapse-Baddies",
     SubTitle = "Made by Finny<3",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
