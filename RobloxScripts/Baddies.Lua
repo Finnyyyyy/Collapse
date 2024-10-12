@@ -1,3 +1,4 @@
+
 --[[
     Complete Roblox Script with Fluent GUI
     Features:
@@ -36,6 +37,7 @@ local Window = Fluent:CreateWindow({
 local Tabs = {
     Main = Window:AddTab({ Title = "Main" }),
     Visuals = Window:AddTab({ Title = "Visuals" }),
+    Cash = Window:AddTab({ Title = "Cash" }),
     Combat = Window:AddTab({ Title = "Combat" }),
     Settings = Window:AddTab({ Title = "Settings" })
 }
@@ -229,13 +231,13 @@ local function stopCashAura()
     end
 end
 
--- Add Toggles to Main Tab
-local AutofarmToggle = Tabs.Main:AddToggle("AutofarmToggle", {
+-- Add Toggles to Cash Tab
+local AutofarmToggle = Tabs.Cash:AddToggle("AutofarmToggle", {
     Title = "Autofarm (Enable Punch before toggling)",
     Default = false
 })
 
-local CashAuraToggle = Tabs.Main:AddToggle("CashAuraToggle", {
+local CashAuraToggle = Tabs.Cash:AddToggle("CashAuraToggle", {
     Title = "Cash Aura",
     Default = false
 })
