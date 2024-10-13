@@ -1,0 +1,3 @@
+﻿  UmMain.cpp
+C:\Users\User\source\repos\Roblox Externel\UserMode\src\UmMain.cpp(80,18): warning C4312: 'reinterpret_cast': conversion from 'const DWORD' to 'HANDLE' of greater size
+  UserMode.vcxproj -> C:\Users\User\source\repos\Roblox Externel\build\UserMode.exe
