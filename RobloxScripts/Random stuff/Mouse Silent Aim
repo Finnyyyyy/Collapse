@@ -1,0 +1,70 @@
+getgenv().silentaim_settings = {
+    fov = 150,
+    hitbox = "Head",
+    fovcircle = true,
+}
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Player
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+local CurrentCamera = workspace.CurrentCamera
+
+-- Get mouse position instead of screen center
+local function getMousePosition()
+    return UserInputService:GetMouseLocation()
+end
+
+local function GetClosest(Fov)
+    local Target, Closest = nil, Fov or math.huge
+    local MousePos = getMousePosition()
+    for i,v in pairs(Players:GetPlayers()) do
+        if (v.Character and v ~= Player and 
+            v.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)) then
+            local Position, OnScreen = 
+                CurrentCamera:WorldToScreenPoint(v.Character[getgenv().silentaim_settings.hitbox].Position)
+            local Distance = (Vector2.new(Position.X, Position.Y) - MousePos).Magnitude
+            if (Distance < Closest and OnScreen) then
+                Closest = Distance
+                Target = v
+            end
+        end
+    end
+    return Target
+end
+
+local Target
+local Circle = Drawing.new("Circle")
+
+-- Set circle properties
+Circle.Visible = true
+Circle.Thickness = 1
+Circle.Transparency = 1
+Circle.Color = Color3.fromRGB(255, 255, 255)
+Circle.Filled = false
+
+RunService.RenderStepped:Connect(function()
+    local MousePos = getMousePosition()
+    
+    Circle.Radius = getgenv().silentaim_settings.fov
+    Circle.Position = MousePos
+    Circle.Visible = getgenv().silentaim_settings.fovcircle
+    
+    Target = GetClosest(getgenv().silentaim_settings.fov)
+end)
+
+local Old; Old = hookmetamethod(game, "__namecall", function(Self, ...)
+    local Args = {...}
+    if (not checkcaller() and getnamecallmethod() == "FindPartOnRayWithIgnoreList") then
+        if (table.find(Args[2], workspace.WorldIgnore.Ignore) and Target and Target.Character) then
+            local Origin = Args[1].Origin
+            Args[1] = Ray.new(Origin,
+                Target.Character[getgenv().silentaim_settings.hitbox].Position - Origin)
+        end
+    end
+    return Old(Self, unpack(Args))
+end)
