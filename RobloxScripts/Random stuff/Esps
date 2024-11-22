@@ -1,0 +1,192 @@
+-- Variables 
+local Players = game:GetService("Players");
+local LocalPlayer = Players.LocalPlayer;
+local CurrentCamera = game:GetService("Workspace").CurrentCamera;
+local UserInputService = game:GetService("UserInputService");
+local MousePos = UserInputService:GetMouseLocation();
+local RunService = game:GetService("RunService");
+
+-- Tables
+local ESP = {
+    Enabled = true,
+    TeamCheck = false,
+
+    Box = {
+        Enabled = true,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+
+        Outlines = true,
+        OutlineThickness = 1
+    },
+    Tracers = {
+        Enabled = true,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+
+        Outlines = true,
+        OutlineThickness = 1
+    },
+    HealthBar = {
+        Enabled = true,
+        Color = Color3.fromRGB(0, 255, 0),
+        Outlines = true
+    }
+};
+
+-- Functions
+local Functions = { };
+do 
+
+    function Functions:IsAlive(Player)
+        if Player and Player.Character and Player.Character:FindFirstChild("Head") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0 then
+            return true;
+        end;
+
+        return false;
+    end;
+
+    function Functions:GetTeam(Player)
+        if not Player.Neutral then
+            return game:GetService("Teams")[Player.Team.Name];
+        end;
+        return "No Team";
+    end;
+
+end;
+
+-- ESP
+do
+
+    local function AddESP(Player)
+        local BoxOutline = Drawing.new("Square");
+        local Box = Drawing.new("Square");
+        local TracerOutline = Drawing.new("Line");
+        local Tracer = Drawing.new("Line");
+        local HealthBarOutline = Drawing.new("Square");
+        local HealthBar = Drawing.new("Square");
+        local Connection;
+
+        Box.Filled = false;
+        BoxOutline.Color = Color3.fromRGB(0, 0, 0);
+        TracerOutline.Color = Color3.fromRGB(0, 0, 0);
+        HealthBarOutline.Filled = false;
+        HealthBarOutline.Color = Color3.fromRGB(0, 0, 0);
+        HealthBar.Filled = true;
+        HealthBar.ZIndex = 5;
+
+        local function HideESP()
+            BoxOutline.Visible = false;
+            Box.Visible = false;
+            TracerOutline.Visible = false;
+            Tracer.Visible = false;
+            HealthBarOutline.Visible = false;
+            HealthBar.Visible = false;
+        end;
+
+        local function DestroyESP()
+            BoxOutline:Remove();
+            Box:Remove();
+            TracerOutline:Remove();
+            Tracer:Remove();
+            HealthBarOutline:Remove();
+            HealthBar:Remove();
+            Connection:Disconnect();
+        end;
+
+        Connection = RunService.Heartbeat:Connect(function()
+
+            if not ESP.Enabled then 
+                return HideESP();
+            end;
+
+            if not Player then
+                return DestroyESP();
+            end;
+
+            if not Functions:IsAlive(Player) then
+                return HideESP();
+            end;
+
+            if ESP.TeamCheck and Functions:GetTeam(Player) == Functions:GetTeam(LocalPlayer) then
+                return HideESP();
+            end;
+
+            local HumanoidRootPart = Player.Character.HumanoidRootPart;
+            if not HumanoidRootPart then
+                return HideESP(); -- Never know
+            end; 
+
+            local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position);
+            if not OnScreen then
+                return HideESP();
+            end;
+
+            local FrustumHeight = math.tan(math.rad(CurrentCamera.FieldOfView * 0.5)) * 2 * ScreenPosition.Z; 
+            local Size = CurrentCamera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6);
+            local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2;
+
+            if ESP.Box.Enabled then
+                BoxOutline.Visible = ESP.Box.Outlines;
+                BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness;
+                BoxOutline.Position = Position;
+                BoxOutline.Size = Size;
+
+                Box.Visible = true;
+                Box.Position = Position;
+                Box.Size = Size;
+                Box.Color = ESP.Box.Color;
+                Box.Thickness = ESP.Box.Thickness;
+            else
+                Box.Visible = false;
+                BoxOutline.Visible = false;
+            end;
+
+            if ESP.Tracers.Enabled then
+                TracerOutline.Visible = ESP.Tracers.Outlines;
+                TracerOutline.Thickness = ESP.Tracers.Thickness + ESP.Tracers.OutlineThickness;
+                TracerOutline.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y);
+                TracerOutline.To = Vector2.new(ScreenPosition.X, Position.Y + Size.Y);
+
+                Tracer.Visible = true;
+                Tracer.Color = ESP.Tracers.Color;
+                Tracer.Thickness = ESP.Tracers.Thickness;
+                Tracer.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y);
+                Tracer.To = Vector2.new(TracerOutline.To.X, TracerOutline.To.Y);
+            else
+                TracerOutline.Visible = false;
+                Tracer.Visible = false;
+            end;
+
+            if ESP.HealthBar.Enabled then
+                HealthBarOutline.Visible = ESP.HealthBar.Outlines;
+                HealthBarOutline.Position = Vector2.new(Position.X - 6, Position.Y + Size.Y);
+                HealthBarOutline.Size = Vector2.new(3, -Size.Y * Player.Character.Humanoid.Health / Player.Character.Humanoid.MaxHealth);
+                HealthBarOutline.Thickness = 1;
+
+                HealthBar.Visible = true;
+                HealthBar.Position = HealthBarOutline.Position;
+                HealthBar.Size = HealthBarOutline.Size;
+                HealthBar.Color = ESP.HealthBar.Color;
+            else
+                HealthBarOutline.Visible  = false;
+                HealthBar.Visible = false;
+            end;
+
+        end);
+
+    end;
+
+    for i,v in pairs(Players:GetChildren()) do 
+        if v~= LocalPlayer then
+            AddESP(v)
+        end
+    end;
+
+    Players.PlayerAdded:Connect(function(v)
+        AddESP(v);
+    end);
+
+end;
+
+
