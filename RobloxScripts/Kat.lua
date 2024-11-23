@@ -43,6 +43,9 @@ getgenv().silentaim_settings = {
    fovcircle = false,
 }
 
+-- Current Tracer Position
+local currentTracerPosition = "Bottom"
+
 -- ESP Functions
 local Functions = {}
 do 
@@ -147,15 +150,26 @@ do
            end
 
            if ESP.Tracers.Enabled then
+               local tracerFrom
+               if currentTracerPosition == "Bottom" then
+                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
+               elseif currentTracerPosition == "Middle" then
+                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
+               elseif currentTracerPosition == "Top" then
+                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, 0)
+               elseif currentTracerPosition == "Mouse" then
+                   tracerFrom = UserInputService:GetMouseLocation()
+               end
+
                TracerOutline.Visible = ESP.Tracers.Outlines
                TracerOutline.Thickness = ESP.Tracers.Thickness + ESP.Tracers.OutlineThickness
-               TracerOutline.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
+               TracerOutline.From = tracerFrom
                TracerOutline.To = Vector2.new(ScreenPosition.X, Position.Y + Size.Y)
 
                Tracer.Visible = true
                Tracer.Color = ESP.Tracers.Color
                Tracer.Thickness = ESP.Tracers.Thickness
-               Tracer.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
+               Tracer.From = tracerFrom
                Tracer.To = Vector2.new(TracerOutline.To.X, TracerOutline.To.Y)
            else
                TracerOutline.Visible = false
@@ -295,6 +309,19 @@ local TracersToggle = Tabs.Visuals:AddToggle("Tracers", {
 
 TracersToggle:OnChanged(function()
    ESP.Tracers.Enabled = Options.Tracers.Value
+end)
+
+-- Tracer Position Dropdown
+local TracerPositionDropdown = Tabs.Visuals:AddDropdown("TracerPosition", {
+    Title = "Tracer Position",
+    Description = "Select the starting position for tracers",
+    Values = {"Bottom", "Middle", "Top", "Mouse"},
+    Multi = false,
+    Default = "Bottom",
+})
+
+TracerPositionDropdown:OnChanged(function(Value)
+    currentTracerPosition = Value
 end)
 
 local HealthbarToggle = Tabs.Visuals:AddToggle("Healthbar", {
