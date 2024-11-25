@@ -21,6 +21,14 @@ local ESP = {
        Outlines = true,
        OutlineThickness = 1
    },
+   Tool = {
+       Enabled = false,
+       Color = Color3.fromRGB(255, 255, 255)
+   },
+   Distance = {
+       Enabled = false,
+       Color = Color3.fromRGB(255, 255, 255)
+   },
    Tracers = {
        Enabled = false,
        Color = Color3.fromRGB(255, 255, 255),
@@ -43,9 +51,6 @@ getgenv().silentaim_settings = {
    fovcircle = false,
 }
 
--- Current Tracer Position
-local currentTracerPosition = "Bottom"
-
 -- ESP Functions
 local Functions = {}
 do 
@@ -62,6 +67,23 @@ do
        end
        return "No Team"
    end
+
+   function Functions:GetEquippedTool(Player)
+       if Player and Player.Character then
+           local Tool = Player.Character:FindFirstChildOfClass("Tool")
+           if Tool then
+               return Tool.Name
+           end
+       end
+       return "None"
+   end
+
+   function Functions:GetDistance(Player)
+       if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+           return math.floor((Player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+       end
+       return 0
+   end
 end
 
 -- ESP Implementation
@@ -73,6 +95,8 @@ do
        local Tracer = Drawing.new("Line")
        local HealthBarOutline = Drawing.new("Square")
        local HealthBar = Drawing.new("Square")
+       local ToolText = Drawing.new("Text")
+       local DistanceText = Drawing.new("Text")
        local Connection
 
        Box.Filled = false
@@ -83,6 +107,18 @@ do
        HealthBar.Filled = true
        HealthBar.ZIndex = 5
 
+       ToolText.Size = 13
+       ToolText.Center = true
+       ToolText.Outline = true
+       ToolText.Font = 2
+       ToolText.Color = ESP.Tool.Color
+
+       DistanceText.Size = 13
+       DistanceText.Center = true
+       DistanceText.Outline = true
+       DistanceText.Font = 2
+       DistanceText.Color = ESP.Distance.Color
+
        local function HideESP()
            BoxOutline.Visible = false
            Box.Visible = false
@@ -90,6 +126,8 @@ do
            Tracer.Visible = false
            HealthBarOutline.Visible = false
            HealthBar.Visible = false
+           ToolText.Visible = false
+           DistanceText.Visible = false
        end
 
        local function DestroyESP()
@@ -99,6 +137,8 @@ do
            Tracer:Remove()
            HealthBarOutline:Remove()
            HealthBar:Remove()
+           ToolText:Remove()
+           DistanceText:Remove()
            Connection:Disconnect()
        end
 
@@ -107,7 +147,7 @@ do
                return HideESP()
            end
 
-           if not Player then
+           if not Player or not Player.Parent then
                return DestroyESP()
            end
 
@@ -149,27 +189,34 @@ do
                BoxOutline.Visible = false
            end
 
-           if ESP.Tracers.Enabled then
-               local tracerFrom
-               if currentTracerPosition == "Bottom" then
-                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
-               elseif currentTracerPosition == "Middle" then
-                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
-               elseif currentTracerPosition == "Top" then
-                   tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, 0)
-               elseif currentTracerPosition == "Mouse" then
-                   tracerFrom = UserInputService:GetMouseLocation()
-               end
+           if ESP.Tool.Enabled then
+               ToolText.Visible = true
+               ToolText.Text = Functions:GetEquippedTool(Player)
+               ToolText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y + Size.Y + 2)
+               ToolText.Color = ESP.Tool.Color
+           else
+               ToolText.Visible = false
+           end
 
+           if ESP.Distance.Enabled then
+               DistanceText.Visible = true
+               DistanceText.Text = tostring(Functions:GetDistance(Player)) .. " studs"
+               DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 15)
+               DistanceText.Color = ESP.Distance.Color
+           else
+               DistanceText.Visible = false
+           end
+
+           if ESP.Tracers.Enabled then
                TracerOutline.Visible = ESP.Tracers.Outlines
                TracerOutline.Thickness = ESP.Tracers.Thickness + ESP.Tracers.OutlineThickness
-               TracerOutline.From = tracerFrom
+               TracerOutline.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
                TracerOutline.To = Vector2.new(ScreenPosition.X, Position.Y + Size.Y)
 
                Tracer.Visible = true
                Tracer.Color = ESP.Tracers.Color
                Tracer.Thickness = ESP.Tracers.Thickness
-               Tracer.From = tracerFrom
+               Tracer.From = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
                Tracer.To = Vector2.new(TracerOutline.To.X, TracerOutline.To.Y)
            else
                TracerOutline.Visible = false
@@ -311,19 +358,6 @@ TracersToggle:OnChanged(function()
    ESP.Tracers.Enabled = Options.Tracers.Value
 end)
 
--- Tracer Position Dropdown
-local TracerPositionDropdown = Tabs.Visuals:AddDropdown("TracerPosition", {
-    Title = "Tracer Position",
-    Description = "Select the starting position for tracers",
-    Values = {"Bottom", "Middle", "Top", "Mouse"},
-    Multi = false,
-    Default = "Bottom",
-})
-
-TracerPositionDropdown:OnChanged(function(Value)
-    currentTracerPosition = Value
-end)
-
 local HealthbarToggle = Tabs.Visuals:AddToggle("Healthbar", {
    Title = "Healthbar",
    Default = false
@@ -331,6 +365,24 @@ local HealthbarToggle = Tabs.Visuals:AddToggle("Healthbar", {
 
 HealthbarToggle:OnChanged(function()
    ESP.HealthBar.Enabled = Options.Healthbar.Value
+end)
+
+local ToolESPToggle = Tabs.Visuals:AddToggle("ToolESP", {
+   Title = "Tool ESP",
+   Default = false
+})
+
+ToolESPToggle:OnChanged(function()
+   ESP.Tool.Enabled = Options.ToolESP.Value
+end)
+
+local DistanceESPToggle = Tabs.Visuals:AddToggle("DistanceESP", {
+   Title = "Distance ESP",
+   Default = false
+})
+
+DistanceESPToggle:OnChanged(function()
+   ESP.Distance.Enabled = Options.DistanceESP.Value
 end)
 
 -- Silent Aim Update Loop
