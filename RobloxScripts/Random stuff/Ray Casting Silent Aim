@@ -1,0 +1,73 @@
+--// Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+--// Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local SilentAimTarget = nil
+local SilentAimEnabled = true
+
+--// Functions
+local function GetDirection(origin, destination)
+    return (destination - origin).Unit * 1000
+end
+
+local function WorldToScreen(position)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+    return {Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
+end
+
+local function HasCharacter(player)
+    return player and player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetClosestPlayer()
+    local mousePos = UserInputService:GetMouseLocation()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and HasCharacter(player) then
+            local rootPart = player.Character.HumanoidRootPart
+            local screenPos = WorldToScreen(rootPart.Position)
+
+            if screenPos.OnScreen then
+                local distance = (mousePos - screenPos.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+--// Update Silent Aim Target
+RunService.RenderStepped:Connect(function()
+    if SilentAimEnabled then
+        SilentAimTarget = GetClosestPlayer()
+    else
+        SilentAimTarget = nil
+    end
+end)
+
+--// Hook Raycast
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if not checkcaller() and self == Workspace and method == "Raycast" and SilentAimTarget then
+        local origin = args[1]
+        args[2] = GetDirection(origin, SilentAimTarget.Character.HumanoidRootPart.Position)
+        return oldNamecall(self, unpack(args))
+    end
+
+    return oldNamecall(self, ...)
+end)
