@@ -130,7 +130,7 @@ RunService.RenderStepped:Connect(function()
     
     return Old(Self, ...)
  end)
- 
+
  -- ESP Functions
  local Functions = {}
  do 
@@ -344,13 +344,13 @@ RunService.RenderStepped:Connect(function()
 
  -- GUI Setup
 local Window = Fluent:CreateWindow({
-    Title = "Collapse-Kat",
+    Title = "Collapse-Weaponry",
     SubTitle = "Made by Finny<3",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.RightControl
+    Theme = "Amethyst",
+    MinimizeKey = Enum.KeyCode.LeftAlt
     })
     
     local Tabs = {
@@ -361,41 +361,7 @@ local Window = Fluent:CreateWindow({
     
     local Options = Fluent.Options
     
-    -- Speed Slider
-    local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
-     Title = "Player Speed",
-     Description = "Adjust your walking speed",
-     Default = 16,
-     Min = 16,
-     Max = 25,
-     Rounding = 1
-    })
-    
-    SpeedSlider:OnChanged(function(Value)
-     local Character = game.Players.LocalPlayer.Character
-     if Character and Character:FindFirstChild("Humanoid") then
-       Character.Humanoid.WalkSpeed = Value
-     end
-    end)
-    
-    -- Jump Height Slider
-    local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
-     Title = "Jump Height",
-     Description = "Adjust your jump power",
-     Default = 50,
-     Min = 50,
-     Max = 150,
-     Rounding = 1
-    })
-    
-    JumpHeightSlider:OnChanged(function(Value)
-     local Character = game.Players.LocalPlayer.Character
-     if Character and Character:FindFirstChild("Humanoid") then
-       Character.Humanoid.JumpPower = Value
-     end
-    end)
-    
-    -- Silent Aim Toggle
+    -- Silent Aim Toggle (First)
     local SilentAimToggle = Tabs.Main:AddToggle("SilentAimEnabled", {
     Title = "Silent Aim",
     Default = false
@@ -403,6 +369,30 @@ local Window = Fluent:CreateWindow({
     
     SilentAimToggle:OnChanged(function()
     getgenv().silentaim_settings.enabled = Options.SilentAimEnabled.Value
+    end)
+    
+    -- FOV Circle Toggle (Second)
+    local FovCircleToggle = Tabs.Main:AddToggle("FovCircle", {
+    Title = "FOV Circle",
+    Default = false
+    })
+    
+    FovCircleToggle:OnChanged(function()
+    getgenv().silentaim_settings.fovcircle = Options.FovCircle.Value
+    end)
+    
+    -- FOV Slider (Third)
+    local FovSlider = Tabs.Main:AddSlider("FovSlider", {
+    Title = "FOV Size",
+    Description = "Adjust the FOV circle size",
+    Default = 150,
+    Min = 1,
+    Max = 800,
+    Rounding = 0
+    })
+    
+    FovSlider:OnChanged(function(Value)
+    getgenv().silentaim_settings.fov = Value
     end)
     
     -- Silent Aim Target Dropdown
@@ -418,28 +408,36 @@ local Window = Fluent:CreateWindow({
      getgenv().silentaim_settings.hitbox = Value
     end)
     
-    -- FOV Circle Toggle
-    local FovCircleToggle = Tabs.Main:AddToggle("FovCircle", {
-    Title = "FOV Circle",
-    Default = false
+    -- Speed Slider
+    local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
+     Title = "Player Speed",
+     Description = "Adjust your walking speed",
+     Default = 16,
+     Min = 16,
+     Max = 25,
+     Rounding = 1
     })
     
-    FovCircleToggle:OnChanged(function()
-    getgenv().silentaim_settings.fovcircle = Options.FovCircle.Value
+    SpeedSlider:OnChanged(function(Value)
+     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+       game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
+     end
     end)
     
-    -- FOV Slider
-    local FovSlider = Tabs.Main:AddSlider("FovSlider", {
-    Title = "FOV Size",
-    Description = "Adjust the FOV circle size",
-    Default = 150,
-    Min = 1,
-    Max = 800,
-    Rounding = 0
+    -- Jump Height Slider
+    local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
+     Title = "Jump Height",
+     Description = "Adjust your jump power",
+     Default = 50,
+     Min = 50,
+     Max = 150,
+     Rounding = 1
     })
     
-    FovSlider:OnChanged(function(Value)
-    getgenv().silentaim_settings.fov = Value
+    JumpHeightSlider:OnChanged(function(Value)
+     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+       game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+     end
     end)
     
     -- ESP Toggles
@@ -505,15 +503,15 @@ local Window = Fluent:CreateWindow({
     InterfaceManager:SetLibrary(Fluent)
     SaveManager:IgnoreThemeSettings()
     SaveManager:SetIgnoreIndexes({})
-    InterfaceManager:SetFolder("CollapseKat")
-    SaveManager:SetFolder("CollapseKat/configs")
+    InterfaceManager:SetFolder("CollapseWeaponry")
+    SaveManager:SetFolder("CollapseWeaponry/configs")
     InterfaceManager:BuildInterfaceSection(Tabs.Settings)
     SaveManager:BuildConfigSection(Tabs.Settings)
     
     Window:SelectTab(1)
     
     Fluent:Notify({
-    Title = "Collapse-Kat",
+    Title = "Collapse-Weaponry",
     Content = "Script loaded successfully!",
     Duration = 6
     })
