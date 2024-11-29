@@ -52,6 +52,7 @@ getgenv().silentaim_settings = {
  fov = 150,
  hitbox = "Head",
  fovcircle = false,
+ teamCheck = false
 }
 
 -- Create Circle for FOV
@@ -74,6 +75,11 @@ local function WorldToScreen(position)
     return {Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
 end
 
+local function IsTeammate(player)
+    -- Check for "Teammate" text label
+    return player.Character and player.Character:FindFirstChild("Teammate") ~= nil
+end
+
 local function HasCharacter(player)
     return player and player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 end
@@ -85,14 +91,17 @@ local function GetClosestPlayer()
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and HasCharacter(player) then
-            local targetPart = player.Character:FindFirstChild(getgenv().silentaim_settings.hitbox or "Head")
-            if targetPart then
-                local screenPos = WorldToScreen(targetPart.Position)
-                if screenPos.OnScreen then
-                    local distance = (mousePos - screenPos.Position).Magnitude
-                    if distance < shortestDistance then
-                        shortestDistance = distance
-                        closestPlayer = player
+            -- Check for Silent Aim Team Check and Teammate Label
+            if not (getgenv().silentaim_settings.teamCheck and (IsTeammate(player) or player.Team == LocalPlayer.Team)) then
+                local targetPart = player.Character:FindFirstChild(getgenv().silentaim_settings.hitbox or "Head")
+                if targetPart then
+                    local screenPos = WorldToScreen(targetPart.Position)
+                    if screenPos.OnScreen then
+                        local distance = (mousePos - screenPos.Position).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            closestPlayer = player
+                        end
                     end
                 end
             end
@@ -130,7 +139,7 @@ RunService.RenderStepped:Connect(function()
     
     return Old(Self, ...)
  end)
-
+ 
  -- ESP Functions
  local Functions = {}
  do 
@@ -235,7 +244,8 @@ RunService.RenderStepped:Connect(function()
              return HideESP()
          end
  
-         if ESP.TeamCheck and Functions:GetTeam(Player) == Functions:GetTeam(LocalPlayer) then
+         -- Check for Teammate Label and Team Check
+         if (ESP.TeamCheck and (IsTeammate(Player) or Player.Team == LocalPlayer.Team)) then
              return HideESP()
          end
  
@@ -352,168 +362,188 @@ local Window = Fluent:CreateWindow({
     Theme = "Amethyst",
     MinimizeKey = Enum.KeyCode.LeftAlt
     })
-    
+
     local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-    }
-    
-    local Options = Fluent.Options
-    
-    -- Silent Aim Toggle (First)
-    local SilentAimToggle = Tabs.Main:AddToggle("SilentAimEnabled", {
-    Title = "Silent Aim",
-    Default = false
-    })
-    
-    SilentAimToggle:OnChanged(function()
-    getgenv().silentaim_settings.enabled = Options.SilentAimEnabled.Value
-    end)
-    
-    -- FOV Circle Toggle (Second)
-    local FovCircleToggle = Tabs.Main:AddToggle("FovCircle", {
-    Title = "FOV Circle",
-    Default = false
-    })
-    
-    FovCircleToggle:OnChanged(function()
-    getgenv().silentaim_settings.fovcircle = Options.FovCircle.Value
-    end)
-    
-    -- FOV Slider (Third)
-    local FovSlider = Tabs.Main:AddSlider("FovSlider", {
-    Title = "FOV Size",
-    Description = "Adjust the FOV circle size",
-    Default = 150,
-    Min = 1,
-    Max = 800,
-    Rounding = 0
-    })
-    
-    FovSlider:OnChanged(function(Value)
-    getgenv().silentaim_settings.fov = Value
-    end)
-    
-    -- Silent Aim Target Dropdown
-    local SilentAimTargetDropdown = Tabs.Main:AddDropdown("SilentAimTarget", {
-     Title = "Silent Aim Target",
-     Description = "Select the target hitbox for Silent Aim",
-     Values = {"Head", "HumanoidRootPart"},
-     Multi = false,
-     Default = "Head",
-    })
-    
-    SilentAimTargetDropdown:OnChanged(function(Value)
-     getgenv().silentaim_settings.hitbox = Value
-    end)
-    
-    -- Speed Slider
-    local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
-     Title = "Player Speed",
-     Description = "Adjust your walking speed",
-     Default = 16,
-     Min = 16,
-     Max = 25,
-     Rounding = 1
-    })
-    
-    SpeedSlider:OnChanged(function(Value)
-     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-       game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
-     end
-    end)
-    
-    -- Jump Height Slider
-    local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
-     Title = "Jump Height",
-     Description = "Adjust your jump power",
-     Default = 50,
-     Min = 50,
-     Max = 150,
-     Rounding = 1
-    })
-    
-    JumpHeightSlider:OnChanged(function(Value)
-     if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-       game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
-     end
-    end)
-    
-    -- ESP Toggles
-    local BoxESPToggle = Tabs.Visuals:AddToggle("BoxESP", {
-    Title = "Box ESP",
-    Default = false
-    })
-    
-    BoxESPToggle:OnChanged(function()
-    ESP.Box.Enabled = Options.BoxESP.Value
-    end)
-    
-    local TracersToggle = Tabs.Visuals:AddToggle("Tracers", {
-    Title = "Tracers",
-    Default = false
-    })
-    
-    TracersToggle:OnChanged(function()
-     ESP.Tracers.Enabled = Options.Tracers.Value
-    end)
-    
-    -- Tracer Position Dropdown
-    local TracerPositionDropdown = Tabs.Visuals:AddDropdown("TracerPosition", {
-     Title = "Tracer Position",
-     Description = "Select the starting position for tracers",
-     Values = {"Bottom", "Middle", "Top", "Mouse"},
-     Multi = false,
-     Default = "Bottom",
-    })
-    
-    TracerPositionDropdown:OnChanged(function(Value)
-     currentTracerPosition = Value
-    end)
-    
-    local HealthbarToggle = Tabs.Visuals:AddToggle("Healthbar", {
-    Title = "Healthbar",
-    Default = false
-    })
-    
-    HealthbarToggle:OnChanged(function()
-     ESP.HealthBar.Enabled = Options.Healthbar.Value
-    end)
-    
-    local ToolESPToggle = Tabs.Visuals:AddToggle("ToolESP", {
-     Title = "Tool ESP",
-     Default = false
-    })
-    
-    ToolESPToggle:OnChanged(function()
-     ESP.Tool.Enabled = Options.ToolESP.Value
-    end)
-    
-    local DistanceESPToggle = Tabs.Visuals:AddToggle("DistanceESP", {
-     Title = "Distance ESP",
-     Default = false
-    })
-    
-    DistanceESPToggle:OnChanged(function()
-     ESP.Distance.Enabled = Options.DistanceESP.Value
-    end)
-    
-    SaveManager:SetLibrary(Fluent)
-    InterfaceManager:SetLibrary(Fluent)
-    SaveManager:IgnoreThemeSettings()
-    SaveManager:SetIgnoreIndexes({})
-    InterfaceManager:SetFolder("CollapseWeaponry")
-    SaveManager:SetFolder("CollapseWeaponry/configs")
-    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-    SaveManager:BuildConfigSection(Tabs.Settings)
-    
-    Window:SelectTab(1)
-    
-    Fluent:Notify({
-    Title = "Collapse-Weaponry",
-    Content = "Script loaded successfully!",
-    Duration = 6
-    })
-    
-    SaveManager:LoadAutoloadConfig()
+        Main = Window:AddTab({ Title = "Main", Icon = "" }),
+        Visuals = Window:AddTab({ Title = "Visuals", Icon = "" }),
+        Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+        }
+        
+        local Options = Fluent.Options
+        
+        -- Silent Aim Toggle (First)
+        local SilentAimToggle = Tabs.Main:AddToggle("SilentAimEnabled", {
+        Title = "Silent Aim",
+        Default = false
+        })
+        
+        SilentAimToggle:OnChanged(function()
+        getgenv().silentaim_settings.enabled = Options.SilentAimEnabled.Value
+        end)
+        
+        -- Silent Aim Team Check Toggle
+        local SilentAimTeamCheckToggle = Tabs.Main:AddToggle("SilentAimTeamCheck", {
+        Title = "Silent Aim Team Check",
+        Default = false
+        })
+        
+        SilentAimTeamCheckToggle:OnChanged(function()
+        getgenv().silentaim_settings.teamCheck = Options.SilentAimTeamCheck.Value
+        end)
+        
+        -- FOV Circle Toggle (Second)
+        local FovCircleToggle = Tabs.Main:AddToggle("FovCircle", {
+        Title = "FOV Circle",
+        Default = false
+        })
+        
+        FovCircleToggle:OnChanged(function()
+        getgenv().silentaim_settings.fovcircle = Options.FovCircle.Value
+        end)
+        
+        -- FOV Slider (Third)
+        local FovSlider = Tabs.Main:AddSlider("FovSlider", {
+        Title = "FOV Size",
+        Description = "Adjust the FOV circle size",
+        Default = 150,
+        Min = 1,
+        Max = 800,
+        Rounding = 0
+        })
+        
+        FovSlider:OnChanged(function(Value)
+        getgenv().silentaim_settings.fov = Value
+        end)
+        
+        -- Silent Aim Target Dropdown
+        local SilentAimTargetDropdown = Tabs.Main:AddDropdown("SilentAimTarget", {
+         Title = "Silent Aim Target",
+         Description = "Select the target hitbox for Silent Aim",
+         Values = {"Head", "HumanoidRootPart"},
+         Multi = false,
+         Default = "Head",
+        })
+        
+        SilentAimTargetDropdown:OnChanged(function(Value)
+         getgenv().silentaim_settings.hitbox = Value
+        end)
+        
+        -- Speed Slider
+        local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
+         Title = "Player Speed",
+         Description = "Adjust your walking speed",
+         Default = 16,
+         Min = 16,
+         Max = 25,
+         Rounding = 1
+        })
+        
+        SpeedSlider:OnChanged(function(Value)
+         if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+           game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
+         end
+        end)
+        
+        -- Jump Height Slider
+        local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
+         Title = "Jump Height",
+         Description = "Adjust your jump power",
+         Default = 50,
+         Min = 50,
+         Max = 150,
+         Rounding = 1
+        })
+        
+        JumpHeightSlider:OnChanged(function(Value)
+         if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+           game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+         end
+        end)
+        
+        -- ESP Toggles
+        local BoxESPToggle = Tabs.Visuals:AddToggle("BoxESP", {
+        Title = "Box ESP",
+        Default = false
+        })
+        
+        BoxESPToggle:OnChanged(function()
+        ESP.Box.Enabled = Options.BoxESP.Value
+        end)
+        
+        local TracersToggle = Tabs.Visuals:AddToggle("Tracers", {
+        Title = "Tracers",
+        Default = false
+        })
+        
+        TracersToggle:OnChanged(function()
+         ESP.Tracers.Enabled = Options.Tracers.Value
+        end)
+        
+        -- Tracer Position Dropdown
+        local TracerPositionDropdown = Tabs.Visuals:AddDropdown("TracerPosition", {
+         Title = "Tracer Position",
+         Description = "Select the starting position for tracers",
+         Values = {"Bottom", "Middle", "Top", "Mouse"},
+         Multi = false,
+         Default = "Bottom",
+        })
+        
+        TracerPositionDropdown:OnChanged(function(Value)
+         currentTracerPosition = Value
+        end)
+        
+        local HealthbarToggle = Tabs.Visuals:AddToggle("Healthbar", {
+        Title = "Healthbar",
+        Default = false
+        })
+        
+        HealthbarToggle:OnChanged(function()
+         ESP.HealthBar.Enabled = Options.Healthbar.Value
+        end)
+        
+        local ToolESPToggle = Tabs.Visuals:AddToggle("ToolESP", {
+         Title = "Tool ESP",
+         Default = false
+        })
+        
+        ToolESPToggle:OnChanged(function()
+         ESP.Tool.Enabled = Options.ToolESP.Value
+        end)
+        
+        local DistanceESPToggle = Tabs.Visuals:AddToggle("DistanceESP", {
+         Title = "Distance ESP",
+         Default = false
+        })
+        
+        DistanceESPToggle:OnChanged(function()
+         ESP.Distance.Enabled = Options.DistanceESP.Value
+        end)
+        
+        -- ESP Team Check Toggle
+        local ESPTeamCheckToggle = Tabs.Visuals:AddToggle("ESPTeamCheck", {
+         Title = "ESP Team Check",
+         Default = false
+        })
+        
+        ESPTeamCheckToggle:OnChanged(function()
+         ESP.TeamCheck = Options.ESPTeamCheck.Value
+        end)
+        
+        SaveManager:SetLibrary(Fluent)
+        InterfaceManager:SetLibrary(Fluent)
+        SaveManager:IgnoreThemeSettings()
+        SaveManager:SetIgnoreIndexes({})
+        InterfaceManager:SetFolder("CollapseWeaponry")
+        SaveManager:SetFolder("CollapseWeaponry/configs")
+        InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+        SaveManager:BuildConfigSection(Tabs.Settings)
+        
+        Window:SelectTab(1)
+        
+        Fluent:Notify({
+        Title = "Collapse-Weaponry",
+        Content = "Script loaded successfully!",
+        Duration = 6
+        })
+        
+        SaveManager:LoadAutoloadConfig()
