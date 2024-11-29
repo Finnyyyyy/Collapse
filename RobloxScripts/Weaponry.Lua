@@ -428,38 +428,39 @@ local Window = Fluent:CreateWindow({
          getgenv().silentaim_settings.hitbox = Value
         end)
         
-        -- Speed Slider
-        local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
-         Title = "Player Speed",
-         Description = "Adjust your walking speed",
-         Default = 16,
-         Min = 16,
-         Max = 25,
-         Rounding = 1
-        })
-        
-        SpeedSlider:OnChanged(function(Value)
-         if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-           game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
-         end
-        end)
-        
-        -- Jump Height Slider
-        local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
-         Title = "Jump Height",
-         Description = "Adjust your jump power",
-         Default = 50,
-         Min = 50,
-         Max = 150,
-         Rounding = 1
-        })
-        
-        JumpHeightSlider:OnChanged(function(Value)
-         if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
-           game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
-         end
-        end)
-        
+-- Speed Slider
+local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {
+    Title = "Player Speed",
+    Description = "Adjust your walking speed",
+    Default = 16,
+    Min = 16,
+    Max = 150,
+    Rounding = 1
+   })
+   
+   SpeedSlider:OnChanged(function(Value)
+    local Character = game.Players.LocalPlayer.Character
+    if Character and Character:FindFirstChild("Humanoid") then
+      Character.Humanoid.WalkSpeed = Value
+    end
+   end)
+   
+   -- Jump Height Slider
+   local JumpHeightSlider = Tabs.Main:AddSlider("JumpHeightSlider", {
+    Title = "Jump Height",
+    Description = "Adjust your jump power",
+    Default = 50,
+    Min = 50,
+    Max = 150,
+    Rounding = 1
+   })
+   
+   JumpHeightSlider:OnChanged(function(Value)
+    local Character = game.Players.LocalPlayer.Character
+    if Character and Character:FindFirstChild("Humanoid") then
+      Character.Humanoid.JumpPower = Value
+    end
+   end)
         -- ESP Toggles
         local BoxESPToggle = Tabs.Visuals:AddToggle("BoxESP", {
         Title = "Box ESP",
