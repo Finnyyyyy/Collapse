@@ -362,7 +362,7 @@ end
 
 -- GUI Setup with Orion
 local Window = OrionLib:MakeWindow({
-    Name = "Collapse-Weaponry",
+    Name = "Collapse:Weaponry-Made by Finny<3",
     HidePremium = false,
     SaveConfig = true,
     ConfigFolder = "CollapseWeaponry"
@@ -549,7 +549,7 @@ OrionLib:Init()
 -- Notification
 OrionLib:MakeNotification({
     Name = "Collapse-Weaponry",
-    Content = "Script loaded successfully!",
+    Content = "Script loaded successfully!-Made by finny<3",
     Image = "rbxassetid://4483345998",
     Time = 5
 })
