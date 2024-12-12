@@ -432,7 +432,7 @@ Tabs.Main:AddSlider({
     Name = "FOV Size",
     Min = 1,
     Max = 800,
-    Default = 150,
+    Default = 100,
     Flag = "FovSlider",
     Callback = function(Value)
         getgenv().silentaim_settings.fov = Value
