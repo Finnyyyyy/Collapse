@@ -1,0 +1,44 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local WeaponryFramework = getsenv(LocalPlayer.PlayerScripts.WeaponryFramework)
+local WeaponHandler = ReplicatedStorage.Remotes.WeaponHandler
+
+local WeaponPropertiesTable1
+local WeaponPropertiesTable2
+
+RunService.RenderStepped:Connect(function()
+    for I, V in pairs(WeaponryFramework) do
+        if I == "InventoryManager" then
+            local InventoryManagerFunc = V
+            for I, V in pairs(debug.getupvalues(InventoryManagerFunc)) do
+                if type(V) == "table" then
+                    for I, V in pairs(V) do
+                        if type(V) == "table" then
+                            if I == 1 then
+                                WeaponPropertiesTable1 = V
+                                if WeaponPropertiesTable1.CurrentAmmo < WeaponPropertiesTable1.WeaponStats.MaxAmmo then
+                                    WeaponPropertiesTable1.Reloading = true
+                                    WeaponHandler:FireServer(3, WeaponPropertiesTable1)
+                                    WeaponPropertiesTable1.CurrentAmmo = WeaponPropertiesTable1.WeaponStats.MaxAmmo
+                                    WeaponPropertiesTable1.Reloading = false
+                                end
+                            end
+                            if I == 2 then
+                                WeaponPropertiesTable2 = V
+                                if WeaponPropertiesTable2.CurrentAmmo < WeaponPropertiesTable2.WeaponStats.MaxAmmo then
+                                    WeaponPropertiesTable2.Reloading = true
+                                    WeaponHandler:FireServer(3, WeaponPropertiesTable2)
+                                    WeaponPropertiesTable2.CurrentAmmo = WeaponPropertiesTable2.WeaponStats.MaxAmmo
+                                    WeaponPropertiesTable2.Reloading = false
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
