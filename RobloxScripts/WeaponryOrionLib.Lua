@@ -1,3 +1,4 @@
+
 local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
 local Players = game:GetService("Players")
@@ -6,6 +7,12 @@ local CurrentCamera = game:GetService("Workspace").CurrentCamera
 local UserInputService = game:GetService("UserInputService")
 local MousePos = UserInputService:GetMouseLocation()
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Infinite Ammo Variables
+local WeaponryFramework
+local WeaponHandler
+local InfiniteAmmoEnabled = false
 
 -- Current Tracer Position
 local currentTracerPosition = "Bottom"
@@ -133,6 +140,51 @@ RunService.RenderStepped:Connect(function()
     Circle.Visible = getgenv().silentaim_settings.fovcircle
 end)
  
+-- Infinite Ammo Function
+local function SetupInfiniteAmmo()
+    WeaponryFramework = getsenv(LocalPlayer.PlayerScripts.WeaponryFramework)
+    WeaponHandler = ReplicatedStorage.Remotes.WeaponHandler
+
+    local WeaponPropertiesTable1
+    local WeaponPropertiesTable2
+
+    RunService.RenderStepped:Connect(function()
+        if not InfiniteAmmoEnabled then return end
+
+        for I, V in pairs(WeaponryFramework) do
+            if I == "InventoryManager" then
+                local InventoryManagerFunc = V
+                for I, V in pairs(debug.getupvalues(InventoryManagerFunc)) do
+                    if type(V) == "table" then
+                        for I, V in pairs(V) do
+                            if type(V) == "table" then
+                                if I == 1 then
+                                    WeaponPropertiesTable1 = V
+                                    if WeaponPropertiesTable1.CurrentAmmo < WeaponPropertiesTable1.WeaponStats.MaxAmmo then
+                                        WeaponPropertiesTable1.Reloading = true
+                                        WeaponHandler:FireServer(3, WeaponPropertiesTable1)
+                                        WeaponPropertiesTable1.CurrentAmmo = WeaponPropertiesTable1.WeaponStats.MaxAmmo
+                                        WeaponPropertiesTable1.Reloading = false
+                                    end
+                                end
+                                if I == 2 then
+                                    WeaponPropertiesTable2 = V
+                                    if WeaponPropertiesTable2.CurrentAmmo < WeaponPropertiesTable2.WeaponStats.MaxAmmo then
+                                        WeaponPropertiesTable2.Reloading = true
+                                        WeaponHandler:FireServer(3, WeaponPropertiesTable2)
+                                        WeaponPropertiesTable2.CurrentAmmo = WeaponPropertiesTable2.WeaponStats.MaxAmmo
+                                        WeaponPropertiesTable2.Reloading = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
 -- Hook Raycast
 local Old
 Old = hookmetamethod(game, "__namecall", function(Self, ...)
@@ -182,7 +234,7 @@ function Functions:GetDistance(Player)
     return 0
 end
 end
- 
+
 -- ESP Implementation
 do
 local function AddESP(Player)
@@ -447,6 +499,19 @@ Tabs.Main:AddDropdown({
     Flag = "SilentAimTarget",
     Callback = function(Value)
         getgenv().silentaim_settings.hitbox = Value
+    end
+})
+
+-- Infinite Ammo Toggle (Added to Main Tab)
+Tabs.Main:AddToggle({
+    Name = "Infinite Ammo",
+    Default = false,
+    Flag = "InfiniteAmmo",
+    Callback = function(Value)
+        InfiniteAmmoEnabled = Value
+        if Value then
+            SetupInfiniteAmmo()
+        end
     end
 })
 
