@@ -57,7 +57,7 @@ getgenv().silentaim_settings = {
  hitbox = "Head",
  fovcircle = false,
  teamCheck = false,
- fovPosition = "Mouse"  -- Added new setting
+ fovPosition = "Mouse"
 }
 
 -- Create Circle for FOV
@@ -81,7 +81,6 @@ local function WorldToScreen(position)
 end
 
 local function IsTeammate(player)
-    -- Check for "Teammate" text label
     return player.Character and player.Character:FindFirstChild("Teammate") ~= nil
 end
 
@@ -100,8 +99,10 @@ local function GetClosestPlayer()
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and HasCharacter(player) then
-            -- Check for Silent Aim Team Check and Teammate Label
-            if not (getgenv().silentaim_settings.teamCheck and (IsTeammate(player) or player.Team == LocalPlayer.Team)) then
+            -- Modified Team Check Logic
+            if not (getgenv().silentaim_settings.teamCheck and 
+                    player.Team and 
+                    player.Team == LocalPlayer.Team) then
                 local targetPart = player.Character:FindFirstChild(getgenv().silentaim_settings.hitbox or "Head")
                 if targetPart then
                     local screenPos = WorldToScreen(targetPart.Position)
@@ -199,7 +200,7 @@ Old = hookmetamethod(game, "__namecall", function(Self, ...)
     
     return Old(Self, ...)
 end)
- 
+
 -- ESP Functions
 local Functions = {}
 do 
@@ -304,8 +305,10 @@ local function AddESP(Player)
             return HideESP()
         end
  
-        -- Check for Teammate Label and Team Check
-        if (ESP.TeamCheck and (IsTeammate(Player) or Player.Team == LocalPlayer.Team)) then
+        -- Modified Team Check Logic for ESP
+        if (ESP.TeamCheck and 
+            Player.Team and 
+            Player.Team == LocalPlayer.Team) then
             return HideESP()
         end
  
@@ -438,7 +441,7 @@ local Tabs = {
     })
 }
 
--- Silent Aim Toggle (First)
+-- Silent Aim Toggle
 Tabs.Main:AddToggle({
     Name = "Silent Aim",
     Default = false,
@@ -458,7 +461,7 @@ Tabs.Main:AddToggle({
     end
 })
 
--- FOV Circle Toggle (Second)
+-- FOV Circle Toggle
 Tabs.Main:AddToggle({
     Name = "FOV Circle",
     Default = false,
@@ -468,7 +471,7 @@ Tabs.Main:AddToggle({
     end
 })
 
--- FOV Position Dropdown (New)
+-- FOV Position Dropdown
 Tabs.Main:AddDropdown({
     Name = "FOV Position",
     Default = "Mouse",
@@ -479,7 +482,7 @@ Tabs.Main:AddDropdown({
     end
 })
 
--- FOV Slider (Third)
+-- FOV Slider
 Tabs.Main:AddSlider({
     Name = "FOV Size",
     Min = 1,
@@ -502,7 +505,7 @@ Tabs.Main:AddDropdown({
     end
 })
 
--- Infinite Ammo Toggle (Added to Main Tab)
+-- Infinite Ammo Toggle
 Tabs.Main:AddToggle({
     Name = "Infinite Ammo",
     Default = false,
