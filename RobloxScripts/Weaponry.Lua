@@ -1,6 +1,9 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+
+
+local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -417,25 +420,34 @@ end)
 end
 
 -- Window Creation
-local Window = Fluent:CreateWindow({
-    Title = "Collapse:Weaponry-Made by Finny<3",
-    SubTitle = "Weaponry Cheat",
+local Window = Library:CreateWindow{
+    Title = "Collapse:Weaponry",
+    SubTitle = "Made by Finny <3",
     TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
-    Theme = "Dark",
+    Size = UDim2.fromOffset(530, 350),
+    Acrylic = false,
+    Theme = "VSC Dark High Contrast",
     MinimizeKey = Enum.KeyCode.RightControl
-})
+}
 
 -- Tabs
 local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "target" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+    Main = Window:CreateTab{
+        Title = "Main",
+        Icon = "target"
+    },
+    Visuals = Window:CreateTab{
+        Title = "Visuals",
+        Icon = "eye"
+    },
+    Settings = Window:CreateTab{
+        Title = "Settings",
+        Icon = "settings"
+    }
 }
 
 -- Main Tab Toggles and Sliders
-Tabs.Main:AddToggle("SilentAim", {
+Tabs.Main:CreateToggle("SilentAim", {
     Title = "Silent Aim",
     Default = false,
     Callback = function(Value)
@@ -443,7 +455,7 @@ Tabs.Main:AddToggle("SilentAim", {
     end
 })
 
-Tabs.Main:AddToggle("SilentAimTeamCheck", {
+Tabs.Main:CreateToggle("SilentAimTeamCheck", {
     Title = "Silent Aim Team Check",
     Default = false,
     Callback = function(Value)
@@ -451,7 +463,7 @@ Tabs.Main:AddToggle("SilentAimTeamCheck", {
     end
 })
 
-Tabs.Main:AddToggle("FovCircle", {
+Tabs.Main:CreateToggle("FovCircle", {
     Title = "FOV Circle",
     Default = false,
     Callback = function(Value)
@@ -459,7 +471,7 @@ Tabs.Main:AddToggle("FovCircle", {
     end
 })
 
-Tabs.Main:AddDropdown("FovPosition", {
+Tabs.Main:CreateDropdown("FovPosition", {
     Title = "FOV Position",
     Values = {"Mouse", "Centered"},
     Default = "Mouse",
@@ -468,7 +480,7 @@ Tabs.Main:AddDropdown("FovPosition", {
     end
 })
 
-Tabs.Main:AddSlider("FovSize", {
+Tabs.Main:CreateSlider("FovSize", {
     Title = "FOV Size",
     Default = 100,
     Min = 1,
@@ -479,7 +491,7 @@ Tabs.Main:AddSlider("FovSize", {
     end
 })
 
-Tabs.Main:AddDropdown("SilentAimTarget", {
+Tabs.Main:CreateDropdown("SilentAimTarget", {
     Title = "Silent Aim Target",
     Values = {"Head", "HumanoidRootPart"},
     Default = "Head",
@@ -488,7 +500,7 @@ Tabs.Main:AddDropdown("SilentAimTarget", {
     end
 })
 
-Tabs.Main:AddToggle("InfiniteAmmo", {
+Tabs.Main:CreateToggle("InfiniteAmmo", {
     Title = "Infinite Ammo",
     Default = false,
     Callback = function(Value)
@@ -499,7 +511,7 @@ Tabs.Main:AddToggle("InfiniteAmmo", {
     end
 })
 
-Tabs.Main:AddSlider("PlayerSpeed", {
+Tabs.Main:CreateSlider("PlayerSpeed", {
     Title = "Player Speed",
     Default = 16,
     Min = 16,
@@ -513,7 +525,7 @@ Tabs.Main:AddSlider("PlayerSpeed", {
     end
 })
 
-Tabs.Main:AddSlider("JumpHeight", {
+Tabs.Main:CreateSlider("JumpHeight", {
     Title = "Jump Height",
     Default = 50,
     Min = 50,
@@ -528,7 +540,7 @@ Tabs.Main:AddSlider("JumpHeight", {
 })
 
 -- Visuals Tab
-Tabs.Visuals:AddToggle("BoxESP", {
+Tabs.Visuals:CreateToggle("BoxESP", {
     Title = "Box ESP",
     Default = false,
     Callback = function(Value)
@@ -536,7 +548,7 @@ Tabs.Visuals:AddToggle("BoxESP", {
     end
 })
 
-Tabs.Visuals:AddToggle("Tracers", {
+Tabs.Visuals:CreateToggle("Tracers", {
     Title = "Tracers",
     Default = false,
     Callback = function(Value)
@@ -544,7 +556,7 @@ Tabs.Visuals:AddToggle("Tracers", {
     end
 })
 
-Tabs.Visuals:AddDropdown("TracerPosition", {
+Tabs.Visuals:CreateDropdown("TracerPosition", {
     Title = "Tracer Position",
     Values = {"Bottom", "Middle", "Top", "Mouse"},
     Default = "Bottom",
@@ -553,7 +565,7 @@ Tabs.Visuals:AddDropdown("TracerPosition", {
     end
 })
 
-Tabs.Visuals:AddToggle("Healthbar", {
+Tabs.Visuals:CreateToggle("Healthbar", {
     Title = "Healthbar",
     Default = false,
     Callback = function(Value)
@@ -561,7 +573,7 @@ Tabs.Visuals:AddToggle("Healthbar", {
     end
 })
 
-Tabs.Visuals:AddToggle("ToolESP", {
+Tabs.Visuals:CreateToggle("ToolESP", {
     Title = "Tool ESP",
     Default = false,
     Callback = function(Value)
@@ -569,7 +581,7 @@ Tabs.Visuals:AddToggle("ToolESP", {
     end
 })
 
-Tabs.Visuals:AddToggle("DistanceESP", {
+Tabs.Visuals:CreateToggle("DistanceESP", {
     Title = "Distance ESP",
     Default = false,
     Callback = function(Value)
@@ -577,7 +589,7 @@ Tabs.Visuals:AddToggle("DistanceESP", {
     end
 })
 
-Tabs.Visuals:AddToggle("ESPTeamCheck", {
+Tabs.Visuals:CreateToggle("ESPTeamCheck", {
     Title = "ESP Team Check",
     Default = false,
     Callback = function(Value)
@@ -586,8 +598,8 @@ Tabs.Visuals:AddToggle("ESPTeamCheck", {
 })
 
 -- Save Manager and Interface Manager Setup
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
+SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetFolder("CollapseWeaponry")
 InterfaceManager:SetFolder("CollapseWeaponry")
@@ -596,13 +608,11 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 -- Notification
-Fluent:Notify({
+Library:Notify{
     Title = "Collapse-Weaponry",
     Content = "Script loaded successfully! - Made by finny<3",
     Duration = 5
-})
+}
 
 -- Load Autoconfig
 SaveManager:LoadAutoloadConfig()
-
- 
