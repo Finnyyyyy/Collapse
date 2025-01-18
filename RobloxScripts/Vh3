@@ -1,0 +1,495 @@
+local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CurrentCamera = game:GetService("Workspace").CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Current Tracer Position
+local currentTracerPosition = "Bottom"
+local Aiming = false
+local currentAimKey = Enum.KeyCode.E
+
+-- ESP Table
+local ESP = {
+    Enabled = true,
+    TeamCheck = false,
+    Box = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        Outlines = true,
+        OutlineThickness = 1
+    },
+    Tool = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255)
+    },
+    Distance = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255)
+    },
+    Tracers = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        Outlines = true,
+        OutlineThickness = 1
+    },
+    HealthBar = {
+        Enabled = false,
+        Color = Color3.fromRGB(0, 255, 0),
+        Outlines = true
+    }
+}
+
+-- Updated Aim Settings
+getgenv().aim_settings = {
+    enabled = false,
+    fov = 150,
+    hitbox = "Head",
+    fovcircle = false,
+    aimKey = Enum.KeyCode.E,
+    aimMode = "Toggle"
+}
+
+-- Create Circle for FOV
+local Circle = Drawing.new("Circle")
+Circle.Visible = false
+Circle.Thickness = 1
+Circle.Color = Color3.fromRGB(255, 255, 255)
+Circle.Transparency = 0.5
+Circle.Filled = false
+Circle.NumSides = 64
+
+-- New Aiming System
+local function AimLock()
+    local target
+    local lastMagnitude = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character then
+            local targetPart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+            if targetPart then
+                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
+                local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
+                local distance = (mousePos - screenPosition).Magnitude
+                
+                if onScreen and distance <= getgenv().aim_settings.fov then
+                    if distance < lastMagnitude then
+                        lastMagnitude = distance
+                        target = v
+                    end
+                end
+            end
+        end
+    end
+    
+    if target and target.Character then
+        local targetPart = target.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+        if targetPart then
+            local pos = CurrentCamera.CFrame.Position
+            CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
+        end
+    end
+end
+
+-- ESP Functions
+local Functions = {}
+do 
+    function Functions:IsAlive(Player)
+        if Player and Player.Character and Player.Character:FindFirstChild("Head") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0 then
+            return true
+        end
+        return false
+    end
+    
+    function Functions:GetTeam(Player)
+        if not Player.Neutral then
+            return game:GetService("Teams")[Player.Team.Name]
+        end
+        return "No Team"
+    end
+    
+    function Functions:GetEquippedTool(Player)
+        if Player and Player.Character then
+            local Tool = Player.Character:FindFirstChildOfClass("Tool")
+            if Tool then
+                return Tool.Name
+            end
+        end
+        return "None"
+    end
+    
+    function Functions:GetDistance(Player)
+        if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            return math.floor((Player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+        end
+        return 0
+    end
+end
+
+-- ESP Implementation
+do
+local function AddESP(Player)
+    local BoxOutline = Drawing.new("Square")
+    local Box = Drawing.new("Square")
+    local TracerOutline = Drawing.new("Line")
+    local Tracer = Drawing.new("Line")
+    local HealthBarOutline = Drawing.new("Square")
+    local HealthBar = Drawing.new("Square")
+    local ToolText = Drawing.new("Text")
+    local DistanceText = Drawing.new("Text")
+    local Connection
+
+    Box.Filled = false
+    BoxOutline.Color = Color3.fromRGB(0, 0, 0)
+    TracerOutline.Color = Color3.fromRGB(0, 0, 0)
+    HealthBarOutline.Filled = false
+    HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+    HealthBar.Filled = true
+    HealthBar.ZIndex = 5
+
+    ToolText.Size = 13
+    ToolText.Center = true
+    ToolText.Outline = true
+    ToolText.Font = 2
+    ToolText.Color = ESP.Tool.Color
+
+    DistanceText.Size = 13
+    DistanceText.Center = true
+    DistanceText.Outline = true
+    DistanceText.Font = 2
+    DistanceText.Color = ESP.Distance.Color
+
+    local function HideESP()
+        BoxOutline.Visible = false
+        Box.Visible = false
+        TracerOutline.Visible = false
+        Tracer.Visible = false
+        HealthBarOutline.Visible = false
+        HealthBar.Visible = false
+        ToolText.Visible = false
+        DistanceText.Visible = false
+    end
+
+    local function DestroyESP()
+        BoxOutline:Remove()
+        Box:Remove()
+        TracerOutline:Remove()
+        Tracer:Remove()
+        HealthBarOutline:Remove()
+        HealthBar:Remove()
+        ToolText:Remove()
+        DistanceText:Remove()
+        Connection:Disconnect()
+    end
+
+    Connection = RunService.Heartbeat:Connect(function()
+        if not ESP.Enabled then 
+            return HideESP()
+        end
+
+        if not Player or not Player.Parent then
+            return DestroyESP()
+        end
+
+        if not Functions:IsAlive(Player) then
+            return HideESP()
+        end
+
+        if ESP.TeamCheck and Player.Team == LocalPlayer.Team then
+            return HideESP()
+        end
+
+        local HumanoidRootPart = Player.Character.HumanoidRootPart
+        if not HumanoidRootPart then
+            return HideESP()
+        end
+
+        local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
+        if not OnScreen then
+            return HideESP()
+        end
+
+        local FrustumHeight = math.tan(math.rad(CurrentCamera.FieldOfView * 0.5)) * 2 * ScreenPosition.Z
+        local Size = CurrentCamera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6)
+        local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
+
+        if ESP.Box.Enabled then
+            BoxOutline.Visible = ESP.Box.Outlines
+            BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
+            BoxOutline.Position = Position
+            BoxOutline.Size = Size
+
+            Box.Visible = true
+            Box.Position = Position
+            Box.Size = Size
+            Box.Color = ESP.Box.Color
+            Box.Thickness = ESP.Box.Thickness
+        else
+            Box.Visible = false
+            BoxOutline.Visible = false
+        end
+
+        if ESP.Tool.Enabled then
+            ToolText.Visible = true
+            ToolText.Text = Functions:GetEquippedTool(Player)
+            ToolText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y + Size.Y + 2)
+            ToolText.Color = ESP.Tool.Color
+        else
+            ToolText.Visible = false
+        end
+
+        if ESP.Distance.Enabled then
+            DistanceText.Visible = true
+            DistanceText.Text = tostring(Functions:GetDistance(Player)) .. " studs"
+            DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 15)
+            DistanceText.Color = ESP.Distance.Color
+        else
+            DistanceText.Visible = false
+        end
+
+        if ESP.Tracers.Enabled then
+            local tracerFrom
+            if currentTracerPosition == "Bottom" then
+                tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
+            elseif currentTracerPosition == "Middle" then
+                tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
+            elseif currentTracerPosition == "Top" then
+                tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, 0)
+            elseif currentTracerPosition == "Mouse" then
+                tracerFrom = UserInputService:GetMouseLocation()
+            end
+
+            TracerOutline.Visible = ESP.Tracers.Outlines
+            TracerOutline.Thickness = ESP.Tracers.Thickness + ESP.Tracers.OutlineThickness
+            TracerOutline.From = tracerFrom
+            TracerOutline.To = Vector2.new(ScreenPosition.X, Position.Y + Size.Y)
+
+            Tracer.Visible = true
+            Tracer.Color = ESP.Tracers.Color
+            Tracer.Thickness = ESP.Tracers.Thickness
+            Tracer.From = tracerFrom
+            Tracer.To = Vector2.new(TracerOutline.To.X, TracerOutline.To.Y)
+        else
+            TracerOutline.Visible = false
+            Tracer.Visible = false
+        end
+
+        if ESP.HealthBar.Enabled then
+            HealthBarOutline.Visible = ESP.HealthBar.Outlines
+            HealthBarOutline.Position = Vector2.new(Position.X - 6, Position.Y + Size.Y)
+            HealthBarOutline.Size = Vector2.new(3, -Size.Y * Player.Character.Humanoid.Health / Player.Character.Humanoid.MaxHealth)
+            HealthBarOutline.Thickness = 1
+
+            HealthBar.Visible = true
+            HealthBar.Position = HealthBarOutline.Position
+            HealthBar.Size = HealthBarOutline.Size
+            HealthBar.Color = ESP.HealthBar.Color
+        else
+            HealthBarOutline.Visible = false
+            HealthBar.Visible = false
+        end
+    end)
+end
+
+for i,v in pairs(Players:GetChildren()) do 
+    if v ~= LocalPlayer then
+        AddESP(v)
+    end
+end
+
+Players.PlayerAdded:Connect(function(v)
+    AddESP(v)
+end)
+end
+
+-- FOV Circle Update
+RunService.RenderStepped:Connect(function()
+    if getgenv().aim_settings.enabled and Aiming then
+        AimLock()
+    end
+    
+    Circle.Position = UserInputService:GetMouseLocation()
+    Circle.Radius = getgenv().aim_settings.fov
+    Circle.Visible = getgenv().aim_settings.enabled and getgenv().aim_settings.fovcircle
+end)
+
+-- Window Creation
+local Window = Library:CreateWindow{
+    Title = "Collapse:Weaponry",
+    SubTitle = "Made by Finny <3",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(530, 350),
+    Acrylic = false,
+    Theme = "VSC Dark High Contrast",
+    MinimizeKey = Enum.KeyCode.RightControl
+}
+
+-- Tabs
+local Tabs = {
+    Main = Window:CreateTab{
+        Title = "Main",
+        Icon = "target"
+    },
+    Visuals = Window:CreateTab{
+        Title = "Visuals",
+        Icon = "eye"
+    },
+    Settings = Window:CreateTab{
+        Title = "Settings",
+        Icon = "settings"
+    }
+}
+
+-- Main Tab
+Tabs.Main:CreateToggle("AimAssist", {
+    Title = "Aim Assist",
+    Default = false,
+    Callback = function(Value)
+        getgenv().aim_settings.enabled = Value
+    end
+})
+
+-- Updated Aim Mode Dropdown
+local AimModeDropdown = Tabs.Main:CreateDropdown("AimMode", {
+    Title = "Aim Mode",
+    Values = {"Toggle", "Hold"},
+    Default = "Toggle",
+    Callback = function(Value)
+        getgenv().aim_settings.aimMode = Value
+    end
+})
+
+-- Updated Keybind Implementation
+local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
+    Title = "Aim Key",
+    Default = Enum.KeyCode.E,
+    Mode = "Toggle",
+    Callback = function(Key)
+        getgenv().aim_settings.aimKey = Key
+        currentAimKey = Key
+    end
+})
+
+-- Handle Toggle/Hold functionality
+AimKeybind:OnClick(function()
+    if getgenv().aim_settings.aimMode == "Toggle" then
+        Aiming = not Aiming
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if Fluent.Unloaded then break end
+        task.wait()
+        
+        if getgenv().aim_settings.aimMode == "Hold" then
+            Aiming = AimKeybind:GetState()
+        end
+    end
+end)
+
+Tabs.Main:CreateToggle("FovCircle", {
+    Title = "FOV Circle",
+    Default = false,
+    Callback = function(Value)
+        getgenv().aim_settings.fovcircle = Value
+    end
+})
+
+Tabs.Main:CreateSlider("FovSize", {
+    Title = "FOV Size",
+    Default = 100,
+    Min = 1,
+    Max = 800,
+    Rounding = 0,
+    Callback = function(Value)
+        getgenv().aim_settings.fov = Value
+    end
+})
+
+Tabs.Main:CreateDropdown("AimTarget", {
+    Title = "Aim Target",
+    Values = {"Head", "HumanoidRootPart"},
+    Default = "Head",
+    Callback = function(Value)
+        getgenv().aim_settings.hitbox = Value
+    end
+})
+
+-- Visuals Tab
+Tabs.Visuals:CreateToggle("BoxESP", {
+    Title = "Box ESP",
+    Default = false,
+    Callback = function(Value)
+        ESP.Box.Enabled = Value
+    end
+})
+
+Tabs.Visuals:CreateToggle("Tracers", {
+    Title = "Tracers",
+    Default = false,
+    Callback = function(Value)
+        ESP.Tracers.Enabled = Value
+    end
+})
+
+Tabs.Visuals:CreateDropdown("TracerPosition", {
+    Title = "Tracer Position",
+    Values = {"Bottom", "Middle", "Top", "Mouse"},
+    Default = "Bottom",
+    Callback = function(Value)
+        currentTracerPosition = Value
+    end
+})
+
+Tabs.Visuals:CreateToggle("Healthbar", {
+    Title = "Healthbar",
+    Default = false,
+    Callback = function(Value)
+        ESP.HealthBar.Enabled = Value
+    end
+})
+
+Tabs.Visuals:CreateToggle("ToolESP", {
+    Title = "Tool ESP",
+    Default = false,
+    Callback = function(Value)
+        ESP.Tool.Enabled = Value
+    end
+})
+
+Tabs.Visuals:CreateToggle("DistanceESP", {
+    Title = "Distance ESP",
+    Default = false,
+    Callback = function(Value)
+        ESP.Distance.Enabled = Value
+    end
+})
+
+-- Save Manager and Interface Manager Setup
+SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetFolder("CollapseWeaponry")
+InterfaceManager:SetFolder("CollapseWeaponry")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+-- Notification
+Library:Notify{
+    Title = "Collapse-Weaponry",
+    Content = "Script loaded successfully! - Made by finny<3",
+    Duration = 5
+}
+
+-- Load Autoconfig
+SaveManager:LoadAutoloadConfig()
