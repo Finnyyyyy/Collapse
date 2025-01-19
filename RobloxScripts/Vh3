@@ -17,7 +17,6 @@ local currentAimKey = Enum.KeyCode.E
 -- ESP Table
 local ESP = {
     Enabled = true,
-    TeamCheck = false,
     Box = {
         Enabled = false,
         Color = Color3.fromRGB(255, 255, 255),
@@ -53,8 +52,7 @@ getgenv().aim_settings = {
     fov = 150,
     hitbox = "Head",
     fovcircle = false,
-    aimKey = Enum.KeyCode.E,
-    aimMode = "Toggle"
+    aimKey = Enum.KeyCode.E
 }
 
 -- Create Circle for FOV
@@ -107,13 +105,6 @@ do
             return true
         end
         return false
-    end
-    
-    function Functions:GetTeam(Player)
-        if not Player.Neutral then
-            return game:GetService("Teams")[Player.Team.Name]
-        end
-        return "No Team"
     end
     
     function Functions:GetEquippedTool(Player)
@@ -200,10 +191,6 @@ local function AddESP(Player)
         end
 
         if not Functions:IsAlive(Player) then
-            return HideESP()
-        end
-
-        if ESP.TeamCheck and Player.Team == LocalPlayer.Team then
             return HideESP()
         end
 
@@ -310,6 +297,21 @@ Players.PlayerAdded:Connect(function(v)
 end)
 end
 
+-- Input Handling
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == currentAimKey then
+        Aiming = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == currentAimKey then
+        Aiming = false
+    end
+end)
+
 -- FOV Circle Update
 RunService.RenderStepped:Connect(function()
     if getgenv().aim_settings.enabled and Aiming then
@@ -357,44 +359,16 @@ Tabs.Main:CreateToggle("AimAssist", {
     end
 })
 
--- Updated Aim Mode Dropdown
-local AimModeDropdown = Tabs.Main:CreateDropdown("AimMode", {
-    Title = "Aim Mode",
-    Values = {"Toggle", "Hold"},
-    Default = "Toggle",
-    Callback = function(Value)
-        getgenv().aim_settings.aimMode = Value
-    end
-})
-
 -- Updated Keybind Implementation
 local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
     Title = "Aim Key",
     Default = Enum.KeyCode.E,
-    Mode = "Toggle",
+    Mode = "Hold",
     Callback = function(Key)
-        getgenv().aim_settings.aimKey = Key
         currentAimKey = Key
+        getgenv().aim_settings.aimKey = Key
     end
 })
-
--- Handle Toggle/Hold functionality
-AimKeybind:OnClick(function()
-    if getgenv().aim_settings.aimMode == "Toggle" then
-        Aiming = not Aiming
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if Fluent.Unloaded then break end
-        task.wait()
-        
-        if getgenv().aim_settings.aimMode == "Hold" then
-            Aiming = AimKeybind:GetState()
-        end
-    end
-end)
 
 Tabs.Main:CreateToggle("FovCircle", {
     Title = "FOV Circle",
@@ -454,24 +428,24 @@ Tabs.Visuals:CreateToggle("Healthbar", {
     Title = "Healthbar",
     Default = false,
     Callback = function(Value)
-        ESP.HealthBar.Enabled = Value
-    end
+    ESP.HealthBar.Enabled = Value
+   end
 })
 
 Tabs.Visuals:CreateToggle("ToolESP", {
-    Title = "Tool ESP",
-    Default = false,
-    Callback = function(Value)
-        ESP.Tool.Enabled = Value
-    end
+   Title = "Tool ESP",
+   Default = false,
+   Callback = function(Value)
+       ESP.Tool.Enabled = Value
+   end
 })
 
 Tabs.Visuals:CreateToggle("DistanceESP", {
-    Title = "Distance ESP",
-    Default = false,
-    Callback = function(Value)
-        ESP.Distance.Enabled = Value
-    end
+   Title = "Distance ESP",
+   Default = false,
+   Callback = function(Value)
+       ESP.Distance.Enabled = Value
+   end
 })
 
 -- Save Manager and Interface Manager Setup
@@ -486,9 +460,9 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 -- Notification
 Library:Notify{
-    Title = "Collapse-Weaponry",
-    Content = "Script loaded successfully! - Made by finny<3",
-    Duration = 5
+   Title = "Collapse-Weaponry",
+   Content = "Script loaded successfully! - Made by finny<3",
+   Duration = 5
 }
 
 -- Load Autoconfig
