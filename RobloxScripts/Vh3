@@ -76,7 +76,6 @@ local function AimLock()
             local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
             local distance = (mousePos - screenPosition).Magnitude
             
-            -- If current target is still in FOV, keep targeting them
             if onScreen and distance <= getgenv().aim_settings.fov then
                 local pos = CurrentCamera.CFrame.Position
                 CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
@@ -84,8 +83,7 @@ local function AimLock()
             end
         end
     end
-    
-    -- Only find new target if we don't have one or current one is invalid
+
     currentTarget = nil
     local lastMagnitude = math.huge
     
@@ -316,22 +314,6 @@ do
     end)
 end
 
--- Input Handling
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == getgenv().aim_settings.aimKey then
-        Aiming = true
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == getgenv().aim_settings.aimKey then
-        Aiming = false
-        currentTarget = nil  -- Reset target when key is released
-    end
-end)
-
 -- FOV Circle Update
 RunService.RenderStepped:Connect(function()
     if getgenv().aim_settings.enabled and Aiming then
@@ -379,14 +361,43 @@ Tabs.Main:CreateToggle("AimAssist", {
     end
 })
 
+-- Updated AimKeybind with proper handling
 local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
     Title = "Aim Key",
     Default = Enum.KeyCode.E,
     Mode = "Hold",
-    Callback = function(Key)
-        getgenv().aim_settings.aimKey = Key
+    Callback = function(Value)
+        Aiming = Value
+        if not Value then
+            currentTarget = nil
+        end
+    end,
+    ChangedCallback = function(New)
+        getgenv().aim_settings.aimKey = New
     end
 })
+
+-- Updated Input Detection
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    local currentAimKey = AimKeybind.Value
+    
+    if input.KeyCode == currentAimKey or input.UserInputType == currentAimKey then
+        Aiming = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    local currentAimKey = AimKeybind.Value
+    
+    if input.KeyCode == currentAimKey or input.UserInputType == currentAimKey then
+        Aiming = false
+        currentTarget = nil
+    end
+end)
 
 Tabs.Main:CreateToggle("FovCircle", {
     Title = "FOV Circle",
