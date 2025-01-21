@@ -42,7 +42,9 @@ local ESP = {
     HealthBar = {
         Enabled = false,
         Color = Color3.fromRGB(0, 255, 0),
-        Outlines = true
+        Outlines = true,
+        ShowNumber = true, -- Added health number display option
+        NumberColor = Color3.fromRGB(255, 255, 255) -- Added color for health number
     }
 }
 
@@ -68,7 +70,6 @@ Circle.NumSides = 64
 local function AimLock()
     local mousePos = UserInputService:GetMouseLocation()
     
-    -- Check if current target is still valid
     if currentTarget and currentTarget.Character then
         local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
         if targetPart then
@@ -153,6 +154,7 @@ do
         local HealthBar = Drawing.new("Square")
         local ToolText = Drawing.new("Text")
         local DistanceText = Drawing.new("Text")
+        local HealthText = Drawing.new("Text") -- New Health Text
         local Connection
 
         Box.Filled = false
@@ -162,6 +164,13 @@ do
         HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
         HealthBar.Filled = true
         HealthBar.ZIndex = 5
+
+        -- Setup Health Text
+        HealthText.Size = 13
+        HealthText.Center = true
+        HealthText.Outline = true
+        HealthText.Font = 2
+        HealthText.Color = ESP.HealthBar.NumberColor
 
         ToolText.Size = 13
         ToolText.Center = true
@@ -184,6 +193,7 @@ do
             HealthBar.Visible = false
             ToolText.Visible = false
             DistanceText.Visible = false
+            HealthText.Visible = false
         end
 
         local function DestroyESP()
@@ -195,6 +205,7 @@ do
             HealthBar:Remove()
             ToolText:Remove()
             DistanceText:Remove()
+            HealthText:Remove()
             Connection:Disconnect()
         end
 
@@ -287,18 +298,28 @@ do
             end
 
             if ESP.HealthBar.Enabled then
+                local health = Player.Character.Humanoid.Health
+                local maxHealth = Player.Character.Humanoid.MaxHealth
+                local healthPercent = health / maxHealth
+
                 HealthBarOutline.Visible = ESP.HealthBar.Outlines
                 HealthBarOutline.Position = Vector2.new(Position.X - 6, Position.Y + Size.Y)
-                HealthBarOutline.Size = Vector2.new(3, -Size.Y * Player.Character.Humanoid.Health / Player.Character.Humanoid.MaxHealth)
+                HealthBarOutline.Size = Vector2.new(3, -Size.Y * healthPercent)
                 HealthBarOutline.Thickness = 1
 
                 HealthBar.Visible = true
                 HealthBar.Position = HealthBarOutline.Position
                 HealthBar.Size = HealthBarOutline.Size
                 HealthBar.Color = ESP.HealthBar.Color
+
+                -- Update Health Text
+                HealthText.Visible = ESP.HealthBar.ShowNumber
+                HealthText.Text = tostring(math.floor(health))
+                HealthText.Position = Vector2.new(Position.X - 4.5, Position.Y + Size.Y - (Size.Y * healthPercent) - 15)
             else
                 HealthBarOutline.Visible = false
                 HealthBar.Visible = false
+                HealthText.Visible = false
             end
         end)
     end
@@ -361,7 +382,6 @@ Tabs.Main:CreateToggle("AimAssist", {
     end
 })
 
--- Updated AimKeybind with proper handling
 local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
     Title = "Aim Key",
     Default = Enum.KeyCode.E,
@@ -377,7 +397,6 @@ local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
     end
 })
 
--- Updated Input Detection
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -458,6 +477,7 @@ Tabs.Visuals:CreateToggle("Healthbar", {
     Default = false,
     Callback = function(Value)
         ESP.HealthBar.Enabled = Value
+        ESP.HealthBar.ShowNumber = Value -- Enable/disable health number with healthbar
     end
 })
 
