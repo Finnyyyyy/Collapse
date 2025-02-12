@@ -1,0 +1,68 @@
+local function TP2(P1)
+    local Player = game.Players.LocalPlayer
+    if not Player.Character then return end
+    local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return end
+
+    local Distance = (P1.Position - HumanoidRootPart.Position).Magnitude
+    local Speed
+    
+    if Distance < 150 then
+        Speed = 150
+    elseif Distance < 200 then
+        Speed = 150
+    elseif Distance < 300 then
+        Speed = 150
+    elseif Distance < 500 then
+        Speed = 150
+    elseif Distance < 1000 then
+        Speed = 150
+    elseif Distance >= 1000 then
+        Speed = 150
+    end
+    
+    local Tween = game:GetService("TweenService"):Create(
+        HumanoidRootPart,
+        TweenInfo.new(Distance/Speed, Enum.EasingStyle.Linear),
+        {CFrame = P1}
+    )
+    
+    Tween:Play()
+    
+    if _G.Stop_Tween == true then
+        Tween:Cancel()
+    end
+    
+    _G.Clip = true
+    wait(Distance/Speed)
+    _G.Clip = false
+end
+
+local DiscordLib = loadstring(game:HttpGet"https://gist.githubusercontent.com/TheBeautiFullBeach/406a6956595916f2abaaeef8478c0164/raw/ae1362d7ea85fe289d627790521dca16fc3c8d55/PattayaBeach")()
+local win = DiscordLib:Window("Player Teleporter")
+local serv = win:Server("Main", "")
+local TeleportTab = serv:Channel("Teleport")
+
+local function GetRandomPlayer()
+    local Players = game:GetService("Players")
+    local PlayerList = Players:GetPlayers()
+    local ValidPlayers = {}
+    
+    for _, player in ipairs(PlayerList) do
+        if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(ValidPlayers, player)
+        end
+    end
+    
+    if #ValidPlayers > 0 then
+        return ValidPlayers[math.random(1, #ValidPlayers)]
+    end
+    return nil
+end
+
+TeleportTab:Button("Teleport to Random Player", function()
+    local targetPlayer = GetRandomPlayer()
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
+    end
+end)
