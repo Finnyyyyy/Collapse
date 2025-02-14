@@ -1,0 +1,72 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local function createCircle(player)
+    if not player.Character then return end
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local baseRadius = 5 -- Starting radius
+    local maxRadius = 10 -- Max expansion
+    local segments = 16 -- Number of parts forming the circle (higher = smoother)
+    local rotationSpeed = 0.5 -- Speed of rotation
+    local expansionSpeed = 0.01 -- How fast the radius increases
+    local circleParts = {}
+    local rotationAngle = 0
+    local currentRadius = baseRadius
+
+    -- Create circle parts
+    for i = 1, segments do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(0.5, 0.5, 0.5) -- Small dot-like parts
+        part.Shape = Enum.PartType.Ball
+        part.Material = Enum.Material.Neon
+        part.Color = Color3.new(1, 1, 1) -- White color
+        part.Anchored = true
+        part.CanCollide = false
+        part.Parent = game.Workspace
+        table.insert(circleParts, part)
+    end
+
+    -- Update position every frame
+    local function updateCircle()
+        if not player.Character or not rootPart then return end
+
+        rotationAngle = rotationAngle + rotationSpeed * math.pi / 180 -- Rotate slowly
+        currentRadius = math.min(currentRadius + expansionSpeed, maxRadius) -- Expand up to maxRadius
+
+        for i, part in ipairs(circleParts) do
+            local angle = ((math.pi * 2) * (i / segments)) + rotationAngle
+            local offset = Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
+            part.Position = rootPart.Position + offset
+        end
+    end
+
+    -- Connect update function to RenderStepped
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        if not player or not player.Character or not rootPart then
+            connection:Disconnect() -- Stop updating if player is gone
+            for _, part in ipairs(circleParts) do
+                part:Destroy()
+            end
+            return
+        end
+        updateCircle()
+    end)
+end
+
+-- Apply to all players
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(1) -- Wait for character to load
+        createCircle(player)
+    end)
+end)
+
+-- Apply to existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player.Character then
+        createCircle(player)
+    end
+end
