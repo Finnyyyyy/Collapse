@@ -1,0 +1,146 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Teleport function
+local function TP2(P1)
+    local Player = game.Players.LocalPlayer
+    if not Player.Character then return end
+    local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return end
+
+    local Distance = (P1.Position - HumanoidRootPart.Position).Magnitude
+    local Speed = 150
+    
+    local Tween = game:GetService("TweenService"):Create(
+        HumanoidRootPart,
+        TweenInfo.new(Distance/Speed, Enum.EasingStyle.Linear),
+        {CFrame = P1}
+    )
+    
+    Tween:Play()
+    
+    if _G.Stop_Tween == true then
+        Tween:Cancel()
+    end
+    
+    _G.Clip = true
+    wait(Distance/Speed)
+    _G.Clip = false
+end
+
+-- Create visual circle and handle orbital movement
+local function createCircleAndOrbit(targetPlayer)
+    if not targetPlayer.Character then return end
+    local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local baseRadius = 35 -- Starting radius
+    local maxRadius = 100 -- Max expansion
+    local segments = 25
+    local rotationSpeed = 3
+    local expansionSpeed = 0
+    local circleParts = {}
+    local rotationAngle = 0
+    local currentRadius = baseRadius
+
+    -- Create circle parts
+    for i = 1, segments do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(0.5, 0.5, 0.5)
+        part.Shape = Enum.PartType.Ball
+        part.Material = Enum.Material.Neon
+        part.Color = Color3.new(1, 1, 1)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Parent = game.Workspace
+        table.insert(circleParts, part)
+    end
+
+    -- Update circle and handle orbital movement
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        if not targetPlayer or not targetPlayer.Character or not rootPart then
+            connection:Disconnect()
+            for _, part in ipairs(circleParts) do
+                part:Destroy()
+            end
+            return
+        end
+
+        rotationAngle = rotationAngle + rotationSpeed * math.pi / 180
+        currentRadius = math.min(currentRadius + expansionSpeed, maxRadius)
+
+        -- Update circle visualization
+        for i, part in ipairs(circleParts) do
+            local angle = ((math.pi * 2) * (i / segments)) + rotationAngle
+            local offset = Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
+            part.Position = rootPart.Position + offset
+        end
+
+        -- Move player in orbit
+        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRootPart = game.Players.LocalPlayer.Character.HumanoidRootPart
+            local orbitPosition = rootPart.Position + Vector3.new(
+                math.cos(rotationAngle) * currentRadius,
+                0,
+                math.sin(rotationAngle) * currentRadius
+            )
+            playerRootPart.CFrame = CFrame.new(orbitPosition, rootPart.Position)
+        end
+    end)
+
+    return function()
+        connection:Disconnect()
+        for _, part in ipairs(circleParts) do
+            part:Destroy()
+        end
+    end
+end
+
+-- Get random player function
+local function GetRandomPlayer()
+    local PlayerList = Players:GetPlayers()
+    local ValidPlayers = {}
+    
+    for _, player in ipairs(PlayerList) do
+        if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(ValidPlayers, player)
+        end
+    end
+    
+    if #ValidPlayers > 0 then
+        return ValidPlayers[math.random(1, #ValidPlayers)]
+    end
+    return nil
+end
+
+-- UI Setup
+local DiscordLib = loadstring(game:HttpGet"https://gist.githubusercontent.com/TheBeautiFullBeach/406a6956595916f2abaaeef8478c0164/raw/ae1362d7ea85fe289d627790521dca16fc3c8d55/PattayaBeach")()
+local win = DiscordLib:Window("Player Teleporter")
+local serv = win:Server("Main", "")
+local TeleportTab = serv:Channel("Teleport")
+
+local currentOrbitCleanup = nil
+
+TeleportTab:Button("Teleport and Orbit Random Player", function()
+    local targetPlayer = GetRandomPlayer()
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        -- Clean up previous orbit if exists
+        if currentOrbitCleanup then
+            currentOrbitCleanup()
+        end
+        
+        -- Teleport to player first
+        TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
+        
+        -- Start new orbit
+        currentOrbitCleanup = createCircleAndOrbit(targetPlayer)
+    end
+end)
+
+TeleportTab:Button("Stop Orbit", function()
+    if currentOrbitCleanup then
+        currentOrbitCleanup()
+        currentOrbitCleanup = nil
+    end
+end)
