@@ -2,7 +2,21 @@ local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/F
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
--- Create the Fluent window
+-- State Management
+local State = {
+    TravelMethod = "Teleport(Risky)",
+    ATMRunning = false,
+    KnifeRunning = false,
+    CashAuraActive = false,
+    CashDropActive = false,
+    VisualizeActive = false,
+    ActiveTweens = {},
+    CurrentFarm = nil,
+    AntiSitConnection = nil,
+    ESPEnabled = false
+}
+
+-- Create Window
 local Window = Library:CreateWindow({
     Title = "Collapse-Dahood",
     SubTitle = "Made by Finny<3",
@@ -15,7 +29,7 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create tabs
+-- Create Tabs
 local Tabs = {
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "pin"}),
@@ -23,233 +37,297 @@ local Tabs = {
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
-local Options = Library.Options
-
--- Ensure the game is loaded
-while not game:IsLoaded() do wait() end
-repeat wait() until game.Players.LocalPlayer.Character
-
-local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
-
--- Anti-idle
-local GC = getconnections or get_signal_cons
-if GC then
-    for i, v in pairs(GC(Players.LocalPlayer.Idled)) do
-        if v["Disable"] then v["Disable"](v)
-        elseif v["Disconnect"] then v["Disconnect"](v)
-        end
+-- Core Functions
+local function CancelTweens()
+    for _, tween in pairs(State.ActiveTweens) do
+        pcall(function() tween:Cancel() end)
     end
-else
-    Players.LocalPlayer.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end)
+    State.ActiveTweens = {}
 end
 
-local isEnabled = false
-local autofarmCoroutine = nil
-local cashAuraEnabled = false
-
--- Function to collect money
-local function getMoneyAroundMe()
-    wait(0.7)
-    for i, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
-        if not cashAuraEnabled then return end
-        if money.Name == "MoneyDrop" and (money.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude <= 20 then
-            fireclickdetector(money.ClickDetector)
-            wait(0.7)
-        end
+local function MoveTo(targetCFrame)
+    local char = game.Players.LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    CancelTweens()
+    
+    if State.TravelMethod == "Tween(slower)" then
+        local tween = game:GetService("TweenService"):Create(
+            char.HumanoidRootPart,
+            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/200),
+            {CFrame = targetCFrame}
+        )
+        table.insert(State.ActiveTweens, tween)
+        tween:Play()
+        return tween
+    else
+        char.HumanoidRootPart.CFrame = targetCFrame
+        return nil
     end
 end
 
--- Function to start the autofarm
-local function startAutoFarm(toolName)
-    local humanoid = game.Players.LocalPlayer.Character.Humanoid
-    local tool = game.Players.LocalPlayer.Backpack:FindFirstChild(toolName)
-    if not tool then
-        warn(toolName .. " tool not found in backpack")
+-- Anti-Sit System
+local function SetupAntiSit()
+    if State.AntiSitConnection then
+        State.AntiSitConnection:Disconnect()
+    end
+
+    local function HandleSit(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        State.AntiSitConnection = humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
+            if humanoid.Sit and State.TravelMethod == "Tween(slower)" then
+                humanoid.Sit = false
+                humanoid.Jump = true
+            end
+        end)
+    end
+
+    game.Players.LocalPlayer.CharacterAdded:Connect(HandleSit)
+    if game.Players.LocalPlayer.Character then
+        HandleSit(game.Players.LocalPlayer.Character)
+    end
+end
+
+-- ATM Autofarm
+local function RunATMAutofarm()
+    while State.ATMRunning do
+        local char = game.Players.LocalPlayer.Character
+        if not char then task.wait(1) continue end
+
+        local tool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
+        if not tool then
+            Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
+            State.ATMRunning = false
+            break
+        end
+
+        tool.Parent = char
+        
+        for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
+            if not State.ATMRunning then break end
+            
+            local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
+            if tween then tween.Completed:Wait() end
+            
+            for _ = 1, 10 do
+                if not State.ATMRunning then break end
+                tool:Activate()
+                task.wait(0.5)
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Knife Autofarm
+local function RunKnifeAutofarm()
+    -- Purchase Knife
+    local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
+    local tween = MoveTo(knifeCFrame)
+    if tween then tween.Completed:Wait() end
+    task.wait(1)
+    
+    local knife = game.Workspace.Ignored.Shop:FindFirstChild("[Knife] - $159")
+    if not knife then
+        Library:Notify({Title = "Error", Content = "Knife not found!", Duration = 3})
+        State.KnifeRunning = false
         return
     end
-    humanoid:EquipTool(tool)
+    fireclickdetector(knife.ClickDetector)
+    task.wait(1)
 
-    while isEnabled do
-        for i, v in ipairs(game.Workspace.Cashiers:GetChildren()) do
-            if not isEnabled then return end
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = v.Open.CFrame * CFrame.new(0, 0, 2)
+    -- Main Loop
+    while State.KnifeRunning do
+        local char = game.Players.LocalPlayer.Character
+        if not char then task.wait(1) continue end
 
-            wait(0.5)
+        local tool = char:FindFirstChild("[Knife] - $159") or game.Players.LocalPlayer.Backpack:FindFirstChild("[Knife] - $159")
+        if not tool then
+            Library:Notify({Title = "Error", Content = "Knife missing!", Duration = 3})
+            State.KnifeRunning = false
+            break
+        end
 
-            for i = 0, 10 do
-                if not isEnabled then return end
-                wait(0.5)
+        tool.Parent = char
+        
+        for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
+            if not State.KnifeRunning then break end
+            
+            local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
+            if tween then tween.Completed:Wait() end
+            
+            for _ = 1, 10 do
+                if not State.KnifeRunning then break end
                 tool:Activate()
+                task.wait(0.5)
             end
-            getMoneyAroundMe()
         end
+        task.wait(0.1)
     end
 end
 
--- Function to teleport and purchase the knife
-local function teleportAndPurchaseKnife()
-    local targetPosition = Vector3.new(-277.65, 18.849, -236)
-    local player = game.Players.LocalPlayer
-    while not player.Character do
-        wait()
-    end
-    local character = player.Character or player.CharacterAdded:Wait()
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-    end
-    wait(1)
-    local knife = game.Workspace.Ignored.Shop:FindFirstChild("[Knife] - $159")
-    if knife then
-        local clickDetector = knife:FindFirstChild("ClickDetector")
-        if clickDetector then
-            clickDetector.MaxActivationDistance = 4.5
-            fireclickdetector(clickDetector)
-            print("Knife purchased")
-            wait(1)
-            local tool = player.Backpack:FindFirstChild("[Knife] - $159")
-            if tool then
-                player.Character.Humanoid:EquipTool(tool)
-                print("Knife tool equipped after purchase")
-            else
-                warn("Knife tool not found in backpack")
+-- Cash Aura
+local function CashAura()
+    while State.CashAuraActive do
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
+                if money.Name == "MoneyDrop" and money:FindFirstChild("ClickDetector") then
+                    if (money.Position - char.HumanoidRootPart.Position).Magnitude <= 20 then
+                        fireclickdetector(money.ClickDetector)
+                    end
+                end
             end
-        else
-            warn("ClickDetector not found on the knife object")
         end
+        task.wait(0.5)
+    end
+end
+
+-- Cash Drop
+local function CashDrop()
+    while State.CashDropActive do
+        game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "10000")
+        task.wait(5)
+    end
+end
+
+-- Cash ESP
+local function ToggleESP(state)
+    if state then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "MoneyESP"
+        highlight.FillColor = Color3.fromRGB(0, 255, 0)
+        highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+        highlight.FillTransparency = 0.5
+        highlight.Parent = game.ReplicatedStorage
+
+        local function applyESP(inst)
+            if inst.Name == "MoneyDrop" then
+                local clone = highlight:Clone()
+                clone.Adornee = inst
+                clone.Parent = inst
+            end
+        end
+
+        for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
+            applyESP(money)
+        end
+
+        game.Workspace.Ignored.Drop.ChildAdded:Connect(applyESP)
     else
-        warn("Knife object not found")
+        for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
+            if money:FindFirstChild("MoneyESP") then
+                money.MoneyESP:Destroy()
+            end
+        end
+        if game.ReplicatedStorage:FindFirstChild("MoneyESP") then
+            game.ReplicatedStorage.MoneyESP:Destroy()
+        end
     end
 end
 
--- Add elements to Main tab
-local AtmAutofarmToggle = Tabs.Main:CreateToggle("AtmAutofarm", {
+-- Map Destruction
+local function DestroyMap()
+    local function destroyFolder(folder)
+        if folder then
+            for _, child in ipairs(folder:GetChildren()) do
+                child:Destroy()
+            end
+        end
+    end
+
+    destroyFolder(game.Workspace:FindFirstChild("MAP"))
+    destroyFolder(game.Workspace:FindFirstChild("Lights"))
+    
+    local ignored = game.Workspace:FindFirstChild("Ignored")
+    if ignored then
+        destroyFolder(ignored:FindFirstChild("HouseOwn"))
+        destroyFolder(ignored:FindFirstChild("HouseItemSale"))
+    end
+
+    -- Create platforms
+    local parts = {
+        {CFrame = CFrame.new(-935.5, 18, -660.25), Size = Vector3.new(167, 1, 31.5)},
+        {CFrame = CFrame.new(-558, 18.5, 269.625), Size = Vector3.new(15, 1, 17.25)},
+        {CFrame = CFrame.new(-611.875, 18, 272.25), Size = Vector3.new(22.75, 1, 19)},
+        {CFrame = CFrame.new(586.25, 48, -470.5), Size = Vector3.new(39.5, 1, 19.5)},
+        {CFrame = CFrame.new(583.5, 45.125, -275.375), Size = Vector3.new(19.5, 1, 18.75)},
+        {CFrame = CFrame.new(-401.5, 18.005, -590.625), Size = Vector3.new(20.5, 1, 20.75)},
+        {CFrame = CFrame.new(517.625, 44.5, -302), Size = Vector3.new(20.25, 1, 20.5)},
+    }
+
+    for _, data in pairs(parts) do
+        local part = Instance.new("Part")
+        part.Anchored = true
+        part.CFrame = data.CFrame
+        part.Size = data.Size
+        part.Color = Color3.fromRGB(255, 0, 0)
+        part.Transparency = 0.5
+        part.Parent = workspace
+    end
+end
+
+-- UI Elements
+Tabs.Main:CreateDropdown("TravelMethod", {
+    Title = "Travel Method",
+    Values = {"Teleport(Risky)", "Tween(slower)"},
+    Multi = false,
+    Default = 1,
+}):OnChanged(function(value)
+    State.TravelMethod = value
+    SetupAntiSit()
+end)
+
+Tabs.Main:CreateToggle("ATM_Autofarm", {
     Title = "ATM Autofarm", 
     Default = false
-})
-
-AtmAutofarmToggle:OnChanged(function(value)
-    isEnabled = value
-    if isEnabled then
-        if not autofarmCoroutine then
-            autofarmCoroutine = coroutine.create(function() startAutoFarm("Combat") end)
-            coroutine.resume(autofarmCoroutine)
-        end
-    else
-        if autofarmCoroutine then
-            coroutine.yield(autofarmCoroutine)
-            autofarmCoroutine = nil
-        end
+}):OnChanged(function(state)
+    State.ATMRunning = state
+    if state then
+        coroutine.wrap(RunATMAutofarm)()
     end
 end)
 
-local KnifeAutofarmToggle = Tabs.Main:CreateToggle("KnifeAutofarm", {
+Tabs.Main:CreateToggle("Knife_Autofarm", {
     Title = "Knife Autofarm", 
     Default = false
-})
-
-KnifeAutofarmToggle:OnChanged(function(value)
-    if value then
-        teleportAndPurchaseKnife()
-        wait(1)
-        if not autofarmCoroutine then
-            autofarmCoroutine = coroutine.create(function() startAutoFarm("[Knife] - $159") end)
-            coroutine.resume(autofarmCoroutine)
-        end
-    else
-        if autofarmCoroutine then
-            coroutine.yield(autofarmCoroutine)
-            autofarmCoroutine = nil
-        end
+}):OnChanged(function(state)
+    State.KnifeRunning = state
+    if state then
+        coroutine.wrap(RunKnifeAutofarm)()
     end
 end)
 
-local CashAuraToggle = Tabs.Main:CreateToggle("CashAura", {
+Tabs.Main:CreateToggle("Cash_Aura", {
     Title = "Cash Aura", 
     Default = false
-})
-
-CashAuraToggle:OnChanged(function(value)
-    cashAuraEnabled = value
-    if cashAuraEnabled then
-        getMoneyAroundMe()
+}):OnChanged(function(state)
+    State.CashAuraActive = state
+    if state then
+        coroutine.wrap(CashAura)()
     end
 end)
 
-local CashDropToggle = Tabs.Main:CreateToggle("CashDrop", {
+Tabs.Main:CreateToggle("Cash_Drop", {
     Title = "Cash Drop", 
     Default = false
-})
-
-CashDropToggle:OnChanged(function(value)
-    if value then
-        while CashDropToggle.Value do
-            dropMoney(10000)
-            wait(5)
-        end
+}):OnChanged(function(state)
+    State.CashDropActive = state
+    if state then
+        coroutine.wrap(CashDrop)()
     end
 end)
 
-function dropMoney(amount)
-    game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "" .. amount)
-end
+Tabs.Main:CreateToggle("Cash_ESP", {
+    Title = "Cash ESP", 
+    Default = false
+}):OnChanged(function(state)
+    State.ESPEnabled = state
+    ToggleESP(state)
+end)
 
-Tabs.Main:CreateButton({
-    Title = "Cash ESP",
-    Callback = function()
-        local Players = game:GetService("Players")
-        local Workspace = game:GetService("Workspace")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-        local HighlightMaterial = Instance.new("Color3Value")
-        HighlightMaterial.Name = "HighlightMaterial"
-        HighlightMaterial.Value = Color3.fromRGB(0, 255, 0) -- Neon green color
-        HighlightMaterial.Parent = ReplicatedStorage
-
-        local function applyESP(part)
-            if not part or not part:IsA("BasePart") or part.Name ~= "MoneyDrop" then
-                return
-            end
-
-            local highlight = Instance.new("BoxHandleAdornment")
-            highlight.Size = part.Size * 1.1
-            highlight.Color3 = HighlightMaterial.Value
-            highlight.Transparency = 0.3
-            highlight.AlwaysOnTop = true
-            highlight.ZIndex = 1
-            highlight.Adornee = part
-            highlight.Parent = part
-        end
-
-        local function monitorDropsFolder()
-            local dropsFolder = Workspace:WaitForChild("Ignored"):WaitForChild("Drop")
-
-            for _, part in ipairs(dropsFolder:GetChildren()) do
-                applyESP(part)
-            end
-
-            dropsFolder.ChildAdded:Connect(function(part)
-                applyESP(part)
-            end)
-        end
-
-        monitorDropsFolder()
-
-        Library:Notify({
-            Title = "ESP Script",
-            Content = "ESP script has successfully loaded. Made by Finny <3",
-            Duration = 5,
-        })
-
-        print("ESP script loaded.")
-    end
-})
-
--- Teleports Tab
-local teleportButtons = {
+-- Teleport Buttons
+local teleportLocations = {
     {Title = "Bank", Position = Vector3.new(-373, 18.75, -346)},
     {Title = "Hood Fitness", Position = Vector3.new(-76, 19.45, -594.25)},
     {Title = "Club", Position = Vector3.new(-262.5, -1.208, -376)},
@@ -257,105 +335,40 @@ local teleportButtons = {
     {Title = "BasketBall Court", Position = Vector3.new(-932, 19.6, -482.25)},
     {Title = "Uphill Gunz", Position = Vector3.new(-562.75, 5.66, -736.25)},
     {Title = "Hospital", Position = Vector3.new(80, 19.255, -484.75)},
-    {Title = "Ufo", Position = Vector3.new(49.75, 159.75, -686.25)},
+    {Title = "Ufo", Position = Vector3.new(49.75, 159.75, -686.25)}
 }
 
-for _, btn in pairs(teleportButtons) do
+for _, loc in ipairs(teleportLocations) do
     Tabs.Teleports:CreateButton({
-        Title = btn.Title,
+        Title = loc.Title,
         Callback = function()
-            local player = game.Players.LocalPlayer
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                player.Character.HumanoidRootPart.CFrame = CFrame.new(btn.Position)
-            end
+            MoveTo(CFrame.new(loc.Position))
         end
     })
 end
 
 -- Misc Tab
 Tabs.Misc:CreateButton({
-    Title = "Destroy the map (recommended for autofarm)",
-    Callback = function()
-        local function destroyFolderContents(folder)
-            if folder then
-                for _, child in ipairs(folder:GetChildren()) do
-                    child:Destroy()
-                end
-            else
-                warn("Specified folder does not exist")
-            end
-        end
-
-        local function addAnchoredPart(position, size, color, transparency)
-            local part = Instance.new("Part")
-            part.Position = position
-            part.Size = size
-            part.Anchored = true
-            part.Color = color
-            part.Transparency = transparency
-            part.Parent = game.Workspace
-        end
-
-        local mapFolderPath = game.Workspace:FindFirstChild("MAP")
-        local lightsFolderPath = game.Workspace:FindFirstChild("Lights")
-        local ignoredFolderPath = game.Workspace:FindFirstChild("Ignored")
-
-        if mapFolderPath then
-            local mapSubFolder = mapFolderPath:FindFirstChild("Map")
-            destroyFolderContents(mapSubFolder)
-        else
-            warn("Folder 'MAP' does not exist in Workspace")
-        end
-
-        if mapFolderPath then
-            local mapLightsSubFolder = mapFolderPath:FindFirstChild("Lights")
-            destroyFolderContents(mapLightsSubFolder)
-        else
-            warn("Folder 'MAP' does not exist in Workspace")
-        end
-
-        destroyFolderContents(lightsFolderPath)
-
-        if ignoredFolderPath then
-            local houseOwnFolder = ignoredFolderPath:FindFirstChild("HouseOwn")
-            local houseItemSaleFolder = ignoredFolderPath:FindFirstChild("HouseItemSale")
-            destroyFolderContents(houseOwnFolder)
-            destroyFolderContents(houseItemSaleFolder)
-        else
-            warn("Folder 'Ignored' does not exist in Workspace")
-        end
-
-        local partsData = {
-            {size = Vector3.new(167, 1, 31.5), position = Vector3.new(-935.5, 18, -660.25)},
-            {size = Vector3.new(15, 1, 17.25), position = Vector3.new(-558, 18.5, 269.625)},
-            {size = Vector3.new(22.75, 1, 19), position = Vector3.new(-611.875, 18, 272.25)},
-            {size = Vector3.new(39.5, 1, 19.5), position = Vector3.new(586.25, 48, -470.5)},
-            {size = Vector3.new(19.5, 1, 18.75), position = Vector3.new(583.5, 45.125, -275.375)},
-            {size = Vector3.new(20.5, 1, 20.75), position = Vector3.new(-401.5, 18.005, -590.625)},
-            {size = Vector3.new(20.25, 1, 20.5), position = Vector3.new(517.625, 44.5, -302)}
-        }
-
-        for _, data in ipairs(partsData) do
-            addAnchoredPart(data.position, data.size, Color3.fromRGB(255, 0, 0), 0.5)
-        end
-    end
+    Title = "Destroy Map",
+    Callback = DestroyMap
 })
 
--- Initialize addons
+-- Initialize Systems
+SetupAntiSit()
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("FluentScriptHub")
-SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-Window:SelectTab(1)
-SaveManager:LoadAutoloadConfig()
+-- Anti-Idle
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    game:GetService("VirtualUser"):CaptureController()
+    game:GetService("VirtualUser"):ClickButton2(Vector2.new())
+end)
 
 Library:Notify({
-    Title = "Collapse-Dahood",
-    Content = "Script loaded successfully!",
+    Title = "Script Loaded",
+    Content = "All systems operational!",
     Duration = 5
 })
