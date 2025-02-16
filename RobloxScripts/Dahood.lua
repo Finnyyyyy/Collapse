@@ -1,29 +1,29 @@
--- Load Fluent and Addons
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
 -- Create the Fluent window
-local Window = Fluent:CreateWindow({
+local Window = Library:CreateWindow({
     Title = "Collapse-Dahood",
     SubTitle = "Made by Finny<3",
     TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
+    Size = UDim2.fromOffset(1250, 800),
+    Resize = true,
+    MinSize = Vector2.new(500, 500),
     Acrylic = true,
-    Theme = "Dark",
+    Theme = "VSC Dark High Contrast",
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
 -- Create tabs
 local Tabs = {
-    Main = Window:AddTab({ Title = "Main" }),
-    Teleports = Window:AddTab({ Title = "Teleports" }),
-    Misc = Window:AddTab({ Title = "Misc" }),
-    Settings = Window:AddTab({ Title = "Settings"})
+    Main = Window:CreateTab({Title = "Main", Icon = "target"}),
+    Teleports = Window:CreateTab({Title = "Teleports", Icon = "pin"}),
+    Misc = Window:CreateTab({Title = "Misc", Icon = "settings"}),
+    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
-
-local Options = Fluent.Options
+local Options = Library.Options
 
 -- Ensure the game is loaded
 while not game:IsLoaded() do wait() end
@@ -126,36 +126,19 @@ local function teleportAndPurchaseKnife()
 end
 
 -- Add elements to Main tab
-local AtmAutofarmToggle = Tabs.Main:AddToggle("AtmAutofarm", { Title = "ATM Autofarm", Default = false })
+local AtmAutofarmToggle = Tabs.Main:CreateToggle("AtmAutofarm", {
+    Title = "ATM Autofarm", 
+    Default = false
+})
+
 AtmAutofarmToggle:OnChanged(function(value)
     isEnabled = value
     if isEnabled then
-        setfpscap(15)
-        wait(0.2)
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "FPS",
-            Text = "FPS set to 15",
-            Duration = 5
-        })
         if not autofarmCoroutine then
             autofarmCoroutine = coroutine.create(function() startAutoFarm("Combat") end)
             coroutine.resume(autofarmCoroutine)
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/FNNY101/Astrohub-Dahood/main/Guis/Cpu%20Saver"))()
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Gui",
-                Text = "Press L to toggle the GUI on and off",
-                Duration = 5
-            })
         end
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/FNNY101/Astrohub-Dahood/main/Guis/Potato%20Graphics"))()
     else
-        setfpscap(60)
-        wait(0.2)
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "FPS",
-            Text = "FPS set to 60",
-            Duration = 5
-        })
         if autofarmCoroutine then
             coroutine.yield(autofarmCoroutine)
             autofarmCoroutine = nil
@@ -163,7 +146,11 @@ AtmAutofarmToggle:OnChanged(function(value)
     end
 end)
 
-local KnifeAutofarmToggle = Tabs.Main:AddToggle("KnifeAutofarm", { Title = "Knife Autofarm", Default = false })
+local KnifeAutofarmToggle = Tabs.Main:CreateToggle("KnifeAutofarm", {
+    Title = "Knife Autofarm", 
+    Default = false
+})
+
 KnifeAutofarmToggle:OnChanged(function(value)
     if value then
         teleportAndPurchaseKnife()
@@ -180,7 +167,11 @@ KnifeAutofarmToggle:OnChanged(function(value)
     end
 end)
 
-local CashAuraToggle = Tabs.Main:AddToggle("CashAura", { Title = "Cash Aura", Default = false })
+local CashAuraToggle = Tabs.Main:CreateToggle("CashAura", {
+    Title = "Cash Aura", 
+    Default = false
+})
+
 CashAuraToggle:OnChanged(function(value)
     cashAuraEnabled = value
     if cashAuraEnabled then
@@ -188,218 +179,101 @@ CashAuraToggle:OnChanged(function(value)
     end
 end)
 
--- Add the CashDrop toggle
-local CashDropToggle = Tabs.Main:AddToggle("CashDrop", { Title = "Cash Drop", Default = false })
+local CashDropToggle = Tabs.Main:CreateToggle("CashDrop", {
+    Title = "Cash Drop", 
+    Default = false
+})
+
 CashDropToggle:OnChanged(function(value)
     if value then
         while CashDropToggle.Value do
-            dropMoney(10000)  -- Drop $10,000
-            wait(5)  -- Adjust the wait time if needed
+            dropMoney(10000)
+            wait(5)
         end
     end
 end)
+
 function dropMoney(amount)
     game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "" .. amount)
 end
 
-
-
-
-Tabs.Main:AddButton({
+Tabs.Main:CreateButton({
     Title = "Cash ESP",
     Callback = function()
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Players = game:GetService("Players")
+        local Workspace = game:GetService("Workspace")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local HighlightMaterial = Instance.new("Color3Value")
-HighlightMaterial.Name = "HighlightMaterial"
-HighlightMaterial.Value = Color3.fromRGB(0, 255, 0) -- Neon green color
-HighlightMaterial.Parent = ReplicatedStorage
+        local HighlightMaterial = Instance.new("Color3Value")
+        HighlightMaterial.Name = "HighlightMaterial"
+        HighlightMaterial.Value = Color3.fromRGB(0, 255, 0) -- Neon green color
+        HighlightMaterial.Parent = ReplicatedStorage
 
-local function applyESP(part)
-    if not part or not part:IsA("BasePart") or part.Name ~= "MoneyDrop" then
-        return
-    end
+        local function applyESP(part)
+            if not part or not part:IsA("BasePart") or part.Name ~= "MoneyDrop" then
+                return
+            end
 
-    local highlight = Instance.new("BoxHandleAdornment")
-    highlight.Size = part.Size * 1.1
-    highlight.Color3 = HighlightMaterial.Value
-    highlight.Transparency = 0.3
-    highlight.AlwaysOnTop = true  -- Ensure it's always rendered on top
-    highlight.ZIndex = 1  -- Set a high ZIndex to render above other parts
-    highlight.Adornee = part
-    highlight.Parent = part
-end
+            local highlight = Instance.new("BoxHandleAdornment")
+            highlight.Size = part.Size * 1.1
+            highlight.Color3 = HighlightMaterial.Value
+            highlight.Transparency = 0.3
+            highlight.AlwaysOnTop = true
+            highlight.ZIndex = 1
+            highlight.Adornee = part
+            highlight.Parent = part
+        end
 
-local function monitorDropsFolder()
-    local dropsFolder = Workspace:WaitForChild("Ignored"):WaitForChild("Drop")
+        local function monitorDropsFolder()
+            local dropsFolder = Workspace:WaitForChild("Ignored"):WaitForChild("Drop")
 
-    for _, part in ipairs(dropsFolder:GetChildren()) do
-        applyESP(part)
-    end
+            for _, part in ipairs(dropsFolder:GetChildren()) do
+                applyESP(part)
+            end
 
-    dropsFolder.ChildAdded:Connect(function(part)
-        applyESP(part)
-    end)
-end
+            dropsFolder.ChildAdded:Connect(function(part)
+                applyESP(part)
+            end)
+        end
 
-monitorDropsFolder()
+        monitorDropsFolder()
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "ESP Script",
-    Text = "ESP script has successfully loaded. Made by Finny <3",
-    Duration = 5,
-})
+        Library:Notify({
+            Title = "ESP Script",
+            Content = "ESP script has successfully loaded. Made by Finny <3",
+            Duration = 5,
+        })
 
-print("ESP script loaded.")
-
-    end
-})
-
-
--- Add elements to Teleports tab
-Tabs.Teleports:AddButton({
-    Title = "Bank",
-    Callback = function()
-local targetPosition = Vector3.new(-373, 18.75, -346)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-
+        print("ESP script loaded.")
     end
 })
 
-Tabs.Teleports:AddButton({
-    Title = "Hood Fitness",
-    Callback = function()
-local targetPosition = Vector3.new(-76, 19.45, -594.25)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
+-- Teleports Tab
+local teleportButtons = {
+    {Title = "Bank", Position = Vector3.new(-373, 18.75, -346)},
+    {Title = "Hood Fitness", Position = Vector3.new(-76, 19.45, -594.25)},
+    {Title = "Club", Position = Vector3.new(-262.5, -1.208, -376)},
+    {Title = "School", Position = Vector3.new(-652.5, 18.75, 197.5)},
+    {Title = "BasketBall Court", Position = Vector3.new(-932, 19.6, -482.25)},
+    {Title = "Uphill Gunz", Position = Vector3.new(-562.75, 5.66, -736.25)},
+    {Title = "Hospital", Position = Vector3.new(80, 19.255, -484.75)},
+    {Title = "Ufo", Position = Vector3.new(49.75, 159.75, -686.25)},
+}
+
+for _, btn in pairs(teleportButtons) do
+    Tabs.Teleports:CreateButton({
+        Title = btn.Title,
+        Callback = function()
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(btn.Position)
+            end
+        end
+    })
 end
 
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "Club",
-    Callback = function()
-local targetPosition = Vector3.new(-262.5, -1.208, -376)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "School",
-    Callback = function()
-local targetPosition = Vector3.new(-652.5, 18.75, 197.5)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-
-Tabs.Teleports:AddButton({
-    Title = "BasketBall Court",
-    Callback = function()
-local targetPosition = Vector3.new(-932, 19.6, -482.25)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "Uphill Gunz",
-    Callback = function()
-local targetPosition = Vector3.new(-562.75, 5.66, -736.25)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "Hospital",
-    Callback = function()
-local targetPosition = Vector3.new(80, 19.255, -484.75)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "Ufo",
-    Callback = function()
-local targetPosition = Vector3.new(49.75, 159.75, -686.25)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-Tabs.Teleports:AddButton({
-    Title = "Hood Fitness",
-    Callback = function()
-local targetPosition = Vector3.new(-75.25, 21.2, -588.75)
-local player = game.Players.LocalPlayer
-while not player.Character do
-    wait()
-end
-local character = player.Character or player.CharacterAdded:Wait()
-if character and character:FindFirstChild("HumanoidRootPart") then
-    character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
-end
-    end
-})
-
-
-
-Tabs.Misc:AddButton({
+-- Misc Tab
+Tabs.Misc:CreateButton({
     Title = "Destroy the map (recommended for autofarm)",
     Callback = function()
         local function destroyFolderContents(folder)
@@ -462,33 +336,26 @@ Tabs.Misc:AddButton({
         }
 
         for _, data in ipairs(partsData) do
-            addAnchoredPart(data.position, data.size, Color3.fromRGB(255, 0, 0), 0.5) -- Set transparency as needed
+            addAnchoredPart(data.position, data.size, Color3.fromRGB(255, 0, 0), 0.5)
         end
     end
 })
 
-
-
-
-
-
-
-
-
-
-
-
-
--- Add elements to Misc tab (optional)
-
 -- Initialize addons
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
+SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
+
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
+
+Library:Notify({
+    Title = "Collapse-Dahood",
+    Content = "Script loaded successfully!",
+    Duration = 5
+})
