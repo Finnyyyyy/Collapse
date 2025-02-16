@@ -12,9 +12,10 @@ local State = {
     VisualizeActive = false,
     ActiveTweens = {},
     CurrentFarm = nil,
-    AntiSitConnection = nil,
     ESPEnabled = false
 }
+
+local seatsFound = false
 
 -- Create Window
 local Window = Library:CreateWindow({
@@ -54,7 +55,7 @@ local function MoveTo(targetCFrame)
     if State.TravelMethod == "Tween(slower)" then
         local tween = game:GetService("TweenService"):Create(
             char.HumanoidRootPart,
-            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/200),
+            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/150),
             {CFrame = targetCFrame}
         )
         table.insert(State.ActiveTweens, tween)
@@ -66,29 +67,7 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- Anti-Sit System
-local function SetupAntiSit()
-    if State.AntiSitConnection then
-        State.AntiSitConnection:Disconnect()
-    end
-
-    local function HandleSit(char)
-        local humanoid = char:WaitForChild("Humanoid")
-        State.AntiSitConnection = humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
-            if humanoid.Sit and State.TravelMethod == "Tween(slower)" then
-                humanoid.Sit = false
-                humanoid.Jump = true
-            end
-        end)
-    end
-
-    game.Players.LocalPlayer.CharacterAdded:Connect(HandleSit)
-    if game.Players.LocalPlayer.Character then
-        HandleSit(game.Players.LocalPlayer.Character)
-    end
-end
-
--- ATM Autofarm
+-- ATM Autofarm with Timing
 local function RunATMAutofarm()
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
@@ -109,19 +88,22 @@ local function RunATMAutofarm()
             local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
             if tween then tween.Completed:Wait() end
             
-            for _ = 1, 10 do
+            task.wait(0.5)
+            
+            for _ = 1, 11 do
                 if not State.ATMRunning then break end
                 tool:Activate()
                 task.wait(0.5)
             end
+            
+            task.wait(3.2) -- Post-break delay
         end
         task.wait(0.1)
     end
 end
 
--- Knife Autofarm
+-- Knife Autofarm with Timing
 local function RunKnifeAutofarm()
-    -- Purchase Knife
     local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
     local tween = MoveTo(knifeCFrame)
     if tween then tween.Completed:Wait() end
@@ -136,7 +118,6 @@ local function RunKnifeAutofarm()
     fireclickdetector(knife.ClickDetector)
     task.wait(1)
 
-    -- Main Loop
     while State.KnifeRunning do
         local char = game.Players.LocalPlayer.Character
         if not char then task.wait(1) continue end
@@ -156,11 +137,15 @@ local function RunKnifeAutofarm()
             local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
             if tween then tween.Completed:Wait() end
             
-            for _ = 1, 10 do
+            task.wait(0.5)
+            
+            for _ = 1, 11 do
                 if not State.KnifeRunning then break end
                 tool:Activate()
                 task.wait(0.5)
             end
+            
+            task.wait(0.5) -- Post-break delay
         end
         task.wait(0.1)
     end
@@ -272,10 +257,9 @@ Tabs.Main:CreateDropdown("TravelMethod", {
     Title = "Travel Method",
     Values = {"Teleport(Risky)", "Tween(slower)"},
     Multi = false,
-    Default = 1,
+    Default = 2,
 }):OnChanged(function(value)
     State.TravelMethod = value
-    SetupAntiSit()
 end)
 
 Tabs.Main:CreateToggle("ATM_Autofarm", {
@@ -354,7 +338,6 @@ Tabs.Misc:CreateButton({
 })
 
 -- Initialize Systems
-SetupAntiSit()
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -366,6 +349,18 @@ game:GetService("Players").LocalPlayer.Idled:Connect(function()
     game:GetService("VirtualUser"):CaptureController()
     game:GetService("VirtualUser"):ClickButton2(Vector2.new())
 end)
+
+-- Seat Removal
+for _, seat in ipairs(game:GetDescendants()) do
+    if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
+        seat:Destroy()
+        seatsFound = true
+    end
+end
+
+if not seatsFound then
+    warn("No seats found in the game!")
+end
 
 Library:Notify({
     Title = "Script Loaded",
