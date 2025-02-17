@@ -12,7 +12,8 @@ local State = {
     VisualizeActive = false,
     ActiveTweens = {},
     CurrentFarm = nil,
-    ESPEnabled = false
+    ESPEnabled = false,
+    NoclipEnabled = false
 }
 
 local seatsFound = false
@@ -38,6 +39,37 @@ local Tabs = {
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
+-- Noclip Functions
+local Noclip = nil
+local Clip = nil
+
+local function noclip()
+    Clip = false
+    local function Nocl()
+        if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+            for _,v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                if v:IsA('BasePart') and v.CanCollide and v.Name ~= floatName then
+                    v.CanCollide = false
+                end
+            end
+        end
+        wait(0.21)
+    end
+    Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+end
+
+local function clip()
+    if Noclip then Noclip:Disconnect() end
+    Clip = true
+    if game.Players.LocalPlayer.Character then
+        for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+            if v:IsA('BasePart') then
+                v.CanCollide = true
+            end
+        end
+    end
+end
+
 -- Core Functions
 local function CancelTweens()
     for _, tween in pairs(State.ActiveTweens) do
@@ -55,7 +87,7 @@ local function MoveTo(targetCFrame)
     if State.TravelMethod == "Tween(slower)" then
         local tween = game:GetService("TweenService"):Create(
             char.HumanoidRootPart,
-            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/150),
+            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/70),
             {CFrame = targetCFrame}
         )
         table.insert(State.ActiveTweens, tween)
@@ -77,26 +109,37 @@ local function RunATMAutofarm()
         if not tool then
             Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
             State.ATMRunning = false
+            clip()
             break
         end
 
         tool.Parent = char
         
         for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
-            if not State.ATMRunning then break end
+            if not State.ATMRunning then 
+                clip()
+                break 
+            end
+            
+            if State.ATMRunning then noclip() end
             
             local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
             if tween then tween.Completed:Wait() end
             
+            if State.ATMRunning then clip() end
+            
             task.wait(0.5)
             
             for _ = 1, 11 do
-                if not State.ATMRunning then break end
+                if not State.ATMRunning then
+                    clip()
+                    break
+                end
                 tool:Activate()
                 task.wait(0.5)
             end
             
-            task.wait(3.2) -- Post-break delay
+            task.wait(3.2)
         end
         task.wait(0.1)
     end
@@ -145,7 +188,7 @@ local function RunKnifeAutofarm()
                 task.wait(0.5)
             end
             
-            task.wait(0.5) -- Post-break delay
+            task.wait(0.5)
         end
         task.wait(0.1)
     end
@@ -310,6 +353,18 @@ Tabs.Main:CreateToggle("Cash_ESP", {
     ToggleESP(state)
 end)
 
+Tabs.Main:CreateToggle("Noclip", {
+    Title = "Noclip",
+    Default = false
+}):OnChanged(function(state)
+    State.NoclipEnabled = state
+    if state then
+        noclip()
+    else
+        clip()
+    end
+end)
+
 -- Teleport Buttons
 local teleportLocations = {
     {Title = "Bank", Position = Vector3.new(-373, 18.75, -346)},
@@ -367,3 +422,5 @@ Library:Notify({
     Content = "All systems operational!",
     Duration = 5
 })
+
+SaveManager:LoadAutoloadConfig()
