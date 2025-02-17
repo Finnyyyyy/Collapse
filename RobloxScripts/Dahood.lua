@@ -13,7 +13,8 @@ local State = {
     ActiveTweens = {},
     CurrentFarm = nil,
     ESPEnabled = false,
-    NoclipEnabled = false
+    NoclipEnabled = false,
+    CurrentATMPosition = nil
 }
 
 local seatsFound = false
@@ -38,6 +39,22 @@ local Tabs = {
     Misc = Window:CreateTab({Title = "Misc", Icon = "settings"}),
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
+
+-- Position Update System
+local PositionUpdateConnection = nil
+
+local function StartPositionUpdate(position)
+    if PositionUpdateConnection then
+        PositionUpdateConnection:Disconnect()
+    end
+    
+    PositionUpdateConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        local char = game.Players.LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and position then
+            char.HumanoidRootPart.CFrame = position
+        end
+    end)
+end
 
 -- Noclip Functions
 local Noclip = nil
@@ -130,7 +147,7 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- ATM Autofarm with Timing
+-- Modified ATM Autofarm
 local function RunATMAutofarm()
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
@@ -140,6 +157,9 @@ local function RunATMAutofarm()
         if not tool then
             Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
             State.ATMRunning = false
+            if PositionUpdateConnection then
+                PositionUpdateConnection:Disconnect()
+            end
             clip()
             break
         end
@@ -148,14 +168,22 @@ local function RunATMAutofarm()
         
         for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
             if not State.ATMRunning then 
+                if PositionUpdateConnection then
+                    PositionUpdateConnection:Disconnect()
+                end
                 clip()
                 break 
             end
             
             if State.ATMRunning then farmNoclip() end
             
-            local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
+            -- Set initial position
+            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 2)
+            local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
+            
+            -- Start position update for current ATM
+            StartPositionUpdate(targetPosition)
             
             if State.ATMRunning then clip() end
             
@@ -163,6 +191,9 @@ local function RunATMAutofarm()
             
             for _ = 1, 11 do
                 if not State.ATMRunning then
+                    if PositionUpdateConnection then
+                        PositionUpdateConnection:Disconnect()
+                    end
                     clip()
                     break
                 end
@@ -170,9 +201,19 @@ local function RunATMAutofarm()
                 task.wait(0.5)
             end
             
+            -- Stop position update before moving to next ATM
+            if PositionUpdateConnection then
+                PositionUpdateConnection:Disconnect()
+            end
+            
             task.wait(3.2)
         end
         task.wait(0.1)
+    end
+    
+    -- Cleanup
+    if PositionUpdateConnection then
+        PositionUpdateConnection:Disconnect()
     end
 end
 
@@ -343,6 +384,10 @@ Tabs.Main:CreateToggle("ATM_Autofarm", {
     State.ATMRunning = state
     if state then
         coroutine.wrap(RunATMAutofarm)()
+    else
+        if PositionUpdateConnection then
+            PositionUpdateConnection:Disconnect()
+        end
     end
 end)
 
@@ -452,4 +497,3 @@ Library:Notify({
     Content = "All systems operational!",
     Duration = 5
 })
-
