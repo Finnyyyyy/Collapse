@@ -58,6 +58,29 @@ local function noclip()
     Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
 end
 
+local function farmNoclip()
+    Clip = false
+    local function Nocl()
+        if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+            for _,v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                if v:IsA('BasePart') and v.CanCollide and v.Name ~= floatName then
+                    v.CanCollide = false
+                end
+            end
+            for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
+                if cashier:FindFirstChild("Open") then
+                    cashier.Open.CanCollide = false
+                end
+                if cashier:FindFirstChild("Hitbox") then
+                    cashier.Hitbox.CanCollide = false
+                end
+            end
+        end
+        wait(0.21)
+    end
+    Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+end
+
 local function clip()
     if Noclip then Noclip:Disconnect() end
     Clip = true
@@ -66,6 +89,14 @@ local function clip()
             if v:IsA('BasePart') then
                 v.CanCollide = true
             end
+        end
+    end
+    for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
+        if cashier:FindFirstChild("Open") then
+            cashier.Open.CanCollide = true
+        end
+        if cashier:FindFirstChild("Hitbox") then
+            cashier.Hitbox.CanCollide = true
         end
     end
 end
@@ -121,7 +152,7 @@ local function RunATMAutofarm()
                 break 
             end
             
-            if State.ATMRunning then noclip() end
+            if State.ATMRunning then farmNoclip() end
             
             local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
             if tween then tween.Completed:Wait() end
@@ -371,7 +402,6 @@ local teleportLocations = {
     {Title = "Hood Fitness", Position = Vector3.new(-76, 19.45, -594.25)},
     {Title = "Club", Position = Vector3.new(-262.5, -1.208, -376)},
     {Title = "School", Position = Vector3.new(-652.5, 18.75, 197.5)},
-    {Title = "BasketBall Court", Position = Vector3.new(-932, 19.6, -482.25)},
     {Title = "Uphill Gunz", Position = Vector3.new(-562.75, 5.66, -736.25)},
     {Title = "Hospital", Position = Vector3.new(80, 19.255, -484.75)},
     {Title = "Ufo", Position = Vector3.new(49.75, 159.75, -686.25)}
@@ -423,4 +453,3 @@ Library:Notify({
     Duration = 5
 })
 
-SaveManager:LoadAutoloadConfig()
