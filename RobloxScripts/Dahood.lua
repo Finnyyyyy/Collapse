@@ -126,6 +126,24 @@ local function CancelTweens()
     State.ActiveTweens = {}
 end
 
+local function getSpeed(distance)
+    if distance > 150 then
+        return 70
+    elseif distance > 125 then
+        return 60
+    elseif distance > 100 then
+        return 50
+    elseif distance > 50 then
+        return 35
+    elseif distance > 25 then
+        return 15
+    elseif distance > 10 then
+        return 6
+    else
+        return 3.5
+    end
+end
+
 local function MoveTo(targetCFrame)
     local char = game.Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -133,9 +151,11 @@ local function MoveTo(targetCFrame)
     CancelTweens()
     
     if State.TravelMethod == "Tween(slower)" then
+        local distance = (char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
+        local speed = getSpeed(distance)
         local tween = game:GetService("TweenService"):Create(
             char.HumanoidRootPart,
-            TweenInfo.new((char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude/70),
+            TweenInfo.new(distance / speed),
             {CFrame = targetCFrame}
         )
         table.insert(State.ActiveTweens, tween)
