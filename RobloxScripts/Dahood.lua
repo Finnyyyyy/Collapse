@@ -64,8 +64,8 @@ local function noclip()
     Clip = false
     local function Nocl()
         if Clip == false and game.Players.LocalPlayer.Character ~= nil then
-            for _,v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA('BasePart') and v.CanCollide and v.Name ~= floatName then
+            for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                if v:IsA('BasePart') and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
                 end
             end
@@ -79,8 +79,8 @@ local function farmNoclip()
     Clip = false
     local function Nocl()
         if Clip == false and game.Players.LocalPlayer.Character ~= nil then
-            for _,v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA('BasePart') and v.CanCollide and v.Name ~= floatName then
+            for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                if v:IsA('BasePart') and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
                 end
             end
@@ -167,49 +167,25 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- Modified ATM Autofarm
+-- Updated ATM Autofarm with Detection System
 local function RunATMAutofarm()
+    local lastPunchTime = tick()  -- timer to detect inactivity
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
-        if not char then task.wait(1) continue end
-
-        local tool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
-        if not tool then
-            Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
-            State.ATMRunning = false
-            if PositionUpdateConnection then
-                PositionUpdateConnection:Disconnect()
-            end
-            clip()
-            break
-        end
-
-        tool.Parent = char
-        
-        for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
-            if not State.ATMRunning then 
-                if PositionUpdateConnection then
-                    PositionUpdateConnection:Disconnect()
-                end
+        if char then
+            -- Re-acquire the Combat tool each cycle
+            local tool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
+            if not tool then
+                Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
+                State.ATMRunning = false
                 clip()
-                break 
+                break
             end
-            
-            if State.ATMRunning then farmNoclip() end
-            
-            -- Set initial position
-            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 2)
-            local tween = MoveTo(targetPosition)
-            if tween then tween.Completed:Wait() end
-            
-            -- Start position update for current ATM
-            StartPositionUpdate(targetPosition)
-            
-            if State.ATMRunning then clip() end
-            
-            task.wait(0.5)
-            
-            for _ = 1, 11 do
+
+            tool.Parent = char
+
+            local cashiers = game.Workspace.Cashiers:GetChildren()
+            for _, cashier in ipairs(cashiers) do
                 if not State.ATMRunning then
                     if PositionUpdateConnection then
                         PositionUpdateConnection:Disconnect()
@@ -217,21 +193,52 @@ local function RunATMAutofarm()
                     clip()
                     break
                 end
-                tool:Activate()
+
+                if not cashier:FindFirstChild("Open") then
+                    continue
+                end
+
+                farmNoclip()
+                local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 2)
+                local tween = MoveTo(targetPosition)
+                if tween then tween.Completed:Wait() end
+
+                StartPositionUpdate(targetPosition)
+                clip()
+
                 task.wait(0.5)
+
+                for i = 1, 11 do
+                    if not State.ATMRunning then break end
+                    tool:Activate()
+                    lastPunchTime = tick()  -- update timer on each punch
+                    task.wait(0.5)
+                end
+
+                if PositionUpdateConnection then
+                    PositionUpdateConnection:Disconnect()
+                end
+
+                task.wait(3.2)
             end
-            
-            -- Stop position update before moving to next ATM
-            if PositionUpdateConnection then
-                PositionUpdateConnection:Disconnect()
+
+            -- Detection: If no punching activity for over 3 seconds, force a restart.
+            if tick() - lastPunchTime > 3 then
+                local allCashiers = game.Workspace.Cashiers:GetChildren()
+                if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
+                    local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 2)
+                    local tween = MoveTo(firstATMPosition)
+                    if tween then tween.Completed:Wait() end
+                    task.wait(0.5)
+                end
             end
-            
-            task.wait(3.2)
+        else
+            task.wait(1)
         end
+
         task.wait(0.1)
     end
-    
-    -- Cleanup
+
     if PositionUpdateConnection then
         PositionUpdateConnection:Disconnect()
     end
@@ -274,7 +281,7 @@ local function RunKnifeAutofarm()
             
             task.wait(0.5)
             
-            for _ = 1, 11 do
+            for i = 1, 11 do
                 if not State.KnifeRunning then break end
                 tool:Activate()
                 task.wait(0.5)
