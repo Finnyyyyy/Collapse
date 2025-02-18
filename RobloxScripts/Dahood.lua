@@ -40,7 +40,7 @@ local Tabs = {
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
--- Position Update System
+-- Position Update System (no longer used for ATM locking)
 local PositionUpdateConnection = nil
 
 local function StartPositionUpdate(position)
@@ -167,7 +167,7 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- Updated ATM Autofarm with Detection System and Timer Reset
+-- Updated ATM Autofarm with Detection System, Timer Reset, and Position Locking
 local function RunATMAutofarm()
     local lastPunchTime = tick()  -- timer to detect inactivity
     while State.ATMRunning do
@@ -205,10 +205,23 @@ local function RunATMAutofarm()
             local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
 
-            StartPositionUpdate(targetPosition)
             clip()
             task.wait(0.5)
 
+            -- Start locking position at the current ATM using a coroutine
+            local lockRunning = true
+            local lockCoroutine = coroutine.create(function()
+                while lockRunning do
+                    local char = game.Players.LocalPlayer.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = targetPosition
+                    end
+                    task.wait(1)
+                end
+            end)
+            coroutine.resume(lockCoroutine)
+
+            -- Punching loop at the current ATM
             for i = 1, 11 do
                 if not State.ATMRunning then break end
                 tool:Activate()
@@ -216,14 +229,13 @@ local function RunATMAutofarm()
                 task.wait(0.5)
             end
 
-            if PositionUpdateConnection then
-                PositionUpdateConnection:Disconnect()
-            end
+            -- Stop locking position for this ATM
+            lockRunning = false
 
             task.wait(3.2)
         end
 
-        -- After processing all ATMs, if no punch occurred for over 3 seconds, force a return.
+        -- Detection: If no punch occurred for over 3 seconds and still running, force a return.
         if State.ATMRunning and tick() - lastPunchTime > 3 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
@@ -231,7 +243,6 @@ local function RunATMAutofarm()
                 local tween = MoveTo(firstATMPosition)
                 if tween then tween.Completed:Wait() end
                 task.wait(0.5)
-                -- Reset the inactivity timer after the forced return.
                 lastPunchTime = tick()
             end
         end
@@ -309,7 +320,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.5)
+        task.wait(0.4)
     end
 end
 
