@@ -5,8 +5,8 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- State Management
 local State = {
     TravelMethod = "Teleport(Risky)",
+    AttackMethod = "Heavy Attack", -- Default is Heavy Attack (using Combat tool)
     ATMRunning = false,
-    KnifeRunning = false,
     CashAuraActive = false,
     CashDropActive = false,
     VisualizeActive = false,
@@ -40,7 +40,7 @@ local Tabs = {
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
--- Position Update System (no longer used for ATM locking)
+-- Position Update System (not used for ATM locking anymore)
 local PositionUpdateConnection = nil
 
 local function StartPositionUpdate(position)
@@ -63,24 +63,24 @@ local Clip = nil
 local function noclip()
     Clip = false
     local function Nocl()
-        if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+        if Clip == false and game.Players.LocalPlayer.Character then
             for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA('BasePart') and v.CanCollide and v.Name ~= "floatName" then
+                if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
                 end
             end
         end
         wait(0.21)
     end
-    Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+    Noclip = game:GetService("RunService").Stepped:Connect(Nocl)
 end
 
 local function farmNoclip()
     Clip = false
     local function Nocl()
-        if Clip == false and game.Players.LocalPlayer.Character ~= nil then
+        if Clip == false and game.Players.LocalPlayer.Character then
             for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA('BasePart') and v.CanCollide and v.Name ~= "floatName" then
+                if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
                 end
             end
@@ -95,7 +95,7 @@ local function farmNoclip()
         end
         wait(0.21)
     end
-    Noclip = game:GetService('RunService').Stepped:Connect(Nocl)
+    Noclip = game:GetService("RunService").Stepped:Connect(Nocl)
 end
 
 local function clip()
@@ -103,7 +103,7 @@ local function clip()
     Clip = true
     if game.Players.LocalPlayer.Character then
         for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-            if v:IsA('BasePart') then
+            if v:IsA("BasePart") then
                 v.CanCollide = true
             end
         end
@@ -144,13 +144,15 @@ local function getSpeed(distance)
     end
 end
 
+-- Modified MoveTo: When using Tween(slower), noclip is enabled during tweening
 local function MoveTo(targetCFrame)
     local char = game.Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
+
     CancelTweens()
     
     if State.TravelMethod == "Tween(slower)" then
+        noclip()  -- enable noclip before starting tween
         local distance = (char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
         local speed = getSpeed(distance)
         local tween = game:GetService("TweenService"):Create(
@@ -160,6 +162,9 @@ local function MoveTo(targetCFrame)
         )
         table.insert(State.ActiveTweens, tween)
         tween:Play()
+        tween.Completed:Connect(function()
+            clip()  -- re-enable collisions after tween finishes
+        end)
         return tween
     else
         char.HumanoidRootPart.CFrame = targetCFrame
@@ -167,8 +172,72 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- Updated ATM Autofarm with Detection System, Timer Reset, and Position Locking
+-- Knife Purchase Functions with Waiting Loop
+local function FindKnife()
+    local shop = nil
+    if game:FindFirstChild("Ugc") then
+        local ugc = game.Ugc
+        if ugc:FindFirstChild("Workspace") then
+            local ws = ugc.Workspace
+            if ws:FindFirstChild("Ignored") then
+                local ignored = ws.Ignored
+                if ignored:FindFirstChild("Shop") then
+                    shop = ignored.Shop
+                end
+            end
+        end
+    end
+    if shop then
+        for _, item in ipairs(shop:GetChildren()) do
+            if item.Name == "[Knife] - $164" then
+                return item
+            end
+        end
+    end
+    return nil
+end
+
+local function WaitForKnife(timeout)
+    timeout = timeout or 10
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        local knife = FindKnife()
+        if knife then
+            return knife
+        end
+        task.wait(0.5)
+    end
+    return nil
+end
+
+local function BuyKnife()
+    local knife = WaitForKnife(10)
+    if knife and knife:FindFirstChild("ClickDetector") then
+        fireclickdetector(knife.ClickDetector)
+        task.wait(1)
+        return true
+    else
+        Library:Notify({Title = "Error", Content = "Knife not found in Shop!", Duration = 3})
+        return false
+    end
+end
+
+-- Updated ATM Autofarm (integrated with Attack Method selection)
 local function RunATMAutofarm()
+    -- If using Knife attack method, tween to knife shop and purchase knife.
+    if State.AttackMethod == "Knife" then
+        local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
+        local tween = MoveTo(knifeCFrame)
+        if tween then tween.Completed:Wait() end
+        task.wait(1)
+        
+        if not BuyKnife() then
+            State.ATMRunning = false
+            clip()
+            return
+        end
+    end
+
     local lastPunchTime = tick()  -- timer to detect inactivity
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
@@ -177,10 +246,10 @@ local function RunATMAutofarm()
             continue
         end
 
-        -- Re-acquire the Combat tool each cycle
-        local tool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
+        local toolName = (State.AttackMethod == "Knife") and "[Knife] - $164" or "Combat"
+        local tool = char:FindFirstChild(toolName) or game.Players.LocalPlayer.Backpack:FindFirstChild(toolName)
         if not tool then
-            Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
+            Library:Notify({Title = "Error", Content = toolName.." tool missing!", Duration = 3})
             State.ATMRunning = false
             clip()
             break
@@ -208,7 +277,7 @@ local function RunATMAutofarm()
             clip()
             task.wait(0.5)
 
-            -- Start locking position at the current ATM using a coroutine
+            -- Lock position at current ATM using a coroutine
             local lockRunning = true
             local lockCoroutine = coroutine.create(function()
                 while lockRunning do
@@ -221,21 +290,19 @@ local function RunATMAutofarm()
             end)
             coroutine.resume(lockCoroutine)
 
-            -- Punching loop at the current ATM
+            -- Attack loop at current ATM
             for i = 1, 11 do
                 if not State.ATMRunning then break end
                 tool:Activate()
-                lastPunchTime = tick()  -- update timer on each punch
+                lastPunchTime = tick()  -- update timer on each attack
                 task.wait(0.5)
             end
 
-            -- Stop locking position for this ATM
-            lockRunning = false
-
+            lockRunning = false  -- stop locking position
             task.wait(3.2)
         end
 
-        -- Detection: If no punch occurred for over 3 seconds and still running, force a return.
+        -- If no attack occurred for over 3 seconds, return to the first ATM.
         if State.ATMRunning and tick() - lastPunchTime > 3 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
@@ -252,58 +319,6 @@ local function RunATMAutofarm()
 
     if PositionUpdateConnection then
         PositionUpdateConnection:Disconnect()
-    end
-end
-
--- Knife Autofarm with Timing
-local function RunKnifeAutofarm()
-    local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
-    local tween = MoveTo(knifeCFrame)
-    if tween then tween.Completed:Wait() end
-    task.wait(1)
-    
-    local knife = game.Workspace.Ignored.Shop:FindFirstChild("[Knife] - $159")
-    if not knife then
-        Library:Notify({Title = "Error", Content = "Knife not found!", Duration = 3})
-        State.KnifeRunning = false
-        return
-    end
-    fireclickdetector(knife.ClickDetector)
-    task.wait(1)
-
-    while State.KnifeRunning do
-        local char = game.Players.LocalPlayer.Character
-        if not char then
-            task.wait(1)
-            continue
-        end
-
-        local tool = char:FindFirstChild("[Knife] - $159") or game.Players.LocalPlayer.Backpack:FindFirstChild("[Knife] - $159")
-        if not tool then
-            Library:Notify({Title = "Error", Content = "Knife missing!", Duration = 3})
-            State.KnifeRunning = false
-            break
-        end
-
-        tool.Parent = char
-        
-        for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
-            if not State.KnifeRunning then break end
-            
-            local tween = MoveTo(cashier.Open.CFrame * CFrame.new(0, 0, 2))
-            if tween then tween.Completed:Wait() end
-            
-            task.wait(0.5)
-            
-            for i = 1, 11 do
-                if not State.KnifeRunning then break end
-                tool:Activate()
-                task.wait(0.5)
-            end
-            
-            task.wait(0.5)
-        end
-        task.wait(0.1)
     end
 end
 
@@ -418,6 +433,15 @@ Tabs.Main:CreateDropdown("TravelMethod", {
     State.TravelMethod = value
 end)
 
+Tabs.Main:CreateDropdown("AttackMethod", {
+    Title = "Attack Method",
+    Values = {"Light Attack", "Heavy Attack", "Knife"},
+    Multi = false,
+    Default = 2, -- Default is Heavy Attack
+}):OnChanged(function(value)
+    State.AttackMethod = value
+end)
+
 Tabs.Main:CreateToggle("ATM_Autofarm", {
     Title = "ATM Autofarm", 
     Default = false
@@ -429,16 +453,6 @@ Tabs.Main:CreateToggle("ATM_Autofarm", {
         if PositionUpdateConnection then
             PositionUpdateConnection:Disconnect()
         end
-    end
-end)
-
-Tabs.Main:CreateToggle("Knife_Autofarm", {
-    Title = "Knife Autofarm", 
-    Default = false
-}):OnChanged(function(state)
-    State.KnifeRunning = state
-    if state then
-        coroutine.wrap(RunKnifeAutofarm)()
     end
 end)
 
