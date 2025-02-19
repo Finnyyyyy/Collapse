@@ -35,8 +35,8 @@ local Window = Library:CreateWindow({
 -- Create Tabs
 local Tabs = {
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
-    Teleports = Window:CreateTab({Title = "Teleports", Icon = "pin"}),
-    Misc = Window:CreateTab({Title = "Misc", Icon = "settings"}),
+    Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
+    Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
@@ -138,9 +138,9 @@ local function getSpeed(distance)
     elseif distance > 25 then
         return 15
     elseif distance > 10 then
-        return 6
+        return 8
     else
-        return 3.5
+        return 6
     end
 end
 
@@ -216,7 +216,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(1)
+                    task.wait(3)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -320,7 +320,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.4)
+        task.wait(0.3)
     end
 end
 
@@ -535,6 +535,6 @@ end
 
 Library:Notify({
     Title = "Script Loaded",
-    Content = "All systems operational!",
+    Content = "Script loaded successfully.",
     Duration = 5
 })
