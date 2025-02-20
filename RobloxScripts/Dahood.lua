@@ -32,10 +32,11 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create Tabs
+-- Create Tabs (Order: Main, Teleports, PVP, Misc, Settings)
 local Tabs = {
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
+    PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
     Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
@@ -192,7 +193,7 @@ local function BuyKnife()
         local knifeTool
         for i = 1, 10 do
             knifeTool = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
-                     or player.Backpack:FindFirstChild("[Knife] - $164") or (player.Character and player.Character:FindFirstChild("[Knife] - $164"))
+                      or player.Backpack:FindFirstChild("[Knife] - $164") or (player.Character and player.Character:FindFirstChild("[Knife] - $164"))
             if knifeTool then break end
             task.wait(0.5)
         end
@@ -283,12 +284,14 @@ local function RunATMAutofarm()
             end)
             coroutine.resume(lockCoroutine)
 
-            -- Attack loop at current ATM
-            for i = 1, 11 do
+            -- Attack loop at current ATM: if using Knife, perform 2 attacks with a 1-second delay; otherwise, 11 attacks with a 0.5-second delay.
+            local numAttacks = (State.AttackMethod == "Knife") and 2 or 11
+            local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
+            for i = 1, numAttacks do
                 if not State.ATMRunning then break end
                 tool:Activate()
                 lastPunchTime = tick()  -- update timer on each attack
-                task.wait(0.5)
+                task.wait(attackWait)
             end
 
             lockRunning = false  -- stop locking position
@@ -416,7 +419,7 @@ local function DestroyMap()
     end
 end
 
--- UI Elements
+-- UI Elements for Main Tab
 Tabs.Main:CreateDropdown("TravelMethod", {
     Title = "Travel Method",
     Values = {"Teleport(Risky)", "Tween(slower)"},
@@ -509,13 +512,53 @@ for _, loc in ipairs(teleportLocations) do
     })
 end
 
+-- PVP Tab: Dynamic Dropdown for Lobby Players
+local pvpDropdown = Tabs.PVP:CreateDropdown("PVPDropdown", {
+    Title = "Select Player",
+    Description = "Choose a player from the lobby",
+    Values = {},  -- Will be populated dynamically
+    Multi = false,
+    Default = 1,
+})
+
+local function updatePvpDropdown()
+    local players = game:GetService("Players"):GetPlayers()
+    local options = {}
+    for _, player in ipairs(players) do
+        table.insert(options, player.Name)
+    end
+    -- Limit options to a maximum of 40 players
+    if #options > 40 then
+        while #options > 40 do
+            table.remove(options, 41)
+        end
+    end
+    pvpDropdown:SetValues(options)
+end
+
+-- Initial population of the PVP dropdown
+updatePvpDropdown()
+
+-- Update dropdown when players join or leave
+game:GetService("Players").PlayerAdded:Connect(function(player)
+    updatePvpDropdown()
+end)
+
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    updatePvpDropdown()
+end)
+
+pvpDropdown:OnChanged(function(Value)
+    print("Dropdown changed:", Value)
+end)
+
 -- Misc Tab
 Tabs.Misc:CreateButton({
     Title = "Destroy Map",
     Callback = DestroyMap
 })
 
--- Initialize Systems
+-- Settings Tab (Interface & Config Sections)
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
