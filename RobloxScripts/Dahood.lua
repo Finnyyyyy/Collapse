@@ -541,7 +541,7 @@ pvpDropdown:OnChanged(function(Value)
     print("Player dropdown changed:", Value)
 end)
 
-
+----------------------------------------------------------------
 -- Orbit Autokill Integration (GUI removed)
 local TweenService = game:GetService("TweenService")
 local PlayersService = game:GetService("Players")
@@ -573,15 +573,20 @@ local function TP2(P1)
     _G.Clip = false
 end
 
+-- Declare orbit parameter variables (default values)
+local orbitSizeValue = 20
+local orbitSpeedValue = 20
+
+-- Updated createCircleAndOrbit using slider values
 local function createCircleAndOrbit(targetPlayer)
     if not targetPlayer.Character then return end
     local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return end
 
-    local baseRadius = 50
-    local maxRadius = 50
-    local segments = 10
-    local rotationSpeed = 20
+    local baseRadius = orbitSizeValue
+    local maxRadius = orbitSizeValue
+    local segments = orbitSizeValue  -- number of segments equals orbit size
+    local rotationSpeed = orbitSpeedValue
     local expansionSpeed = 0
     local circleParts = {}
     local rotationAngle = 0
@@ -637,7 +642,7 @@ local function createCircleAndOrbit(targetPlayer)
     end
 end
 
-
+----------------------------------------------------------------
 -- New Dropdown for Autokill Method in PVP Tab
 local autokillMethodDropdown = Tabs.PVP:CreateDropdown("AutokillMethodDropdown", {
     Title = "Autokill Method",
@@ -653,13 +658,52 @@ autokillMethodDropdown:OnChanged(function(val)
     print("Autokill method changed:", val)
 end)
 
--- New Toggle for Autokill
+----------------------------------------------------------------
+-- New Sliders for Orbit Parameters (placed above Autokill toggle)
+local orbitSizeSlider = Tabs.PVP:CreateSlider("OrbitSizeSlider", {
+    Title = "Orbit Size",
+    Description = "Determines orbit base & max radius and number of segments.",
+    Default = 20,
+    Min = 1,
+    Max = 50,
+    Rounding = 1,
+    Callback = function(Value)
+        orbitSizeValue = Value
+        print("Orbit size changed:", Value)
+    end,
+})
+orbitSizeSlider:OnChanged(function(Value)
+    orbitSizeValue = Value
+    print("Orbit size changed:", Value)
+end)
+
+local orbitSpeedSlider = Tabs.PVP:CreateSlider("OrbitSpeedSlider", {
+    Title = "Orbit Speed",
+    Description = "Determines rotation speed. Higher = more laggier and risk of getting kicked, recommended between 0-40.",
+    Default = 20,
+    Min = 0,
+    Max = 75,
+    Rounding = 1,
+    Callback = function(Value)
+        orbitSpeedValue = Value
+        print("Orbit speed changed:", Value)
+    end,
+})
+orbitSpeedSlider:OnChanged(function(Value)
+    orbitSpeedValue = Value
+    print("Orbit speed changed:", Value)
+end)
+
+----------------------------------------------------------------
+-- New Toggle for Autokill with integrated noclip for autokill
 local currentOrbitCleanup = nil
 Tabs.PVP:CreateToggle("AutokillToggle", {
     Title = "Autokill",
     Default = false,
 }):OnChanged(function(state)
     if state then
+        -- Enable noclip specifically for autokill
+        noclip()
         if selectedAutokillMethod == "Orbit" then
             if selectedPlayerName then
                 local targetPlayer = PlayersService:FindFirstChild(selectedPlayerName)
@@ -680,6 +724,8 @@ Tabs.PVP:CreateToggle("AutokillToggle", {
             currentOrbitCleanup()
             currentOrbitCleanup = nil
         end
+        -- Disable autokill-specific noclip by re-enabling collisions
+        clip()
     end
 end)
 
