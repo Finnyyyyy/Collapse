@@ -172,51 +172,44 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- Knife Purchase Functions with Waiting Loop
-local function FindKnife()
-    local shop = nil
-    if game:FindFirstChild("Ugc") then
-        local ugc = game.Ugc
-        if ugc:FindFirstChild("Workspace") then
-            local ws = ugc.Workspace
-            if ws:FindFirstChild("Ignored") then
-                local ignored = ws.Ignored
-                if ignored:FindFirstChild("Shop") then
-                    shop = ignored.Shop
-                end
-            end
-        end
-    end
-    if shop then
-        for _, item in ipairs(shop:GetChildren()) do
-            if item.Name == "[Knife] - $164" then
-                return item
-            end
-        end
-    end
-    return nil
-end
-
-local function WaitForKnife(timeout)
-    timeout = timeout or 10
-    local startTime = tick()
-    while tick() - startTime < timeout do
-        local knife = FindKnife()
-        if knife then
-            return knife
-        end
-        task.wait(0.5)
-    end
-    return nil
-end
-
+-- New Knife Purchase Function (replacing the old version)
 local function BuyKnife()
-    local knife = WaitForKnife(10)
-    if knife and knife:FindFirstChild("ClickDetector") then
-        fireclickdetector(knife.ClickDetector)
-        task.wait(1)
+    local player = game.Players.LocalPlayer
+    -- Check if the knife already exists in the player's Backpack or Character as "[Knife]"
+    local existingKnife = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
+    if existingKnife then
+        print("Knife already exists. Using the existing knife.")
+        existingKnife.Parent = player.Character -- ensure it's equipped
         return true
+    end
+
+    -- Attempt to purchase the knife using the shop item name "[Knife] - $164"
+    local knifeShopItem = game.Workspace.Ignored.Shop["[Knife] - $164"]
+    if knifeShopItem and knifeShopItem:FindFirstChild("ClickDetector") then
+        print("Knife not in inventory, attempting to purchase...")
+        fireclickdetector(knifeShopItem.ClickDetector, 4)
+        -- Wait for the knife tool to appear in the player's inventory.
+        local knifeTool
+        for i = 1, 10 do
+            knifeTool = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
+                     or player.Backpack:FindFirstChild("[Knife] - $164") or (player.Character and player.Character:FindFirstChild("[Knife] - $164"))
+            if knifeTool then break end
+            task.wait(0.5)
+        end
+        if knifeTool then
+            -- If the acquired tool is still named "[Knife] - $164", rename it to "[Knife]"
+            if knifeTool.Name == "[Knife] - $164" then
+                knifeTool.Name = "[Knife]"
+            end
+            knifeTool.Parent = player.Character -- equip the knife
+            return true
+        else
+            print("Knife not acquired after purchase attempt!")
+            Library:Notify({Title = "Error", Content = "Knife not found in inventory after purchase!", Duration = 3})
+            return false
+        end
     else
+        print("Knife or ClickDetector not found in shop!")
         Library:Notify({Title = "Error", Content = "Knife not found in Shop!", Duration = 3})
         return false
     end
@@ -246,7 +239,7 @@ local function RunATMAutofarm()
             continue
         end
 
-        local toolName = (State.AttackMethod == "Knife") and "[Knife] - $164" or "Combat"
+        local toolName = (State.AttackMethod == "Knife") and "[Knife]" or "Combat"
         local tool = char:FindFirstChild(toolName) or game.Players.LocalPlayer.Backpack:FindFirstChild(toolName)
         if not tool then
             Library:Notify({Title = "Error", Content = toolName.." tool missing!", Duration = 3})
