@@ -176,20 +176,17 @@ end
 -- New Knife Purchase Function (replacing the old version)
 local function BuyKnife()
     local player = game.Players.LocalPlayer
-    -- Check if the knife already exists in the player's Backpack or Character as "[Knife]"
     local existingKnife = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
     if existingKnife then
         print("Knife already exists. Using the existing knife.")
-        existingKnife.Parent = player.Character -- ensure it's equipped
+        existingKnife.Parent = player.Character
         return true
     end
 
-    -- Attempt to purchase the knife using the shop item name "[Knife] - $164"
     local knifeShopItem = game.Workspace.Ignored.Shop["[Knife] - $164"]
     if knifeShopItem and knifeShopItem:FindFirstChild("ClickDetector") then
         print("Knife not in inventory, attempting to purchase...")
         fireclickdetector(knifeShopItem.ClickDetector, 4)
-        -- Wait for the knife tool to appear in the player's inventory.
         local knifeTool
         for i = 1, 10 do
             knifeTool = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
@@ -198,11 +195,10 @@ local function BuyKnife()
             task.wait(0.5)
         end
         if knifeTool then
-            -- If the acquired tool is still named "[Knife] - $164", rename it to "[Knife]"
             if knifeTool.Name == "[Knife] - $164" then
                 knifeTool.Name = "[Knife]"
             end
-            knifeTool.Parent = player.Character -- equip the knife
+            knifeTool.Parent = player.Character
             return true
         else
             print("Knife not acquired after purchase attempt!")
@@ -218,7 +214,6 @@ end
 
 -- Updated ATM Autofarm (integrated with Attack Method selection)
 local function RunATMAutofarm()
-    -- If using Knife attack method, tween to knife shop and purchase knife.
     if State.AttackMethod == "Knife" then
         local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
         local tween = MoveTo(knifeCFrame)
@@ -232,7 +227,7 @@ local function RunATMAutofarm()
         end
     end
 
-    local lastPunchTime = tick()  -- timer to detect inactivity
+    local lastPunchTime = tick()
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
         if not char then
@@ -256,7 +251,6 @@ local function RunATMAutofarm()
             continue
         end
 
-        -- Process each ATM (cashier)
         for _, cashier in ipairs(cashiers) do
             if not State.ATMRunning then break end
             if not cashier:FindFirstChild("Open") then
@@ -271,7 +265,6 @@ local function RunATMAutofarm()
             clip()
             task.wait(0.5)
 
-            -- Lock position at current ATM using a coroutine
             local lockRunning = true
             local lockCoroutine = coroutine.create(function()
                 while lockRunning do
@@ -284,21 +277,19 @@ local function RunATMAutofarm()
             end)
             coroutine.resume(lockCoroutine)
 
-            -- Attack loop at current ATM: if using Knife, perform 2 attacks with a 1-second delay; otherwise, 11 attacks with a 0.5-second delay.
             local numAttacks = (State.AttackMethod == "Knife") and 2 or 11
             local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
             for i = 1, numAttacks do
                 if not State.ATMRunning then break end
                 tool:Activate()
-                lastPunchTime = tick()  -- update timer on each attack
+                lastPunchTime = tick()
                 task.wait(attackWait)
             end
 
-            lockRunning = false  -- stop locking position
+            lockRunning = false
             task.wait(3.2)
         end
 
-        -- If no attack occurred for over 3 seconds, return to the first ATM.
         if State.ATMRunning and tick() - lastPunchTime > 3 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
@@ -397,7 +388,6 @@ local function DestroyMap()
         destroyFolder(ignored:FindFirstChild("HouseItemSale"))
     end
 
-    -- Create platforms
     local parts = {
         {CFrame = CFrame.new(-935.5, 18, -660.25), Size = Vector3.new(167, 1, 31.5)},
         {CFrame = CFrame.new(-558, 18.5, 269.625), Size = Vector3.new(15, 1, 17.25)},
@@ -433,7 +423,7 @@ Tabs.Main:CreateDropdown("AttackMethod", {
     Title = "Attack Method",
     Values = {"Light Attack", "Heavy Attack", "Knife"},
     Multi = false,
-    Default = 2, -- Default is Heavy Attack
+    Default = 2,
 }):OnChanged(function(value)
     State.AttackMethod = value
 end)
@@ -516,18 +506,18 @@ end
 local pvpDropdown = Tabs.PVP:CreateDropdown("PVPDropdown", {
     Title = "Select Player",
     Description = "Choose a player from the lobby",
-    Values = {},  -- Will be populated dynamically
+    Values = {},
     Multi = false,
     Default = 1,
 })
 
+local selectedPlayerName = nil
 local function updatePvpDropdown()
     local players = game:GetService("Players"):GetPlayers()
     local options = {}
     for _, player in ipairs(players) do
         table.insert(options, player.Name)
     end
-    -- Limit options to a maximum of 40 players
     if #options > 40 then
         while #options > 40 do
             table.remove(options, 41)
@@ -536,10 +526,8 @@ local function updatePvpDropdown()
     pvpDropdown:SetValues(options)
 end
 
--- Initial population of the PVP dropdown
 updatePvpDropdown()
 
--- Update dropdown when players join or leave
 game:GetService("Players").PlayerAdded:Connect(function(player)
     updatePvpDropdown()
 end)
@@ -549,7 +537,150 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
 end)
 
 pvpDropdown:OnChanged(function(Value)
-    print("Dropdown changed:", Value)
+    selectedPlayerName = Value
+    print("Player dropdown changed:", Value)
+end)
+
+
+-- Orbit Autokill Integration (GUI removed)
+local TweenService = game:GetService("TweenService")
+local PlayersService = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local function TP2(P1)
+    local Player = PlayersService.LocalPlayer
+    if not Player.Character then return end
+    local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then return end
+
+    local Distance = (P1.Position - HumanoidRootPart.Position).Magnitude
+    local Speed = 150
+    
+    local Tween = TweenService:Create(
+        HumanoidRootPart,
+        TweenInfo.new(Distance/Speed, Enum.EasingStyle.Linear),
+        {CFrame = P1}
+    )
+    
+    Tween:Play()
+    
+    if _G.Stop_Tween == true then
+        Tween:Cancel()
+    end
+    
+    _G.Clip = true
+    wait(Distance/Speed)
+    _G.Clip = false
+end
+
+local function createCircleAndOrbit(targetPlayer)
+    if not targetPlayer.Character then return end
+    local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local baseRadius = 50
+    local maxRadius = 50
+    local segments = 10
+    local rotationSpeed = 20
+    local expansionSpeed = 0
+    local circleParts = {}
+    local rotationAngle = 0
+    local currentRadius = baseRadius
+
+    for i = 1, segments do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(0.5, 0.5, 0.5)
+        part.Shape = Enum.PartType.Ball
+        part.Material = Enum.Material.Neon
+        part.Color = Color3.new(1, 1, 1)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Parent = game.Workspace
+        table.insert(circleParts, part)
+    end
+
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        if not targetPlayer or not targetPlayer.Character or not rootPart then
+            connection:Disconnect()
+            for _, part in ipairs(circleParts) do
+                part:Destroy()
+            end
+            return
+        end
+
+        rotationAngle = rotationAngle + rotationSpeed * math.pi / 180
+        currentRadius = math.min(currentRadius + expansionSpeed, maxRadius)
+
+        for i, part in ipairs(circleParts) do
+            local angle = ((math.pi * 2) * (i / segments)) + rotationAngle
+            local offset = Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
+            part.Position = rootPart.Position + offset
+        end
+
+        if PlayersService.LocalPlayer.Character and PlayersService.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRootPart = PlayersService.LocalPlayer.Character.HumanoidRootPart
+            local orbitPosition = rootPart.Position + Vector3.new(
+                math.cos(rotationAngle) * currentRadius,
+                0,
+                math.sin(rotationAngle) * currentRadius
+            )
+            playerRootPart.CFrame = CFrame.new(orbitPosition, rootPart.Position)
+        end
+    end)
+
+    return function()
+        connection:Disconnect()
+        for _, part in ipairs(circleParts) do
+            part:Destroy()
+        end
+    end
+end
+
+
+-- New Dropdown for Autokill Method in PVP Tab
+local autokillMethodDropdown = Tabs.PVP:CreateDropdown("AutokillMethodDropdown", {
+    Title = "Autokill Method",
+    Description = "Select autokill method",
+    Values = {"Orbit", "Crazy"},
+    Multi = false,
+    Default = 1,
+})
+
+local selectedAutokillMethod = "Orbit"
+autokillMethodDropdown:OnChanged(function(val)
+    selectedAutokillMethod = val
+    print("Autokill method changed:", val)
+end)
+
+-- New Toggle for Autokill
+local currentOrbitCleanup = nil
+Tabs.PVP:CreateToggle("AutokillToggle", {
+    Title = "Autokill",
+    Default = false,
+}):OnChanged(function(state)
+    if state then
+        if selectedAutokillMethod == "Orbit" then
+            if selectedPlayerName then
+                local targetPlayer = PlayersService:FindFirstChild(selectedPlayerName)
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
+                    currentOrbitCleanup = createCircleAndOrbit(targetPlayer)
+                else
+                    print("Selected target is invalid for orbit.")
+                end
+            else
+                print("No player selected for autokill orbit.")
+            end
+        elseif selectedAutokillMethod == "Crazy" then
+            print("Crazy autokill method not implemented yet.")
+        end
+    else
+        if currentOrbitCleanup then
+            currentOrbitCleanup()
+            currentOrbitCleanup = nil
+        end
+    end
 end)
 
 -- Misc Tab
