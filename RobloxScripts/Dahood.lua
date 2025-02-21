@@ -277,7 +277,7 @@ local function RunATMAutofarm()
             end)
             coroutine.resume(lockCoroutine)
 
-            local numAttacks = (State.AttackMethod == "Knife") and 2 or 11
+            local numAttacks = (State.AttackMethod == "Knife") and 5 or 10
             local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
             for i = 1, numAttacks do
                 if not State.ATMRunning then break end
