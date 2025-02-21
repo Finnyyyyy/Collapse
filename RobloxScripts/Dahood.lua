@@ -188,7 +188,7 @@ local function BuyKnife()
         print("Knife not in inventory, attempting to purchase...")
         fireclickdetector(knifeShopItem.ClickDetector, 4)
         local knifeTool
-        for i = 1, 10 do
+        for i = 2, 11 do
             knifeTool = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
                       or player.Backpack:FindFirstChild("[Knife] - $164") or (player.Character and player.Character:FindFirstChild("[Knife] - $164"))
             if knifeTool then break end
@@ -231,7 +231,7 @@ local function RunATMAutofarm()
     while State.ATMRunning do
         local char = game.Players.LocalPlayer.Character
         if not char then
-            task.wait(1)
+            task.wait(3)
             continue
         end
 
@@ -272,7 +272,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(3)
+                    task.wait(2)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -301,7 +301,7 @@ local function RunATMAutofarm()
             end
         end
 
-        task.wait(0.1)
+        task.wait(0.3)
     end
 
     if PositionUpdateConnection then
