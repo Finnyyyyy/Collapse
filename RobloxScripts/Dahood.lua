@@ -129,13 +129,13 @@ end
 
 local function getSpeed(distance)
     if distance > 150 then
-        return 70
-    elseif distance > 125 then
         return 60
+    elseif distance > 125 then
+        return 55
     elseif distance > 100 then
-        return 50
+        return 45
     elseif distance > 50 then
-        return 35
+        return 30
     elseif distance > 25 then
         return 15
     elseif distance > 10 then
@@ -258,7 +258,7 @@ local function RunATMAutofarm()
             end
 
             farmNoclip()
-            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 2)
+            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 3)
             local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
 
@@ -272,7 +272,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(2)
+                    task.wait(3)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -322,7 +322,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(0.4)
     end
 end
 
@@ -541,8 +541,6 @@ pvpDropdown:OnChanged(function(Value)
     print("Player dropdown changed:", Value)
 end)
 
-----------------------------------------------------------------
--- Orbit Autokill Integration (GUI removed)
 local TweenService = game:GetService("TweenService")
 local PlayersService = game:GetService("Players")
 local RunService = game:GetService("RunService")
