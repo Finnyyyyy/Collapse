@@ -272,7 +272,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(3)
+                    task.wait(1)
                 end
             end)
             coroutine.resume(lockCoroutine)
