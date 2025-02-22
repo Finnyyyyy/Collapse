@@ -287,7 +287,7 @@ local function RunATMAutofarm()
             end
 
             lockRunning = false
-            task.wait(3.2)
+            task.wait(3.4)
         end
 
         if State.ATMRunning and tick() - lastPunchTime > 3 then
@@ -322,7 +322,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.4)
+        task.wait(0.5)
     end
 end
 
