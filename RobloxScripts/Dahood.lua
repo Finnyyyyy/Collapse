@@ -215,7 +215,7 @@ end
 -- Updated ATM Autofarm (integrated with Attack Method selection)
 local function RunATMAutofarm()
     if State.AttackMethod == "Knife" then
-        local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
+ local knifeCFrame = CFrame.new(-277.65, 23.849, -236)
         local tween = MoveTo(knifeCFrame)
         if tween then tween.Completed:Wait() end
         task.wait(1)
@@ -272,7 +272,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(1)
+                    task.wait(0.3)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -322,7 +322,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.5)
+        task.wait(0.4)
     end
 end
 
