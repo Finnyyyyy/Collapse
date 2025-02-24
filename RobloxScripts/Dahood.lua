@@ -64,7 +64,7 @@ local Clip = nil
 local function noclip()
     Clip = false
     local function Nocl()
-        if Clip == false and game.Players.LocalPlayer.Character then
+        if not Clip and game.Players.LocalPlayer.Character then
             for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
                 if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
@@ -79,7 +79,7 @@ end
 local function farmNoclip()
     Clip = false
     local function Nocl()
-        if Clip == false and game.Players.LocalPlayer.Character then
+        if not Clip and game.Players.LocalPlayer.Character then
             for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
                 if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
                     v.CanCollide = false
@@ -212,10 +212,49 @@ local function BuyKnife()
     end
 end
 
+-- NEW: Rifle Purchase Function (modeled exactly after the knife code)
+local function BuyRifle()
+    local player = game.Players.LocalPlayer
+    local existingRifle = player.Backpack:FindFirstChild("[Rifle]") or (player.Character and player.Character:FindFirstChild("[Rifle]"))
+    if existingRifle then
+        print("Rifle already exists. Using the existing rifle.")
+        existingRifle.Parent = player.Character
+        return true
+    end
+
+    local rifleShopItem = game.Workspace.Ignored.Shop["[Rifle] - $1694"]
+    if rifleShopItem and rifleShopItem:FindFirstChild("ClickDetector") then
+        print("Rifle not in inventory, attempting to purchase...")
+        fireclickdetector(rifleShopItem.ClickDetector, 4)
+        local rifleTool = nil
+        for i = 2, 11 do
+            rifleTool = player.Backpack:FindFirstChild("[Rifle]") or (player.Character and player.Character:FindFirstChild("[Rifle]"))
+                        or player.Backpack:FindFirstChild("[Rifle] - $1694") or (player.Character and player.Character:FindFirstChild("[Rifle] - $1694"))
+            if rifleTool then break end
+            task.wait(0.5)
+        end
+        if rifleTool then
+            if rifleTool.Name == "[Rifle] - $1694" then
+                rifleTool.Name = "[Rifle]"
+            end
+            rifleTool.Parent = player.Character
+            return true
+        else
+            print("Rifle not acquired after purchase attempt!")
+            Library:Notify({Title = "Error", Content = "Rifle not found in inventory after purchase!", Duration = 3})
+            return false
+        end
+    else
+        print("Rifle or ClickDetector not found in shop!")
+        Library:Notify({Title = "Error", Content = "Rifle not found in Shop!", Duration = 3})
+        return false
+    end
+end
+
 -- Updated ATM Autofarm (integrated with Attack Method selection)
 local function RunATMAutofarm()
     if State.AttackMethod == "Knife" then
- local knifeCFrame = CFrame.new(-277.65, 23.849, -236)
+        local knifeCFrame = CFrame.new(-277.65, 18.849, -236)
         local tween = MoveTo(knifeCFrame)
         if tween then tween.Completed:Wait() end
         task.wait(1)
@@ -272,14 +311,14 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(0.6)
+                    task.wait(1)
                 end
             end)
             coroutine.resume(lockCoroutine)
 
-            local attackWait = 1
-            -- Loop from 5 to 10 for both Knife and Combat activations
-            for i = 5, 10 do
+            local numAttacks = (State.AttackMethod == "Knife") and 5 or 10
+            local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
+            for i = 1, numAttacks do
                 if not State.ATMRunning then break end
                 tool:Activate()
                 lastPunchTime = tick()
@@ -322,7 +361,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.4)
+        task.wait(0.5)
     end
 end
 
@@ -693,13 +732,33 @@ orbitSpeedSlider:OnChanged(function(Value)
 end)
 
 ----------------------------------------------------------------
--- New Toggle for Autokill with integrated noclip for autokill
+-- New Toggle for Autokill with integrated noclip for autokill and Rifle purchase
 local currentOrbitCleanup = nil
 Tabs.PVP:CreateToggle("AutokillToggle", {
     Title = "Autokill",
     Default = false,
 }):OnChanged(function(state)
     if state then
+        -- First, attempt to purchase the rifle using the same logic as the knife.
+        -- Since the rifle shop item does not have a CFrame property, we use a hardcoded position.
+        local rifleShopItem = game.Workspace.Ignored.Shop["[Rifle] - $1694"]
+        if rifleShopItem then
+            -- Hardcoded CFrame for the rifle shop location (update these coordinates as needed)
+            local rifleCFrame = CFrame.new(-259.658, 54.363, -213.512)
+            local tween = MoveTo(rifleCFrame)
+            if tween then tween.Completed:Wait() end
+            task.wait(1)  -- wait a moment for the purchase to process
+            if not BuyRifle() then
+                clip()
+                return
+            end
+        else
+            print("Rifle shop item not found!")
+            Library:Notify({Title = "Error", Content = "Rifle shop item not found!", Duration = 3})
+            clip()
+            return
+        end
+
         -- Enable noclip specifically for autokill
         noclip()
         if selectedAutokillMethod == "Orbit" then
