@@ -32,14 +32,14 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create Tabs (Order: Main, Teleports, PVP, Misc, Settings, Status)
+-- Create Tabs (Status is now created first)
 local Tabs = {
+    Status = Window:CreateTab({Title = "Status", Icon = "info"}),
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
     PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
     Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
-    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"}),
-    Status = Window:CreateTab({Title = "Status", Icon = "info"})
+    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
 ------------------------------------------------------------
@@ -52,19 +52,52 @@ local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
     Content = "Total Cash Dropped: 0"
 })
 
--- Helper function: Get the numeric value from a MoneyDrop
+-- Helper function: Format a number with thousands separators.
+local function formatNumber(n)
+    local formatted = string.format("%d", n)
+    local k
+    repeat
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+    until k == 0
+    return formatted
+end
+
+-- Helper function: Convert a cash string into a full number.
+local function parseCashValue(text)
+    if not text then return 0 end
+    -- Remove extraneous characters like '$' and commas.
+    text = text:gsub("[$,]", "")
+    -- Try a direct conversion first.
+    local value = tonumber(text)
+    if value then return value end
+    -- Handle "k" (thousands)
+    local numStr = text:match("([%d%.]+)%s*[kK]")
+    if numStr then
+        return tonumber(numStr) * 1000
+    end
+    -- Handle "m" (millions)
+    numStr = text:match("([%d%.]+)%s*[mM]")
+    if numStr then
+        return tonumber(numStr) * 1000000
+    end
+    -- Fallback: match any numeric portion
+    numStr = text:match("([%d%.]+)")
+    if numStr then
+        return tonumber(numStr)
+    end
+    return 0
+end
+
+-- Helper function: Get the numeric value from a MoneyDrop object.
 local function getMoneyDropValue(moneyDrop)
+    if not moneyDrop then return 0 end
     local billboardGui = moneyDrop:FindFirstChild("BillboardGui")
     if billboardGui then
         local textLabel = billboardGui:FindFirstChild("TextLabel")
         if textLabel then
-            local num = tonumber(textLabel.Text)
-            if not num then
-                num = tonumber(textLabel.Text:match("%d+"))
-            end
-            if num then
-                return num
-            end
+            local text = textLabel.Text
+            local parsed = parseCashValue(text)
+            return parsed
         else
             warn("TextLabel not found in " .. moneyDrop:GetFullName())
         end
@@ -74,16 +107,17 @@ local function getMoneyDropValue(moneyDrop)
     return 0
 end
 
--- Function to sum the cash from all MoneyDrop objects in Workspace.Ignored.Drop
+-- Function to sum the cash from every MoneyDrop in Workspace.Ignored.Drop.
 local function updateDroppedCashTotal()
     local total = 0
     local ignored = game.Workspace:FindFirstChild("Ignored")
     if ignored then
         local dropFolder = ignored:FindFirstChild("Drop")
         if dropFolder then
-            for _, moneyDrop in ipairs(dropFolder:GetChildren()) do
-                if moneyDrop.Name == "MoneyDrop" then
-                    total = total + getMoneyDropValue(moneyDrop)
+            for _, child in ipairs(dropFolder:GetChildren()) do
+                -- Sum every child that has a BillboardGui (assumed to be a MoneyDrop)
+                if child:FindFirstChild("BillboardGui") then
+                    total = total + getMoneyDropValue(child)
                 end
             end
         else
@@ -95,12 +129,12 @@ local function updateDroppedCashTotal()
     return total
 end
 
--- Continuously update the Status paragraph every second
+-- Continuously update the Status paragraph every 0.4 seconds.
 coroutine.wrap(function()
     while true do
         local totalCash = updateDroppedCashTotal()
-        statusParagraph:SetValue("Total Cash Dropped: " .. totalCash)
-        wait(1)
+        statusParagraph:SetValue("Total Cash Dropped: " .. formatNumber(totalCash))
+        wait(0.4)
     end
 end)()
 
@@ -214,7 +248,7 @@ local function getSpeed(distance)
     end
 end
 
--- Modified MoveTo: When using Tween(slower), noclip is enabled during tweening
+-- Modified MoveTo: When using Tween(slower), noclip is enabled during tweening.
 local function MoveTo(targetCFrame)
     local char = game.Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
