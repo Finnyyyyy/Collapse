@@ -32,16 +32,81 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create Tabs (Order: Main, Teleports, PVP, Misc, Settings)
+-- Create Tabs (Order: Main, Teleports, PVP, Misc, Settings, Status)
 local Tabs = {
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
     PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
     Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
-    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
+    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"}),
+    Status = Window:CreateTab({Title = "Status", Icon = "info"})
 }
 
--- Position Update System (not used for ATM locking anymore)
+------------------------------------------------------------
+-- STATUS TAB: DROPPED CASH DISPLAY
+------------------------------------------------------------
+
+-- Create a paragraph in the Status Tab to display the total dropped cash
+local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
+    Title = "Total Cash Dropped",
+    Content = "Total Cash Dropped: 0"
+})
+
+-- Helper function: Get the numeric value from a MoneyDrop
+local function getMoneyDropValue(moneyDrop)
+    local billboardGui = moneyDrop:FindFirstChild("BillboardGui")
+    if billboardGui then
+        local textLabel = billboardGui:FindFirstChild("TextLabel")
+        if textLabel then
+            local num = tonumber(textLabel.Text)
+            if not num then
+                num = tonumber(textLabel.Text:match("%d+"))
+            end
+            if num then
+                return num
+            end
+        else
+            warn("TextLabel not found in " .. moneyDrop:GetFullName())
+        end
+    else
+        warn("BillboardGui not found in " .. moneyDrop:GetFullName())
+    end
+    return 0
+end
+
+-- Function to sum the cash from all MoneyDrop objects in Workspace.Ignored.Drop
+local function updateDroppedCashTotal()
+    local total = 0
+    local ignored = game.Workspace:FindFirstChild("Ignored")
+    if ignored then
+        local dropFolder = ignored:FindFirstChild("Drop")
+        if dropFolder then
+            for _, moneyDrop in ipairs(dropFolder:GetChildren()) do
+                if moneyDrop.Name == "MoneyDrop" then
+                    total = total + getMoneyDropValue(moneyDrop)
+                end
+            end
+        else
+            warn("Drop folder not found in Workspace.Ignored!")
+        end
+    else
+        warn("Ignored folder not found in Workspace!")
+    end
+    return total
+end
+
+-- Continuously update the Status paragraph every second
+coroutine.wrap(function()
+    while true do
+        local totalCash = updateDroppedCashTotal()
+        statusParagraph:SetValue("Total Cash Dropped: " .. totalCash)
+        wait(1)
+    end
+end)()
+
+------------------------------------------------------------
+-- POSITION UPDATE SYSTEM (not used for ATM locking anymore)
+------------------------------------------------------------
 local PositionUpdateConnection = nil
 
 local function StartPositionUpdate(position)
@@ -57,7 +122,9 @@ local function StartPositionUpdate(position)
     end)
 end
 
+------------------------------------------------------------
 -- Noclip Functions
+------------------------------------------------------------
 local Noclip = nil
 local Clip = nil
 
@@ -119,7 +186,9 @@ local function clip()
     end
 end
 
+------------------------------------------------------------
 -- Core Functions
+------------------------------------------------------------
 local function CancelTweens()
     for _, tween in pairs(State.ActiveTweens) do
         pcall(function() tween:Cancel() end)
@@ -173,7 +242,9 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- New Knife Purchase Function (replacing the old version)
+------------------------------------------------------------
+-- New Knife Purchase Function
+------------------------------------------------------------
 local function BuyKnife()
     local player = game.Players.LocalPlayer
     local existingKnife = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
@@ -212,7 +283,9 @@ local function BuyKnife()
     end
 end
 
--- NEW: Rifle Purchase Function (modeled exactly after the knife code)
+------------------------------------------------------------
+-- NEW: Rifle Purchase Function
+------------------------------------------------------------
 local function BuyRifle()
     local player = game.Players.LocalPlayer
     local existingRifle = player.Backpack:FindFirstChild("[Rifle]") or (player.Character and player.Character:FindFirstChild("[Rifle]"))
@@ -251,7 +324,9 @@ local function BuyRifle()
     end
 end
 
+------------------------------------------------------------
 -- Updated ATM Autofarm (integrated with Attack Method selection)
+------------------------------------------------------------
 local function RunATMAutofarm()
     if State.AttackMethod == "Knife" then
         local knifeCFrame = CFrame.new(-277.65, 23.849, -236)
@@ -348,7 +423,9 @@ local function RunATMAutofarm()
     end
 end
 
+------------------------------------------------------------
 -- Cash Aura
+------------------------------------------------------------
 local function CashAura()
     while State.CashAuraActive do
         local char = game.Players.LocalPlayer.Character
@@ -365,7 +442,9 @@ local function CashAura()
     end
 end
 
+------------------------------------------------------------
 -- Cash Drop
+------------------------------------------------------------
 local function CashDrop()
     while State.CashDropActive do
         game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "10000")
@@ -373,7 +452,9 @@ local function CashDrop()
     end
 end
 
+------------------------------------------------------------
 -- Cash ESP
+------------------------------------------------------------
 local function ToggleESP(state)
     if state then
         local highlight = Instance.new("Highlight")
@@ -408,7 +489,9 @@ local function ToggleESP(state)
     end
 end
 
+------------------------------------------------------------
 -- Map Destruction
+------------------------------------------------------------
 local function DestroyMap()
     local function destroyFolder(folder)
         if folder then
@@ -448,7 +531,9 @@ local function DestroyMap()
     end
 end
 
--- UI Elements for Main Tab
+------------------------------------------------------------
+-- UI ELEMENTS FOR MAIN TAB
+------------------------------------------------------------
 Tabs.Main:CreateDropdown("TravelMethod", {
     Title = "Travel Method",
     Values = {"Teleport(Risky)", "Tween(slower)"},
@@ -521,7 +606,9 @@ Tabs.Main:CreateToggle("Noclip", {
     end
 end)
 
--- Teleport Buttons
+------------------------------------------------------------
+-- TELEPORT BUTTONS
+------------------------------------------------------------
 local teleportLocations = {
     {Title = "Bank", Position = Vector3.new(-373, 18.75, -346)},
     {Title = "Hood Fitness", Position = Vector3.new(-76, 19.45, -594.25)},
@@ -541,7 +628,9 @@ for _, loc in ipairs(teleportLocations) do
     })
 end
 
--- PVP Tab: Dynamic Dropdown for Lobby Players
+------------------------------------------------------------
+-- PVP TAB: PLAYER DROPDOWN & AUTOKILL OPTIONS
+------------------------------------------------------------
 local pvpDropdown = Tabs.PVP:CreateDropdown("PVPDropdown", {
     Title = "Select Player",
     Description = "Choose a player from the lobby",
@@ -681,6 +770,7 @@ end
 
 ----------------------------------------------------------------
 -- New Dropdown for Autokill Method in PVP Tab
+----------------------------------------------------------------
 local autokillMethodDropdown = Tabs.PVP:CreateDropdown("AutokillMethodDropdown", {
     Title = "Autokill Method",
     Description = "Select autokill method",
@@ -697,6 +787,7 @@ end)
 
 ----------------------------------------------------------------
 -- New Sliders for Orbit Parameters (placed above Autokill toggle)
+----------------------------------------------------------------
 local orbitSizeSlider = Tabs.PVP:CreateSlider("OrbitSizeSlider", {
     Title = "Orbit Size",
     Description = "Determines orbit base & max radius and number of segments.",
@@ -733,6 +824,7 @@ end)
 
 ----------------------------------------------------------------
 -- New Toggle for Autokill with integrated noclip for autokill and Rifle purchase
+----------------------------------------------------------------
 local currentOrbitCleanup = nil
 Tabs.PVP:CreateToggle("AutokillToggle", {
     Title = "Autokill",
@@ -786,26 +878,34 @@ Tabs.PVP:CreateToggle("AutokillToggle", {
     end
 end)
 
--- Misc Tab
+------------------------------------------------------------
+-- MISC TAB
+------------------------------------------------------------
 Tabs.Misc:CreateButton({
     Title = "Destroy Map",
     Callback = DestroyMap
 })
 
--- Settings Tab (Interface & Config Sections)
+------------------------------------------------------------
+-- SETTINGS TAB (Interface & Config Sections)
+------------------------------------------------------------
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
+------------------------------------------------------------
 -- Anti-Idle
+------------------------------------------------------------
 game:GetService("Players").LocalPlayer.Idled:Connect(function()
     game:GetService("VirtualUser"):CaptureController()
     game:GetService("VirtualUser"):ClickButton2(Vector2.new())
 end)
 
+------------------------------------------------------------
 -- Seat Removal
+------------------------------------------------------------
 for _, seat in ipairs(game:GetDescendants()) do
     if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
         seat:Destroy()
