@@ -234,20 +234,25 @@ local function getSpeed(distance)
     end
 end
 
+-- Travel Method: Moves while preserving current rotation.
 local function MoveTo(targetCFrame)
     local char = game.Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
+    local hrp = char.HumanoidRootPart
     CancelTweens()
     
+    -- Preserve current rotation by taking current orientation and adding the target position.
+    local currentOrientation = hrp.CFrame - hrp.CFrame.Position
+    local newTarget = currentOrientation + targetCFrame.Position
+
     if State.TravelMethod == "Tween(slower)" then
         noclip()  -- enable noclip before starting tween
-        local distance = (char.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
+        local distance = (hrp.Position - targetCFrame.Position).Magnitude
         local speed = getSpeed(distance)
         local tween = game:GetService("TweenService"):Create(
-            char.HumanoidRootPart,
-            TweenInfo.new(distance / speed),
-            {CFrame = targetCFrame}
+            hrp,
+            TweenInfo.new(distance / speed, Enum.EasingStyle.Linear),
+            {CFrame = newTarget}
         )
         table.insert(State.ActiveTweens, tween)
         tween:Play()
@@ -256,9 +261,40 @@ local function MoveTo(targetCFrame)
         end)
         return tween
     else
-        char.HumanoidRootPart.CFrame = targetCFrame
+        hrp.CFrame = newTarget
         return nil
     end
+end
+
+-- TP2 Teleport Function (also preserving orientation)
+local PlayersService = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local function TP2(P1)
+    local Player = PlayersService.LocalPlayer
+    if not Player.Character then return end
+    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local newTarget = (hrp.CFrame - hrp.CFrame.Position) + P1.Position
+    local Distance = (P1.Position - hrp.Position).Magnitude
+    local Speed = 150
+    
+    local Tween = TweenService:Create(
+        hrp,
+        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
+        {CFrame = newTarget}
+    )
+    
+    Tween:Play()
+    
+    if _G.Stop_Tween == true then
+        Tween:Cancel()
+    end
+    
+    _G.Clip = true
+    wait(Distance / Speed)
+    _G.Clip = false
 end
 
 ------------------------------------------------------------
@@ -406,7 +442,7 @@ local function RunATMAutofarm()
             end
 
             farmNoclip()
-            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 3)
+            local targetPosition = cashier.Open.CFrame * CFrame.new(-1.4, 0, 3)
             local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
 
@@ -452,10 +488,10 @@ local function RunATMAutofarm()
             task.wait(3.4)
         end
 
-        if State.ATMRunning and tick() - lastPunchTime > 3 then
+        if State.ATMRunning and tick() - lastPunchTime > 5 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
-                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 2)
+                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(-1.4, 0, 3)
                 local tween = MoveTo(firstATMPosition)
                 if tween then tween.Completed:Wait() end
                 task.wait(0.5)
@@ -463,7 +499,7 @@ local function RunATMAutofarm()
             end
         end
 
-        task.wait(0.3)
+        task.wait(0.4)
     end
 
     if PositionUpdateConnection then
@@ -717,23 +753,20 @@ pvpDropdown:OnChanged(function(Value)
     print("Player dropdown changed:", Value)
 end)
 
-local TweenService = game:GetService("TweenService")
-local PlayersService = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
 local function TP2(P1)
-    local Player = PlayersService.LocalPlayer
+    local Player = game:GetService("Players").LocalPlayer
     if not Player.Character then return end
-    local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
-    if not HumanoidRootPart then return end
+    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-    local Distance = (P1.Position - HumanoidRootPart.Position).Magnitude
+    local newTarget = (hrp.CFrame - hrp.CFrame.Position) + P1.Position
+    local Distance = (P1.Position - hrp.Position).Magnitude
     local Speed = 150
     
     local Tween = TweenService:Create(
-        HumanoidRootPart,
-        TweenInfo.new(Distance/Speed, Enum.EasingStyle.Linear),
-        {CFrame = P1}
+        hrp,
+        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
+        {CFrame = newTarget}
     )
     
     Tween:Play()
@@ -743,7 +776,7 @@ local function TP2(P1)
     end
     
     _G.Clip = true
-    wait(Distance/Speed)
+    wait(Distance / Speed)
     _G.Clip = false
 end
 
@@ -778,7 +811,7 @@ local function createCircleAndOrbit(targetPlayer)
     end
 
     local connection
-    connection = RunService.RenderStepped:Connect(function()
+    connection = game:GetService("RunService").RenderStepped:Connect(function()
         if not targetPlayer or not targetPlayer.Character or not rootPart then
             connection:Disconnect()
             for _, part in ipairs(circleParts) do
@@ -796,8 +829,8 @@ local function createCircleAndOrbit(targetPlayer)
             part.Position = rootPart.Position + offset
         end
 
-        if PlayersService.LocalPlayer.Character and PlayersService.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRootPart = PlayersService.LocalPlayer.Character.HumanoidRootPart
+        if game:GetService("Players").LocalPlayer.Character and game:GetService("Players").LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRootPart = game:GetService("Players").LocalPlayer.Character.HumanoidRootPart
             local orbitPosition = rootPart.Position + Vector3.new(
                 math.cos(rotationAngle) * currentRadius,
                 0,
@@ -874,11 +907,11 @@ end)
 ------------------------------------------------------------
 Tabs.Main:CreateButton({
     Title = "Collect all money",
-    Description = "Teleport to all of the money in the map. Cash Aura is required to pick it up.",
+    Description = "Tween/Teleport to all of the money in the map. Cash Aura is required to pick it up.",
     Callback = function()
         Window:Dialog({
-            Title = "Proceed with this process? It may take a sec",
-            Content = "Collects all of the money available when the button is pressed. Cash Aura is needed to pick it up.",
+            Title = "Proceed with this process? Theres a chance of dying",
+            Content = "Collects all of the money that were available when the button was pressed. Cash Aura is needed to pick it up.",
             Buttons = {
                 {
                     Title = "Confirm",
@@ -886,18 +919,38 @@ Tabs.Main:CreateButton({
                         print("Collecting cash...")
                         local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
                         if dropFolder then
+                            local TweenService = game:GetService("TweenService")
                             local drops = dropFolder:GetChildren()
-                            local player = game.Players.LocalPlayer
+                            -- Enable noclip for smooth travel.
+                            noclip()
                             for _, drop in ipairs(drops) do
                                 if drop:IsA("BasePart") then
-                                    -- Teleport 3 studs above the MoneyDrop
-                                    player.Character.HumanoidRootPart.CFrame = drop.CFrame * CFrame.new(0, 5, 0)
-                                    task.wait(1.25)
+                                    local char = game.Players.LocalPlayer.Character
+                                    if not char or not char:FindFirstChild("HumanoidRootPart") then
+                                        continue
+                                    end
+                                    local hrp = char.HumanoidRootPart
+                                    -- Build target position: 5 studs above the MoneyDrop.
+                                    local targetPos = drop.CFrame * CFrame.new(0, 10, 0)
+                                    -- Preserve current rotation by subtracting the current position then adding the new one.
+                                    local targetCFrame = (hrp.CFrame - hrp.CFrame.Position) + targetPos.Position
+                                    
+                                    -- Calculate tween duration based on distance and a fixed speed of 150 studs per second.
+                                    local distance = (hrp.Position - targetPos.Position).Magnitude
+                                    local duration = distance / 100
+                                    
+                                    local tween = TweenService:Create(
+                                        hrp,
+                                        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+                                        {CFrame = targetCFrame}
+                                    )
+                                    tween:Play()
+                                    tween.Completed:Wait()
+                                    task.wait(0.5)
                                 end
                             end
-                            -- Teleport to the final destination and notify
-                            player.Character.HumanoidRootPart.CFrame = CFrame.new(-629.053, 50.604, -291.869)
-                            Library:Notify({Title = "Process Complete", Content = "The money collection process has been completed.", Duration = 5})
+                            -- Re-enable collisions.
+                            clip()
                         else
                             print("Drop folder not found!")
                         end
@@ -913,8 +966,6 @@ Tabs.Main:CreateButton({
         })
     end
 })
-
-
 
 ----------------------------------------------------------------
 -- New Toggle for Autokill with integrated noclip for autokill and Rifle purchase
