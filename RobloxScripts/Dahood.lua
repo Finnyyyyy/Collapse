@@ -405,7 +405,7 @@ local function RunATMAutofarm()
 
         local cashiers = game.Workspace.Cashiers:GetChildren()
         if #cashiers == 0 then
-            task.wait(1)
+            task.wait(2.5)
             continue
         end
 
@@ -416,7 +416,7 @@ local function RunATMAutofarm()
             end
 
             farmNoclip()
-            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 3)
+            local targetPosition = cashier.Open.CFrame * CFrame.new(-1.4, 0, 3)
             local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
 
@@ -430,7 +430,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(1)
+                    task.wait(0.5)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -465,7 +465,7 @@ local function RunATMAutofarm()
         if State.ATMRunning and tick() - lastPunchTime > 3 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
-                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 2)
+                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 3.5)
                 local tween = MoveTo(firstATMPosition)
                 if tween then tween.Completed:Wait() end
                 task.wait(0.5)
