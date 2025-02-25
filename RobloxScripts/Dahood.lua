@@ -65,22 +65,17 @@ end
 -- Helper function: Convert a cash string into a full number.
 local function parseCashValue(text)
     if not text then return 0 end
-    -- Remove extraneous characters like '$' and commas.
     text = text:gsub("[$,]", "")
-    -- Try a direct conversion first.
     local value = tonumber(text)
     if value then return value end
-    -- Handle "k" (thousands)
     local numStr = text:match("([%d%.]+)%s*[kK]")
     if numStr then
         return tonumber(numStr) * 1000
     end
-    -- Handle "m" (millions)
     numStr = text:match("([%d%.]+)%s*[mM]")
     if numStr then
         return tonumber(numStr) * 1000000
     end
-    -- Fallback: match any numeric portion
     numStr = text:match("([%d%.]+)")
     if numStr then
         return tonumber(numStr)
@@ -115,7 +110,6 @@ local function updateDroppedCashTotal()
         local dropFolder = ignored:FindFirstChild("Drop")
         if dropFolder then
             for _, child in ipairs(dropFolder:GetChildren()) do
-                -- Sum every child that has a BillboardGui (assumed to be a MoneyDrop)
                 if child:FindFirstChild("BillboardGui") then
                     total = total + getMoneyDropValue(child)
                 end
@@ -366,7 +360,7 @@ local function RunATMAutofarm()
         local knifeCFrame = CFrame.new(-277.65, 23.849, -236)
         local tween = MoveTo(knifeCFrame)
         if tween then tween.Completed:Wait() end
-        task.wait(1)
+        task.wait(0.5)
         
         if not BuyKnife() then
             State.ATMRunning = false
@@ -392,6 +386,22 @@ local function RunATMAutofarm()
             break
         end
         tool.Parent = char
+
+        -- In non-Knife mode, check that the Combat tool is equipped.
+        if State.AttackMethod ~= "Knife" then
+            if not (tool and tool.Parent == char) then
+                local combatTool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
+                if combatTool then
+                    combatTool.Parent = char
+                    tool = combatTool
+                else
+                    Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
+                    State.ATMRunning = false
+                    clip()
+                    break
+                end
+            end
+        end
 
         local cashiers = game.Workspace.Cashiers:GetChildren()
         if #cashiers == 0 then
@@ -429,6 +439,20 @@ local function RunATMAutofarm()
             local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
             for i = 1, numAttacks do
                 if not State.ATMRunning then break end
+                if State.AttackMethod ~= "Knife" then
+                    if not (tool and tool.Parent == char) then
+                        local combatTool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
+                        if combatTool then
+                            combatTool.Parent = char
+                            tool = combatTool
+                        else
+                            Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
+                            State.ATMRunning = false
+                            clip()
+                            break
+                        end
+                    end
+                end
                 tool:Activate()
                 lastPunchTime = tick()
                 task.wait(attackWait)
@@ -472,7 +496,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.5)
+        task.wait(0.35)
     end
 end
 
@@ -865,15 +889,12 @@ Tabs.PVP:CreateToggle("AutokillToggle", {
     Default = false,
 }):OnChanged(function(state)
     if state then
-        -- First, attempt to purchase the rifle using the same logic as the knife.
-        -- Since the rifle shop item does not have a CFrame property, we use a hardcoded position.
         local rifleShopItem = game.Workspace.Ignored.Shop["[Rifle] - $1694"]
         if rifleShopItem then
-            -- Hardcoded CFrame for the rifle shop location (update these coordinates as needed)
             local rifleCFrame = CFrame.new(-259.658, 54.363, -213.512)
             local tween = MoveTo(rifleCFrame)
             if tween then tween.Completed:Wait() end
-            task.wait(1)  -- wait a moment for the purchase to process
+            task.wait(1)
             if not BuyRifle() then
                 clip()
                 return
@@ -885,7 +906,6 @@ Tabs.PVP:CreateToggle("AutokillToggle", {
             return
         end
 
-        -- Enable noclip specifically for autokill
         noclip()
         if selectedAutokillMethod == "Orbit" then
             if selectedPlayerName then
@@ -907,7 +927,6 @@ Tabs.PVP:CreateToggle("AutokillToggle", {
             currentOrbitCleanup()
             currentOrbitCleanup = nil
         end
-        -- Disable autokill-specific noclip by re-enabling collisions
         clip()
     end
 end)
