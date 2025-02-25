@@ -32,7 +32,7 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create Tabs (Status is now created first)
+-- Create Tabs
 local Tabs = {
     Status = Window:CreateTab({Title = "Status", Icon = "info"}),
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
@@ -45,14 +45,11 @@ local Tabs = {
 ------------------------------------------------------------
 -- STATUS TAB: DROPPED CASH DISPLAY
 ------------------------------------------------------------
-
--- Create a paragraph in the Status Tab to display the total dropped cash
 local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
     Title = "Total Cash Dropped",
     Content = "Total Cash Dropped: 0"
 })
 
--- Helper function: Format a number with thousands separators.
 local function formatNumber(n)
     local formatted = string.format("%d", n)
     local k
@@ -62,7 +59,6 @@ local function formatNumber(n)
     return formatted
 end
 
--- Helper function: Convert a cash string into a full number.
 local function parseCashValue(text)
     if not text then return 0 end
     text = text:gsub("[$,]", "")
@@ -83,7 +79,6 @@ local function parseCashValue(text)
     return 0
 end
 
--- Helper function: Get the numeric value from a MoneyDrop object.
 local function getMoneyDropValue(moneyDrop)
     if not moneyDrop then return 0 end
     local billboardGui = moneyDrop:FindFirstChild("BillboardGui")
@@ -102,7 +97,6 @@ local function getMoneyDropValue(moneyDrop)
     return 0
 end
 
--- Function to sum the cash from every MoneyDrop in Workspace.Ignored.Drop.
 local function updateDroppedCashTotal()
     local total = 0
     local ignored = game.Workspace:FindFirstChild("Ignored")
@@ -123,7 +117,6 @@ local function updateDroppedCashTotal()
     return total
 end
 
--- Continuously update the Status paragraph every 0.4 seconds.
 coroutine.wrap(function()
     while true do
         local totalCash = updateDroppedCashTotal()
@@ -141,7 +134,6 @@ local function StartPositionUpdate(position)
     if PositionUpdateConnection then
         PositionUpdateConnection:Disconnect()
     end
-    
     PositionUpdateConnection = game:GetService("RunService").Heartbeat:Connect(function()
         local char = game.Players.LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") and position then
@@ -151,7 +143,7 @@ local function StartPositionUpdate(position)
 end
 
 ------------------------------------------------------------
--- Noclip Functions
+-- Noclip Functions (Original Version)
 ------------------------------------------------------------
 local Noclip = nil
 local Clip = nil
@@ -242,7 +234,6 @@ local function getSpeed(distance)
     end
 end
 
--- Modified MoveTo: When using Tween(slower), noclip is enabled during tweening.
 local function MoveTo(targetCFrame)
     local char = game.Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -387,7 +378,6 @@ local function RunATMAutofarm()
         end
         tool.Parent = char
 
-        -- In non-Knife mode, check that the Combat tool is equipped.
         if State.AttackMethod ~= "Knife" then
             if not (tool and tool.Parent == char) then
                 local combatTool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
@@ -405,7 +395,7 @@ local function RunATMAutofarm()
 
         local cashiers = game.Workspace.Cashiers:GetChildren()
         if #cashiers == 0 then
-            task.wait(2.5)
+            task.wait(1)
             continue
         end
 
@@ -416,7 +406,7 @@ local function RunATMAutofarm()
             end
 
             farmNoclip()
-            local targetPosition = cashier.Open.CFrame * CFrame.new(-1.4, 0, 3)
+            local targetPosition = cashier.Open.CFrame * CFrame.new(0, 0, 3)
             local tween = MoveTo(targetPosition)
             if tween then tween.Completed:Wait() end
 
@@ -430,7 +420,7 @@ local function RunATMAutofarm()
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         char.HumanoidRootPart.CFrame = targetPosition
                     end
-                    task.wait(0.5)
+                    task.wait(1)
                 end
             end)
             coroutine.resume(lockCoroutine)
@@ -465,7 +455,7 @@ local function RunATMAutofarm()
         if State.ATMRunning and tick() - lastPunchTime > 3 then
             local allCashiers = game.Workspace.Cashiers:GetChildren()
             if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
-                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 3.5)
+                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(0, 0, 2)
                 local tween = MoveTo(firstATMPosition)
                 if tween then tween.Completed:Wait() end
                 task.wait(0.5)
@@ -761,7 +751,6 @@ end
 local orbitSizeValue = 20
 local orbitSpeedValue = 20
 
--- Updated createCircleAndOrbit using slider values
 local function createCircleAndOrbit(targetPlayer)
     if not targetPlayer.Character then return end
     local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -769,7 +758,7 @@ local function createCircleAndOrbit(targetPlayer)
 
     local baseRadius = orbitSizeValue
     local maxRadius = orbitSizeValue
-    local segments = orbitSizeValue  -- number of segments equals orbit size
+    local segments = orbitSizeValue
     local rotationSpeed = orbitSpeedValue
     local expansionSpeed = 0
     local circleParts = {}
@@ -879,6 +868,53 @@ orbitSpeedSlider:OnChanged(function(Value)
     orbitSpeedValue = Value
     print("Orbit speed changed:", Value)
 end)
+
+------------------------------------------------------------
+-- NEW: MoneyDrop Tour Button in Main Tab
+------------------------------------------------------------
+Tabs.Main:CreateButton({
+    Title = "Collect all money",
+    Description = "Teleport to all of the money in the map. Cash Aura is required to pick it up.",
+    Callback = function()
+        Window:Dialog({
+            Title = "Proceed with this process? It may take a sec",
+            Content = "Collects all of the money available when the button is pressed. Cash Aura is needed to pick it up.",
+            Buttons = {
+                {
+                    Title = "Confirm",
+                    Callback = function()
+                        print("Collecting cash...")
+                        local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
+                        if dropFolder then
+                            local drops = dropFolder:GetChildren()
+                            local player = game.Players.LocalPlayer
+                            for _, drop in ipairs(drops) do
+                                if drop:IsA("BasePart") then
+                                    -- Teleport 3 studs above the MoneyDrop
+                                    player.Character.HumanoidRootPart.CFrame = drop.CFrame * CFrame.new(0, 5, 0)
+                                    task.wait(1.25)
+                                end
+                            end
+                            -- Teleport to the final destination and notify
+                            player.Character.HumanoidRootPart.CFrame = CFrame.new(-629.053, 50.604, -291.869)
+                            Library:Notify({Title = "Process Complete", Content = "The money collection process has been completed.", Duration = 5})
+                        else
+                            print("Drop folder not found!")
+                        end
+                    end
+                },
+                {
+                    Title = "Cancel",
+                    Callback = function()
+                        print("Cash collection cancelled.")
+                    end
+                }
+            }
+        })
+    end
+})
+
+
 
 ----------------------------------------------------------------
 -- New Toggle for Autokill with integrated noclip for autokill and Rifle purchase
