@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- LOAD LIBRARIES
+-- LOAD LIBRARIES AND ADDONS
 ------------------------------------------------------------
 local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
@@ -50,31 +50,28 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- STATUS TAB: DROPPED CASH DISPLAY AND NEW STATUS INFO
+-- STATUS TAB: RE-ORDERED STATUS INFORMATION
 ------------------------------------------------------------
-local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
-    Title = "Total Cash Dropped",
-    Content = "Total Cash Dropped: 0"
-})
-
--- New: Time in Server
 local startTime = tick()
 local timeParagraph = Tabs.Status:CreateParagraph("TimeInServerParagraph", {
     Title = "Time in Server",
     Content = "Time: 00:00:00"
 })
 
--- New: Tween Status
-local tweenStatusParagraph = Tabs.Status:CreateParagraph("TweenStatusParagraph", {
-    Title = "Tween Status",
-    Content = "Tween Status: Idle"
+local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
+    Title = "Total Cash Dropped",
+    Content = "Total Cash Dropped: 0"
 })
 
--- New: Total Cash Collected
 local totalCashCollected = 0
 local totalCashCollectedParagraph = Tabs.Status:CreateParagraph("TotalCashCollectedParagraph", {
     Title = "Total Cash Collected",
     Content = "Total Cash Collected: 0"
+})
+
+local tweenStatusParagraph = Tabs.Status:CreateParagraph("TweenStatusParagraph", {
+    Title = "Tween Status",
+    Content = "Tween Status: Idle"
 })
 
 local function formatNumber(n)
@@ -166,7 +163,7 @@ coroutine.wrap(function()
     end
 end)()
 
--- Update Tween Status continuously
+-- Update Tween Status continuously (checks if any tween in State.ActiveTweens is still playing)
 coroutine.wrap(function()
     while true do
         local tweenActive = false
@@ -336,6 +333,12 @@ local function MoveTo(targetCFrame)
         tween:Play()
         tween.Completed:Connect(function()
             clip()
+            for i, t in ipairs(State.ActiveTweens) do
+                if t == tween then
+                    table.remove(State.ActiveTweens, i)
+                    break
+                end
+            end
         end)
         return tween
     else
@@ -344,7 +347,7 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- TP2 Teleport Function (also preserving orientation)
+-- TP2 Teleport Function (also preserving orientation) for Main Tab
 local PlayersService = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -358,16 +361,24 @@ local function TP2(P1)
     local Distance = (P1.Position - hrp.Position).Magnitude
     local Speed = 150
     
-    local Tween = TweenService:Create(
+    local tween = TweenService:Create(
         hrp,
         TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
         {CFrame = newTarget}
     )
-    
-    Tween:Play()
+    table.insert(State.ActiveTweens, tween)
+    tween:Play()
+    tween.Completed:Connect(function()
+         for i, t in ipairs(State.ActiveTweens) do
+              if t == tween then
+                   table.remove(State.ActiveTweens, i)
+                   break
+              end
+         end
+    end)
     
     if _G.Stop_Tween == true then
-        Tween:Cancel()
+        tween:Cancel()
     end
     
     _G.Clip = true
@@ -823,16 +834,24 @@ local function TP2(P1)
     local Distance = (P1.Position - hrp.Position).Magnitude
     local Speed = 150
     
-    local Tween = TweenService:Create(
+    local tween = TweenService:Create(
         hrp,
         TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
         {CFrame = newTarget}
     )
-    
-    Tween:Play()
+    table.insert(State.ActiveTweens, tween)
+    tween:Play()
+    tween.Completed:Connect(function()
+         for i, t in ipairs(State.ActiveTweens) do
+              if t == tween then
+                   table.remove(State.ActiveTweens, i)
+                   break
+              end
+         end
+    end)
     
     if _G.Stop_Tween == true then
-        Tween:Cancel()
+        tween:Cancel()
     end
     
     _G.Clip = true
@@ -1027,7 +1046,16 @@ Tabs.Selling:CreateButton({
             local targetCFrame = targetPart.CFrame * CFrame.new(0, 2, 0) -- 2 studs above the part
             local distance = (hrp.Position - targetCFrame.Position).Magnitude
             local tween = TweenService:Create(hrp, TweenInfo.new(distance / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+            table.insert(State.ActiveTweens, tween)
             tween:Play()
+            tween.Completed:Connect(function()
+                for i, t in ipairs(State.ActiveTweens) do
+                    if t == tween then
+                        table.remove(State.ActiveTweens, i)
+                        break
+                    end
+                end
+            end)
             tween.Completed:Wait()
             if lockActive then
                 lockedPosition = player.Character.HumanoidRootPart.CFrame
