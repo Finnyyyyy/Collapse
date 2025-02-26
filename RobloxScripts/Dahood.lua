@@ -25,7 +25,7 @@ local State = {
 local seatsFound = false
 
 ------------------------------------------------------------
--- CREATE WINDOW AND TABS (New tab ordering: Selling appears above PVP)
+-- CREATE WINDOW AND TABS (Selling appears above PVP; Selling tab icon is "banknote")
 ------------------------------------------------------------
 local Window = Library:CreateWindow({
     Title = "Collapse-Dahood",
@@ -43,18 +43,38 @@ local Tabs = {
     Status = Window:CreateTab({Title = "Status", Icon = "info"}),
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
-    Selling = Window:CreateTab({Title = "Selling", Icon = "banknote"}),  -- Changed icon here
+    Selling = Window:CreateTab({Title = "Selling", Icon = "banknote"}),
     PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
     Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
 }
 
 ------------------------------------------------------------
--- STATUS TAB: DROPPED CASH DISPLAY
+-- STATUS TAB: DROPPED CASH DISPLAY AND NEW STATUS INFO
 ------------------------------------------------------------
 local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
     Title = "Total Cash Dropped",
     Content = "Total Cash Dropped: 0"
+})
+
+-- New: Time in Server
+local startTime = tick()
+local timeParagraph = Tabs.Status:CreateParagraph("TimeInServerParagraph", {
+    Title = "Time in Server",
+    Content = "Time: 00:00:00"
+})
+
+-- New: Tween Status
+local tweenStatusParagraph = Tabs.Status:CreateParagraph("TweenStatusParagraph", {
+    Title = "Tween Status",
+    Content = "Tween Status: Idle"
+})
+
+-- New: Total Cash Collected
+local totalCashCollected = 0
+local totalCashCollectedParagraph = Tabs.Status:CreateParagraph("TotalCashCollectedParagraph", {
+    Title = "Total Cash Collected",
+    Content = "Total Cash Collected: 0"
 })
 
 local function formatNumber(n)
@@ -124,6 +144,7 @@ local function updateDroppedCashTotal()
     return total
 end
 
+-- Update Total Cash Dropped continuously
 coroutine.wrap(function()
     while true do
         local totalCash = updateDroppedCashTotal()
@@ -131,6 +152,57 @@ coroutine.wrap(function()
         wait(0.4)
     end
 end)()
+
+-- Update Time in Server continuously
+coroutine.wrap(function()
+    while true do
+        local elapsed = tick() - startTime
+        local hours = math.floor(elapsed / 3600)
+        local minutes = math.floor((elapsed % 3600) / 60)
+        local seconds = math.floor(elapsed % 60)
+        local timeString = string.format("%02d:%02d:%02d", hours, minutes, seconds)
+        timeParagraph:SetValue("Time in Server: " .. timeString)
+        wait(1)
+    end
+end)()
+
+-- Update Tween Status continuously
+coroutine.wrap(function()
+    while true do
+        local tweenActive = false
+        for _, tween in pairs(State.ActiveTweens) do
+            if tween.PlaybackState == Enum.PlaybackState.Playing then
+                tweenActive = true
+                break
+            end
+        end
+        if tweenActive then
+            tweenStatusParagraph:SetValue("Tween Status: Active")
+        else
+            tweenStatusParagraph:SetValue("Tween Status: Idle")
+        end
+        wait(0.5)
+    end
+end)()
+
+-- Update Total Cash Collected continuously
+coroutine.wrap(function()
+    while true do
+        totalCashCollectedParagraph:SetValue("Total Cash Collected: " .. formatNumber(totalCashCollected))
+        wait(0.4)
+    end
+end)()
+
+-- Listen for money being picked up (child removed from drop folder)
+local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
+if dropFolder then
+    dropFolder.ChildRemoved:Connect(function(child)
+        if child:FindFirstChild("BillboardGui") then
+            local value = getMoneyDropValue(child)
+            totalCashCollected = totalCashCollected + value
+        end
+    end)
+end
 
 ------------------------------------------------------------
 -- POSITION UPDATE SYSTEM (not used for ATM locking anymore)
@@ -248,12 +320,11 @@ local function MoveTo(targetCFrame)
     local hrp = char.HumanoidRootPart
     CancelTweens()
     
-    -- Preserve current rotation by taking current orientation and adding the target position.
     local currentOrientation = hrp.CFrame - hrp.CFrame.Position
     local newTarget = currentOrientation + targetCFrame.Position
 
     if State.TravelMethod == "Tween(slower)" then
-        noclip()  -- enable noclip before starting tween
+        noclip()
         local distance = (hrp.Position - targetCFrame.Position).Magnitude
         local speed = getSpeed(distance)
         local tween = game:GetService("TweenService"):Create(
@@ -264,7 +335,7 @@ local function MoveTo(targetCFrame)
         table.insert(State.ActiveTweens, tween)
         tween:Play()
         tween.Completed:Connect(function()
-            clip()  -- re-enable collisions after tween finishes
+            clip()
         end)
         return tween
     else
@@ -929,7 +1000,7 @@ local lockActive = false
 local lockConnection = nil
 local lockedPosition = nil
 
--- 2. "Setup Position" button – spawns parts if needed and teleports the player 2 studs above the selected part
+-- 2. "Setup Position" button – spawns parts if needed and teleports the player 2 studs above the selected part using a fixed tween speed (75 studs/sec)
 Tabs.Selling:CreateButton({
     Title = "Setup Position",
     Callback = function()
@@ -967,8 +1038,7 @@ Tabs.Selling:CreateButton({
     end
 })
 
--- "Lock Position" toggle – when enabled, locks your position at your current (teleported) location.
-
+-- 3. "Lock Position" toggle – when enabled, prevents player movement by anchoring HRP, and every 3 seconds plays a tween that nudges by (0,0,-0.8) then resets to the locked position.
 Tabs.Selling:CreateToggle("Lock_Position", {
     Title = "Lock Position",
     Default = false
@@ -977,16 +1047,15 @@ Tabs.Selling:CreateToggle("Lock_Position", {
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if state then
         if hrp then
-            -- Store the locked position and original anchored state
             lockedPosition = hrp.CFrame
             originalAnchored = hrp.Anchored
-            hrp.Anchored = true  -- Prevent any manual movement
+            hrp.Anchored = true
             lockActive = true
             lockConnection = coroutine.create(function()
                 while lockActive do
-                    wait(3)  -- every 3 seconds
+                    wait(3)
                     if not lockActive then break end
-                    local offset = Vector3.new(0, 0, -0.8)  -- your chosen offset
+                    local offset = Vector3.new(0, 0, -0.8)
                     local tween1 = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = lockedPosition * CFrame.new(offset)})
                     tween1:Play()
                     tween1.Completed:Wait()
