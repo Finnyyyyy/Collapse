@@ -626,81 +626,78 @@ local function CashDrop()
 end
 
 ------------------------------------------------------------
--- CASH ESP
+-- NEW: CASH ESP (CHAMS + VALUE DISPLAY)
 ------------------------------------------------------------
-local function ToggleESP(state)
-    if state then
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "MoneyESP"
-        highlight.FillColor = Color3.fromRGB(0, 255, 0)
-        highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
-        highlight.FillTransparency = 0.5
-        highlight.Parent = game.ReplicatedStorage
+local cashESPConnection = nil
 
-        local function applyESP(inst)
-            if inst.Name == "MoneyDrop" then
-                local clone = highlight:Clone()
-                clone.Adornee = inst
-                clone.Parent = inst
-            end
-        end
-
-        for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
-            applyESP(money)
-        end
-
-        game.Workspace.Ignored.Drop.ChildAdded:Connect(applyESP)
-    else
-        for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
-            if money:FindFirstChild("MoneyESP") then
-                money.MoneyESP:Destroy()
-            end
-        end
-        if game.ReplicatedStorage:FindFirstChild("MoneyESP") then
-            game.ReplicatedStorage.MoneyESP:Destroy()
-        end
+local function applyCashESPToMoneyDrop(inst)
+    if inst.Name == "MoneyDrop" then
+         if not inst:FindFirstChild("CashESPHighlight") then
+              local highlight = Instance.new("Highlight")
+              highlight.Name = "CashESPHighlight"
+              highlight.FillColor = Color3.fromRGB(0,255,0)
+              highlight.OutlineColor = Color3.fromRGB(0,200,0)
+              highlight.FillTransparency = 0.5
+              highlight.OutlineTransparency = 0
+              highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+              highlight.Adornee = inst
+              highlight.Parent = inst
+         end
+         if not inst:FindFirstChild("CashESPBillboard") then
+              local billboard = Instance.new("BillboardGui")
+              billboard.Name = "CashESPBillboard"
+              billboard.Adornee = inst
+              billboard.AlwaysOnTop = true
+              billboard.Size = UDim2.new(0, 128, 0, 50)
+              billboard.StudsOffset = Vector3.new(0, 2, 0)
+              billboard.Parent = inst
+              
+              local textLabel = Instance.new("TextLabel")
+              textLabel.Name = "CashESPText"
+              textLabel.BackgroundTransparency = 1
+              textLabel.TextColor3 = Color3.fromRGB(255,255,255)
+              textLabel.TextScaled = false
+              textLabel.TextSize = 12       
+              textLabel.Size = UDim2.new(1,0,1,0)
+              textLabel.Text = "Value: " .. formatNumber(getMoneyDropValue(inst))
+              textLabel.Parent = billboard
+              
+              coroutine.wrap(function()
+                  while inst.Parent do
+                      if textLabel and textLabel.Parent then
+                          textLabel.Text = "Value: " .. formatNumber(getMoneyDropValue(inst))
+                      end
+                      wait(0.5)
+                  end
+              end)()
+         end
     end
 end
 
-------------------------------------------------------------
--- MAP DESTRUCTION
-------------------------------------------------------------
-local function DestroyMap()
-    local function destroyFolder(folder)
-        if folder then
-            for _, child in ipairs(folder:GetChildren()) do
-                child:Destroy()
+local function ToggleCashESP(state)
+    local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
+    if not dropFolder then return end
+
+    if state then
+        for _, money in ipairs(dropFolder:GetChildren()) do
+            applyCashESPToMoneyDrop(money)
+        end
+        cashESPConnection = dropFolder.ChildAdded:Connect(function(child)
+            applyCashESPToMoneyDrop(child)
+        end)
+    else
+        if cashESPConnection then
+            cashESPConnection:Disconnect()
+            cashESPConnection = nil
+        end
+        for _, money in ipairs(dropFolder:GetChildren()) do
+            if money:FindFirstChild("CashESPHighlight") then
+                money.CashESPHighlight:Destroy()
+            end
+            if money:FindFirstChild("CashESPBillboard") then
+                money.CashESPBillboard:Destroy()
             end
         end
-    end
-
-    destroyFolder(game.Workspace:FindFirstChild("MAP"))
-    destroyFolder(game.Workspace:FindFirstChild("Lights"))
-    
-    local ignored = game.Workspace:FindFirstChild("Ignored")
-    if ignored then
-        destroyFolder(ignored:FindFirstChild("HouseOwn"))
-        destroyFolder(ignored:FindFirstChild("HouseItemSale"))
-    end
-
-    local parts = {
-        {CFrame = CFrame.new(-935.5, 18, -660.25), Size = Vector3.new(167, 1, 31.5)},
-        {CFrame = CFrame.new(-558, 18.5, 269.625), Size = Vector3.new(15, 1, 17.25)},
-        {CFrame = CFrame.new(-611.875, 18, 272.25), Size = Vector3.new(22.75, 1, 19)},
-        {CFrame = CFrame.new(586.25, 48, -470.5), Size = Vector3.new(39.5, 1, 19.5)},
-        {CFrame = CFrame.new(583.5, 45.125, -275.375), Size = Vector3.new(19.5, 1, 18.75)},
-        {CFrame = CFrame.new(-401.5, 18.005, -590.625), Size = Vector3.new(20.5, 1, 20.75)},
-        {CFrame = CFrame.new(517.625, 44.5, -302), Size = Vector3.new(20.25, 1, 20.5)},
-    }
-
-    for _, data in pairs(parts) do
-        local part = Instance.new("Part")
-        part.Anchored = true
-        part.CFrame = data.CFrame
-        part.Size = data.Size
-        part.Color = Color3.fromRGB(255, 0, 0)
-        part.Transparency = 0.5
-        part.Parent = workspace
     end
 end
 
@@ -760,6 +757,71 @@ Tabs.Main:CreateToggle("Noclip", {
         clip()
     end
 end)
+
+-- New: Cash ESP Toggle
+Tabs.Main:CreateToggle("Cash_ESP", {
+    Title = "Cash ESP",
+    Default = false
+}):OnChanged(function(state)
+    ToggleCashESP(state)
+end)
+
+-- New: Collect All Money Button
+Tabs.Main:CreateButton({
+    Title = "Collect all money",
+    Description = "Tween/Teleport to all money in the map. Cash Aura is required to pick it up.",
+    Callback = function()
+        Window:Dialog({
+            Title = "Proceed with this process? It may take a sec",
+            Content = "Collects all the money available when the button is pressed. Cash Aura must be active.",
+            Buttons = {
+                {
+                    Title = "Confirm",
+                    Callback = function()
+                        print("Collecting cash...")
+                        local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
+                        if dropFolder then
+                            local TweenService = game:GetService("TweenService")
+                            local drops = dropFolder:GetChildren()
+                            noclip()
+                            for _, drop in ipairs(drops) do
+                                if drop:IsA("BasePart") then
+                                    local char = game.Players.LocalPlayer.Character
+                                    if not char or not char:FindFirstChild("HumanoidRootPart") then
+                                        continue
+                                    end
+                                    local hrp = char.HumanoidRootPart
+                                    local targetPos = drop.CFrame * CFrame.new(0, 10, 0)
+                                    local currentYaw = math.atan2(hrp.CFrame.LookVector.X, hrp.CFrame.LookVector.Z)
+                                    local targetCFrame = CFrame.new(targetPos.Position) * CFrame.Angles(0, currentYaw, 0)
+                                    local distance = (hrp.Position - targetPos.Position).Magnitude
+                                    local duration = distance / 100
+                                    local tween = TweenService:Create(
+                                        hrp,
+                                        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+                                        {CFrame = targetCFrame}
+                                    )
+                                    tween:Play()
+                                    tween.Completed:Wait()
+                                    task.wait(0.5)
+                                end
+                            end
+                            clip()
+                        else
+                            print("Drop folder not found!")
+                        end
+                    end
+                },
+                {
+                    Title = "Cancel",
+                    Callback = function()
+                        print("Cash collection cancelled.")
+                    end
+                }
+            }
+        })
+    end
+})
 
 ------------------------------------------------------------
 -- TELEPORT BUTTONS
