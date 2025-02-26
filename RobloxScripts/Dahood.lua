@@ -967,28 +967,42 @@ Tabs.Selling:CreateButton({
     end
 })
 
--- 3. "Lock Position" toggle – when enabled, locks your position at your current (teleported) location.
+-- "Lock Position" toggle – when enabled, locks your position at your current (teleported) location.
+
 Tabs.Selling:CreateToggle("Lock_Position", {
     Title = "Lock Position",
     Default = false
 }):OnChanged(function(state)
-    lockActive = state
     local player = game.Players.LocalPlayer
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if state then
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            lockedPosition = player.Character.HumanoidRootPart.CFrame
-            if lockConnection then lockConnection:Disconnect() end
-            lockConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    player.Character.HumanoidRootPart.CFrame = lockedPosition
+        if hrp then
+            -- Store the locked position and original anchored state
+            lockedPosition = hrp.CFrame
+            originalAnchored = hrp.Anchored
+            hrp.Anchored = true  -- Prevent any manual movement
+            lockActive = true
+            lockConnection = coroutine.create(function()
+                while lockActive do
+                    wait(3)  -- every 3 seconds
+                    if not lockActive then break end
+                    local offset = Vector3.new(0, 0, -0.8)  -- your chosen offset
+                    local tween1 = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = lockedPosition * CFrame.new(offset)})
+                    tween1:Play()
+                    tween1.Completed:Wait()
+                    local tween2 = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = lockedPosition})
+                    tween2:Play()
+                    tween2.Completed:Wait()
                 end
             end)
+            coroutine.resume(lockConnection)
         end
     else
-        if lockConnection then
-            lockConnection:Disconnect()
-            lockConnection = nil
+        lockActive = false
+        if hrp then
+            hrp.Anchored = originalAnchored or false
         end
+        lockConnection = nil
     end
 end)
 
