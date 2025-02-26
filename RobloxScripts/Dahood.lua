@@ -1,8 +1,13 @@
+------------------------------------------------------------
+-- LOAD LIBRARIES
+------------------------------------------------------------
 local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
--- State Management
+------------------------------------------------------------
+-- STATE MANAGEMENT
+------------------------------------------------------------
 local State = {
     TravelMethod = "Teleport(Risky)",
     AttackMethod = "Heavy Attack", -- Default is Heavy Attack (using Combat tool)
@@ -19,7 +24,9 @@ local State = {
 
 local seatsFound = false
 
--- Create Window
+------------------------------------------------------------
+-- CREATE WINDOW AND TABS (New tab ordering: Selling appears above PVP)
+------------------------------------------------------------
 local Window = Library:CreateWindow({
     Title = "Collapse-Dahood",
     SubTitle = "Made by Finny<3",
@@ -32,11 +39,11 @@ local Window = Library:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Create Tabs
 local Tabs = {
     Status = Window:CreateTab({Title = "Status", Icon = "info"}),
     Main = Window:CreateTab({Title = "Main", Icon = "target"}),
     Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
+    Selling = Window:CreateTab({Title = "Selling", Icon = "banknote"}),  -- Changed icon here
     PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
     Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
     Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
@@ -207,7 +214,7 @@ local function clip()
 end
 
 ------------------------------------------------------------
--- Core Functions
+-- CORE FUNCTIONS
 ------------------------------------------------------------
 local function CancelTweens()
     for _, tween in pairs(State.ActiveTweens) do
@@ -298,7 +305,7 @@ local function TP2(P1)
 end
 
 ------------------------------------------------------------
--- New Knife Purchase Function
+-- NEW: KNIFE PURCHASE FUNCTION
 ------------------------------------------------------------
 local function BuyKnife()
     local player = game.Players.LocalPlayer
@@ -339,7 +346,7 @@ local function BuyKnife()
 end
 
 ------------------------------------------------------------
--- NEW: Rifle Purchase Function
+-- NEW: RIFLE PURCHASE FUNCTION
 ------------------------------------------------------------
 local function BuyRifle()
     local player = game.Players.LocalPlayer
@@ -380,7 +387,7 @@ local function BuyRifle()
 end
 
 ------------------------------------------------------------
--- Updated ATM Autofarm (integrated with Attack Method selection)
+-- UPDATED ATM AUTOFARM (integrated with Attack Method selection)
 ------------------------------------------------------------
 local function RunATMAutofarm()
     if State.AttackMethod == "Knife" then
@@ -508,7 +515,7 @@ local function RunATMAutofarm()
 end
 
 ------------------------------------------------------------
--- Cash Aura
+-- CASH AURA
 ------------------------------------------------------------
 local function CashAura()
     while State.CashAuraActive do
@@ -527,7 +534,7 @@ local function CashAura()
 end
 
 ------------------------------------------------------------
--- Cash Drop
+-- CASH DROP
 ------------------------------------------------------------
 local function CashDrop()
     while State.CashDropActive do
@@ -537,7 +544,7 @@ local function CashDrop()
 end
 
 ------------------------------------------------------------
--- Cash ESP
+-- CASH ESP
 ------------------------------------------------------------
 local function ToggleESP(state)
     if state then
@@ -574,7 +581,7 @@ local function ToggleESP(state)
 end
 
 ------------------------------------------------------------
--- Map Destruction
+-- MAP DESTRUCTION
 ------------------------------------------------------------
 local function DestroyMap()
     local function destroyFolder(folder)
@@ -658,24 +665,6 @@ Tabs.Main:CreateToggle("Cash_Aura", {
     if state then
         coroutine.wrap(CashAura)()
     end
-end)
-
-Tabs.Main:CreateToggle("Cash_Drop", {
-    Title = "Cash Drop", 
-    Default = false
-}):OnChanged(function(state)
-    State.CashDropActive = state
-    if state then
-        coroutine.wrap(CashDrop)()
-    end
-end)
-
-Tabs.Main:CreateToggle("Cash_ESP", {
-    Title = "Cash ESP", 
-    Default = false
-}):OnChanged(function(state)
-    State.ESPEnabled = state
-    ToggleESP(state)
 end)
 
 Tabs.Main:CreateToggle("Noclip", {
@@ -849,7 +838,7 @@ local function createCircleAndOrbit(targetPlayer)
 end
 
 ----------------------------------------------------------------
--- New Dropdown for Autokill Method in PVP Tab
+-- NEW Dropdown for Autokill Method in PVP Tab
 ----------------------------------------------------------------
 local autokillMethodDropdown = Tabs.PVP:CreateDropdown("AutokillMethodDropdown", {
     Title = "Autokill Method",
@@ -903,118 +892,114 @@ orbitSpeedSlider:OnChanged(function(Value)
 end)
 
 ------------------------------------------------------------
--- NEW: MoneyDrop Tour Button in Main Tab
+-- SELLING TAB FUNCTIONS (NEW)
 ------------------------------------------------------------
-Tabs.Main:CreateButton({
-    Title = "Collect all money",
-    Description = "Tween/Teleport to all of the money in the map. Cash Aura is required to pick it up.",
+-- 1. Dropdown for selecting player position (options 1 to 10)
+local sellingDropdown = Tabs.Selling:CreateDropdown("PlayerPositionDropdown", {
+    Title = "Player Position",
+    Values = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+    Multi = false,
+    Default = 1,
+})
+local selectedSellingPosition = "1"
+sellingDropdown:OnChanged(function(value)
+    selectedSellingPosition = value
+    print("Selling dropdown changed:", value)
+end)
+
+-- Fixed positions for the 10 parts
+local sellingPositions = {
+    [1] = Vector3.new(-368.5, 27.75, -316.5),
+    [2] = Vector3.new(-386.5, 27.75, -316.5),
+    [3] = Vector3.new(-368.5, 27.75, -308.5),
+    [4] = Vector3.new(-386.5, 27.75, -308.5),
+    [5] = Vector3.new(-368.5, 27.75, -300.5),
+    [6] = Vector3.new(-386.5, 27.75, -300.5),
+    [7] = Vector3.new(-368.5, 27.75, -292.5),
+    [8] = Vector3.new(-386.5, 27.75, -292.5),
+    [9] = Vector3.new(-368.5, 27.75, -284.5),
+    [10] = Vector3.new(-386.5, 27.75, -284.5),
+}
+
+local sellingParts = {}
+local partsSpawned = false
+
+-- Variables for position locking
+local lockActive = false
+local lockConnection = nil
+local lockedPosition = nil
+
+-- 2. "Setup Position" button – spawns parts if needed and teleports the player 2 studs above the selected part
+Tabs.Selling:CreateButton({
+    Title = "Setup Position",
     Callback = function()
-        Window:Dialog({
-            Title = "Proceed with this process? Theres a chance of dying",
-            Content = "Collects all of the money that were available when the button was pressed. Cash Aura is needed to pick it up.",
-            Buttons = {
-                {
-                    Title = "Confirm",
-                    Callback = function()
-                        print("Collecting cash...")
-                        local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
-                        if dropFolder then
-                            local TweenService = game:GetService("TweenService")
-                            local drops = dropFolder:GetChildren()
-                            -- Enable noclip for smooth travel.
-                            noclip()
-                            for _, drop in ipairs(drops) do
-                                if drop:IsA("BasePart") then
-                                    local char = game.Players.LocalPlayer.Character
-                                    if not char or not char:FindFirstChild("HumanoidRootPart") then
-                                        continue
-                                    end
-                                    local hrp = char.HumanoidRootPart
-                                    -- Build target position: 5 studs above the MoneyDrop.
-                                    local targetPos = drop.CFrame * CFrame.new(0, 10, 0)
-                                    -- Preserve current rotation by subtracting the current position then adding the new one.
-                                    local targetCFrame = (hrp.CFrame - hrp.CFrame.Position) + targetPos.Position
-                                    
-                                    -- Calculate tween duration based on distance and a fixed speed of 150 studs per second.
-                                    local distance = (hrp.Position - targetPos.Position).Magnitude
-                                    local duration = distance / 100
-                                    
-                                    local tween = TweenService:Create(
-                                        hrp,
-                                        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-                                        {CFrame = targetCFrame}
-                                    )
-                                    tween:Play()
-                                    tween.Completed:Wait()
-                                    task.wait(0.5)
-                                end
-                            end
-                            -- Re-enable collisions.
-                            clip()
-                        else
-                            print("Drop folder not found!")
-                        end
-                    end
-                },
-                {
-                    Title = "Cancel",
-                    Callback = function()
-                        print("Cash collection cancelled.")
-                    end
-                }
-            }
-        })
+        local selectedIndex = tonumber(selectedSellingPosition) or 1
+
+        if not partsSpawned then
+            for i = 1, 10 do
+                local pos = sellingPositions[i]
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(1, 1, 1)
+                part.Anchored = true
+                part.Transparency = 0.9
+                part.CFrame = CFrame.new(pos)
+                part.Parent = game.Workspace
+                sellingParts[i] = part
+            end
+            partsSpawned = true
+        end
+
+        local targetPart = sellingParts[selectedIndex]
+        local player = game.Players.LocalPlayer
+        if targetPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local targetCFrame = targetPart.CFrame * CFrame.new(0, 2, 0) -- 2 studs above the part
+            local distance = (hrp.Position - targetCFrame.Position).Magnitude
+            local tween = TweenService:Create(hrp, TweenInfo.new(distance / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+            tween:Play()
+            tween.Completed:Wait()
+            if lockActive then
+                lockedPosition = player.Character.HumanoidRootPart.CFrame
+            end
+        else
+            Library:Notify({Title = "Error", Content = "Player or target part not found!", Duration = 3})
+        end
     end
 })
 
-----------------------------------------------------------------
--- New Toggle for Autokill with integrated noclip for autokill and Rifle purchase
-----------------------------------------------------------------
-local currentOrbitCleanup = nil
-Tabs.PVP:CreateToggle("AutokillToggle", {
-    Title = "Autokill",
-    Default = false,
+-- 3. "Lock Position" toggle – when enabled, locks your position at your current (teleported) location.
+Tabs.Selling:CreateToggle("Lock_Position", {
+    Title = "Lock Position",
+    Default = false
 }):OnChanged(function(state)
+    lockActive = state
+    local player = game.Players.LocalPlayer
     if state then
-        local rifleShopItem = game.Workspace.Ignored.Shop["[Rifle] - $1694"]
-        if rifleShopItem then
-            local rifleCFrame = CFrame.new(-259.658, 54.363, -213.512)
-            local tween = MoveTo(rifleCFrame)
-            if tween then tween.Completed:Wait() end
-            task.wait(1)
-            if not BuyRifle() then
-                clip()
-                return
-            end
-        else
-            print("Rifle shop item not found!")
-            Library:Notify({Title = "Error", Content = "Rifle shop item not found!", Duration = 3})
-            clip()
-            return
-        end
-
-        noclip()
-        if selectedAutokillMethod == "Orbit" then
-            if selectedPlayerName then
-                local targetPlayer = PlayersService:FindFirstChild(selectedPlayerName)
-                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
-                    currentOrbitCleanup = createCircleAndOrbit(targetPlayer)
-                else
-                    print("Selected target is invalid for orbit.")
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            lockedPosition = player.Character.HumanoidRootPart.CFrame
+            if lockConnection then lockConnection:Disconnect() end
+            lockConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = lockedPosition
                 end
-            else
-                print("No player selected for autokill orbit.")
-            end
-        elseif selectedAutokillMethod == "Crazy" then
-            print("Crazy autokill method not implemented yet.")
+            end)
         end
     else
-        if currentOrbitCleanup then
-            currentOrbitCleanup()
-            currentOrbitCleanup = nil
+        if lockConnection then
+            lockConnection:Disconnect()
+            lockConnection = nil
         end
-        clip()
+    end
+end)
+
+-- 4. Cash Drop toggle (placed at the bottom of the Selling tab)
+Tabs.Selling:CreateToggle("Cash_Drop", {
+    Title = "Cash Drop", 
+    Default = false
+}):OnChanged(function(state)
+    State.CashDropActive = state
+    if state then
+        coroutine.wrap(CashDrop)()
     end
 end)
 
@@ -1036,7 +1021,7 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 ------------------------------------------------------------
--- Anti-Idle
+-- ANTI-IDLE
 ------------------------------------------------------------
 game:GetService("Players").LocalPlayer.Idled:Connect(function()
     game:GetService("VirtualUser"):CaptureController()
@@ -1044,7 +1029,7 @@ game:GetService("Players").LocalPlayer.Idled:Connect(function()
 end)
 
 ------------------------------------------------------------
--- Seat Removal
+-- SEAT REMOVAL
 ------------------------------------------------------------
 for _, seat in ipairs(game:GetDescendants()) do
     if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
