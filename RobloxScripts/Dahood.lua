@@ -769,11 +769,11 @@ end)
 -- New: Collect All Money Button
 Tabs.Main:CreateButton({
     Title = "Collect all money",
-    Description = "Tween/Teleport to all money in the map. Cash Aura is required to pick it up.",
+    Description = "Tween/Teleport to all MoneyDrop objects using a fixed speed of 60 studs/sec. Cash Aura must be active.",
     Callback = function()
         Window:Dialog({
-            Title = "Proceed with this process? It may take a sec",
-            Content = "Collects all the money available when the button is pressed. Cash Aura must be active.",
+            Title = "KICK/DEATH RISKKK!!, proceed?",
+            Content = "Collects all MoneyDrop objects available when the button is pressed. Cash Aura must be active.",
             Buttons = {
                 {
                     Title = "Confirm",
@@ -782,29 +782,32 @@ Tabs.Main:CreateButton({
                         local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
                         if dropFolder then
                             local TweenService = game:GetService("TweenService")
-                            local drops = dropFolder:GetChildren()
                             noclip()
-                            for _, drop in ipairs(drops) do
-                                if drop:IsA("BasePart") then
-                                    local char = game.Players.LocalPlayer.Character
-                                    if not char or not char:FindFirstChild("HumanoidRootPart") then
-                                        continue
+                            -- Continuously process MoneyDrop objects until none remain in the folder.
+                            while #dropFolder:GetChildren() > 0 do
+                                for _, drop in ipairs(dropFolder:GetChildren()) do
+                                    if drop.Name == "MoneyDrop" and drop.Parent then
+                                        local char = game.Players.LocalPlayer.Character
+                                        if not char or not char:FindFirstChild("HumanoidRootPart") then
+                                            continue
+                                        end
+                                        local hrp = char.HumanoidRootPart
+                                        local targetPos = drop.CFrame * CFrame.new(0, 1, 0)  -- 10 studs above the drop
+                                        local currentYaw = math.atan2(hrp.CFrame.LookVector.X, hrp.CFrame.LookVector.Z)
+                                        local targetCFrame = CFrame.new(targetPos.Position) * CFrame.Angles(0, currentYaw, 0)
+                                        local distance = (hrp.Position - targetPos.Position).Magnitude
+                                        local duration = distance / 500  --speed
+                                        local tween = TweenService:Create(
+                                            hrp,
+                                            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+                                            {CFrame = targetCFrame}
+                                        )
+                                        tween:Play()
+                                        tween.Completed:Wait()
+                                        task.wait(5)
                                     end
-                                    local hrp = char.HumanoidRootPart
-                                    local targetPos = drop.CFrame * CFrame.new(0, 10, 0)
-                                    local currentYaw = math.atan2(hrp.CFrame.LookVector.X, hrp.CFrame.LookVector.Z)
-                                    local targetCFrame = CFrame.new(targetPos.Position) * CFrame.Angles(0, currentYaw, 0)
-                                    local distance = (hrp.Position - targetPos.Position).Magnitude
-                                    local duration = distance / 100
-                                    local tween = TweenService:Create(
-                                        hrp,
-                                        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-                                        {CFrame = targetCFrame}
-                                    )
-                                    tween:Play()
-                                    tween.Completed:Wait()
-                                    task.wait(0.5)
                                 end
+                                wait(5)
                             end
                             clip()
                         else
@@ -822,6 +825,9 @@ Tabs.Main:CreateButton({
         })
     end
 })
+
+
+
 
 ------------------------------------------------------------
 -- TELEPORT BUTTONS
