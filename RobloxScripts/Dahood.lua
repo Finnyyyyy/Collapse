@@ -620,7 +620,7 @@ end
 ------------------------------------------------------------
 local function CashDrop()
     while State.CashDropActive do
-        game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "10000")
+        game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "15000")
         task.wait(5)
     end
 end
