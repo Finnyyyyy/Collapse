@@ -1,6 +1,3 @@
-------------------------------------------------------------
--- LOAD LIBRARIES AND ADDONS
-------------------------------------------------------------
 local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
@@ -163,7 +160,7 @@ coroutine.wrap(function()
     end
 end)()
 
--- Update Tween Status continuously (checks if any tween in State.ActiveTweens is still playing)
+-- Update Tween Status continuously
 coroutine.wrap(function()
     while true do
         local tweenActive = false
@@ -202,7 +199,7 @@ if dropFolder then
 end
 
 ------------------------------------------------------------
--- POSITION UPDATE SYSTEM (not used for ATM locking anymore)
+-- POSITION UPDATE SYSTEM
 ------------------------------------------------------------
 local PositionUpdateConnection = nil
 
@@ -219,7 +216,7 @@ local function StartPositionUpdate(position)
 end
 
 ------------------------------------------------------------
--- Noclip Functions (Original Version)
+-- Noclip Functions
 ------------------------------------------------------------
 local Noclip = nil
 local Clip = nil
@@ -347,7 +344,7 @@ local function MoveTo(targetCFrame)
     end
 end
 
--- TP2 Teleport Function (also preserving orientation) for Main Tab
+-- TP2 Teleport Function for Main Tab
 local PlayersService = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -626,7 +623,7 @@ local function CashDrop()
 end
 
 ------------------------------------------------------------
--- NEW: CASH ESP (CHAMS + VALUE DISPLAY)
+-- CASH ESP (CHAMS + VALUE DISPLAY)
 ------------------------------------------------------------
 local cashESPConnection = nil
 
@@ -758,7 +755,6 @@ Tabs.Main:CreateToggle("Noclip", {
     end
 end)
 
--- New: Cash ESP Toggle
 Tabs.Main:CreateToggle("Cash_ESP", {
     Title = "Cash ESP",
     Default = false
@@ -766,7 +762,6 @@ Tabs.Main:CreateToggle("Cash_ESP", {
     ToggleCashESP(state)
 end)
 
--- New: Collect All Money Button
 Tabs.Main:CreateButton({
     Title = "Collect all money",
     Description = "Tween/Teleport to all MoneyDrop objects using a fixed speed of 60 studs/sec. Cash Aura must be active.",
@@ -783,7 +778,6 @@ Tabs.Main:CreateButton({
                         if dropFolder then
                             local TweenService = game:GetService("TweenService")
                             noclip()
-                            -- Continuously process MoneyDrop objects until none remain in the folder.
                             while #dropFolder:GetChildren() > 0 do
                                 for _, drop in ipairs(dropFolder:GetChildren()) do
                                     if drop.Name == "MoneyDrop" and drop.Parent then
@@ -792,11 +786,11 @@ Tabs.Main:CreateButton({
                                             continue
                                         end
                                         local hrp = char.HumanoidRootPart
-                                        local targetPos = drop.CFrame * CFrame.new(0, 1, 0)  -- 10 studs above the drop
+                                        local targetPos = drop.CFrame * CFrame.new(0, 1, 0)
                                         local currentYaw = math.atan2(hrp.CFrame.LookVector.X, hrp.CFrame.LookVector.Z)
                                         local targetCFrame = CFrame.new(targetPos.Position) * CFrame.Angles(0, currentYaw, 0)
                                         local distance = (hrp.Position - targetPos.Position).Magnitude
-                                        local duration = distance / 500  --speed
+                                        local duration = distance / 500
                                         local tween = TweenService:Create(
                                             hrp,
                                             TweenInfo.new(duration, Enum.EasingStyle.Linear),
@@ -825,9 +819,6 @@ Tabs.Main:CreateButton({
         })
     end
 })
-
-
-
 
 ------------------------------------------------------------
 -- TELEPORT BUTTONS
@@ -927,7 +918,7 @@ local function TP2(P1)
     _G.Clip = false
 end
 
--- Declare orbit parameter variables (default values)
+-- Declare orbit parameter variables
 local orbitSizeValue = 20
 local orbitSpeedValue = 20
 
@@ -1013,7 +1004,7 @@ autokillMethodDropdown:OnChanged(function(val)
 end)
 
 ----------------------------------------------------------------
--- New Sliders for Orbit Parameters (placed above Autokill toggle)
+-- New Sliders for Orbit Parameters (above Autokill toggle)
 ----------------------------------------------------------------
 local orbitSizeSlider = Tabs.PVP:CreateSlider("OrbitSizeSlider", {
     Title = "Orbit Size",
@@ -1050,9 +1041,181 @@ orbitSpeedSlider:OnChanged(function(Value)
 end)
 
 ------------------------------------------------------------
+-- NEW: SILENT AIM & FOV OPTIONS (PVP TAB)
+------------------------------------------------------------
+local silentAimToggle = Tabs.PVP:CreateToggle("SilentAimToggle", {
+    Title = "Silent Aim",
+    Default = false
+})
+local silentAimDistanceSlider = Tabs.PVP:CreateSlider("SilentAimDistanceSlider", {
+    Title = "Distance",
+    Description = "Max world distance for silent aim (5-500)",
+    Default = 100,
+    Min = 5,
+    Max = 500,
+    Rounding = 1,
+})
+local fovToggle = Tabs.PVP:CreateToggle("FOVToggle", {
+    Title = "FOV",
+    Default = false
+})
+local fovSizeSlider = Tabs.PVP:CreateSlider("FOVSizeSlider", {
+    Title = "FOV Size",
+    Description = "Radius of the FOV circle (10-750)",
+    Default = 100,
+    Min = 10,
+    Max = 750,
+    Rounding = 1,
+})
+local fovPlacementDropdown = Tabs.PVP:CreateDropdown("FOVPlacementDropdown", {
+    Title = "FOV Placement",
+    Values = {"Fixed", "Mouse"},
+    Multi = false,
+    Default = 1,
+})
+
+getgenv().silentaim_settings = getgenv().silentaim_settings or {}
+getgenv().silentaim_settings.enabled = false
+getgenv().silentaim_settings.distance = 100           -- world distance threshold
+getgenv().silentaim_settings.fov = 100                -- silent aim boundary circle radius when FOV toggle is off
+getgenv().silentaim_settings.fovtoggle = false
+getgenv().silentaim_settings.fovsize = 100            -- radius for FOV circle when toggle is on
+getgenv().silentaim_settings.fovPlacement = "Fixed"   -- "Fixed" or "Mouse"
+getgenv().silentaim_settings.hitbox = "Head"          -- target hitbox
+
+silentAimToggle:OnChanged(function(state)
+    getgenv().silentaim_settings.enabled = state
+end)
+
+silentAimDistanceSlider:OnChanged(function(value)
+    getgenv().silentaim_settings.distance = value
+end)
+
+fovToggle:OnChanged(function(state)
+    getgenv().silentaim_settings.fovtoggle = state
+end)
+
+fovSizeSlider:OnChanged(function(value)
+    getgenv().silentaim_settings.fovsize = value
+end)
+
+fovPlacementDropdown:OnChanged(function(value)
+    getgenv().silentaim_settings.fovPlacement = value
+end)
+
+-- Create Drawing objects for the two circles
+local UserInputService = game:GetService("UserInputService")
+local CurrentCamera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Silent Aim circle: fixed at center, fully transparent
+local silentAimCircle = Drawing.new("Circle")
+silentAimCircle.Visible = false
+silentAimCircle.Thickness = 1
+silentAimCircle.Color = Color3.fromRGB(255, 255, 255)
+silentAimCircle.Transparency = 1
+silentAimCircle.Filled = false
+silentAimCircle.Radius = getgenv().silentaim_settings.fov
+
+-- FOV circle: visible when FOV toggle is on
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = false
+fovCircle.Thickness = 1
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Transparency = 0.5
+fovCircle.Filled = false
+fovCircle.Radius = getgenv().silentaim_settings.fovsize
+
+local function WorldToScreen(position)
+    local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(position)
+    return {Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
+end
+
+-- Get the closest player within the FOV and distance threshold
+local SilentAimTarget = nil
+local function GetClosestPlayer()
+    local screenCenter = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
+    local closestPlayer = nil
+    local shortestDist = math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if getgenv().silentaim_settings.teamCheck and player.Team == LocalPlayer.Team then
+                continue
+            end
+            local targetPart = player.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
+            if targetPart then
+                local screenPos = WorldToScreen(targetPart.Position)
+                if screenPos.OnScreen then
+                    local dist = (screenPos.Position - screenCenter).Magnitude
+                    local radius = getgenv().silentaim_settings.fovtoggle and getgenv().silentaim_settings.fovsize or getgenv().silentaim_settings.fov
+                    if dist <= radius and (targetPart.Position - CurrentCamera.CFrame.Position).Magnitude <= getgenv().silentaim_settings.distance then
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            closestPlayer = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- Update circles and target every RenderStepped
+game:GetService("RunService").RenderStepped:Connect(function()
+    if getgenv().silentaim_settings.fovtoggle then
+        if getgenv().silentaim_settings.fovPlacement == "Mouse" then
+            fovCircle.Position = UserInputService:GetMouseLocation()
+        else
+            fovCircle.Position = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
+        end
+        fovCircle.Radius = getgenv().silentaim_settings.fovsize
+        fovCircle.Visible = true
+        silentAimCircle.Visible = false
+    else
+        fovCircle.Visible = false
+        silentAimCircle.Position = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
+        silentAimCircle.Radius = getgenv().silentaim_settings.fov
+        silentAimCircle.Visible = getgenv().silentaim_settings.enabled
+    end
+    if getgenv().silentaim_settings.enabled then
+        SilentAimTarget = GetClosestPlayer()
+    else
+        SilentAimTarget = nil
+    end
+end)
+
+-- New hook method: override workspace.Raycast using hookfunction (or direct assignment)
+local oldRaycast
+if hookfunction then
+    oldRaycast = hookfunction(workspace.Raycast, newcclosure(function(origin, direction, params, ignoreList)
+        if getgenv().silentaim_settings.enabled and SilentAimTarget and SilentAimTarget.Character then
+            local targetPart = SilentAimTarget.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
+            if targetPart then
+                local newDirection = (targetPart.Position - origin).Unit * 1000
+                direction = newDirection
+            end
+        end
+        return oldRaycast(origin, direction, params, ignoreList)
+    end))
+else
+    oldRaycast = workspace.Raycast
+    workspace.Raycast = newcclosure(function(origin, direction, params, ignoreList)
+        if getgenv().silentaim_settings.enabled and SilentAimTarget and SilentAimTarget.Character then
+            local targetPart = SilentAimTarget.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
+            if targetPart then
+                local newDirection = (targetPart.Position - origin).Unit * 1000
+                direction = newDirection
+            end
+        end
+        return oldRaycast(origin, direction, params, ignoreList)
+    end)
+end
+
+------------------------------------------------------------
 -- SELLING TAB FUNCTIONS (NEW)
 ------------------------------------------------------------
--- 1. Dropdown for selecting player position (options 1 to 10)
 local sellingDropdown = Tabs.Selling:CreateDropdown("PlayerPositionDropdown", {
     Title = "Player Position",
     Values = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
@@ -1065,7 +1228,6 @@ sellingDropdown:OnChanged(function(value)
     print("Selling dropdown changed:", value)
 end)
 
--- Fixed positions for the 10 parts
 local sellingPositions = {
     [1] = Vector3.new(-368.5, 27.75, -316.5),
     [2] = Vector3.new(-386.5, 27.75, -316.5),
@@ -1082,12 +1244,10 @@ local sellingPositions = {
 local sellingParts = {}
 local partsSpawned = false
 
--- Variables for position locking
 local lockActive = false
 local lockConnection = nil
 local lockedPosition = nil
 
--- 2. "Setup Position" button – spawns parts if needed and teleports the player 2 studs above the selected part using a fixed tween speed (75 studs/sec)
 Tabs.Selling:CreateButton({
     Title = "Setup Position",
     Callback = function()
@@ -1111,7 +1271,7 @@ Tabs.Selling:CreateButton({
         local player = game.Players.LocalPlayer
         if targetPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = player.Character.HumanoidRootPart
-            local targetCFrame = targetPart.CFrame * CFrame.new(0, 2, 0) -- 2 studs above the part
+            local targetCFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
             local distance = (hrp.Position - targetCFrame.Position).Magnitude
             local tween = TweenService:Create(hrp, TweenInfo.new(distance / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
             table.insert(State.ActiveTweens, tween)
@@ -1134,7 +1294,6 @@ Tabs.Selling:CreateButton({
     end
 })
 
--- 3. "Lock Position" toggle – when enabled, prevents player movement by anchoring HRP, and every 3 seconds plays a tween that nudges by (0,0,-0.8) then resets to the locked position.
 Tabs.Selling:CreateToggle("Lock_Position", {
     Title = "Lock Position",
     Default = false
@@ -1171,7 +1330,6 @@ Tabs.Selling:CreateToggle("Lock_Position", {
     end
 end)
 
--- 4. Cash Drop toggle (placed at the bottom of the Selling tab)
 Tabs.Selling:CreateToggle("Cash_Drop", {
     Title = "Cash Drop", 
     Default = false
