@@ -1041,6 +1041,43 @@ orbitSpeedSlider:OnChanged(function(Value)
 end)
 
 ------------------------------------------------------------
+-- NEW: AUTOKILL TOGGLE (KILL ALL)
+------------------------------------------------------------
+local currentOrbitCleanup = nil
+Tabs.PVP:CreateToggle("AutokillToggle", {
+    Title = "Autokill",
+    Default = false,
+}):OnChanged(function(state)
+    if state then
+        -- Enable noclip specifically for autokill
+        noclip()
+        if selectedAutokillMethod == "Orbit" then
+            if selectedPlayerName then
+                local targetPlayer = PlayersService:FindFirstChild(selectedPlayerName)
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
+                    currentOrbitCleanup = createCircleAndOrbit(targetPlayer)
+                else
+                    print("Selected target is invalid for orbit.")
+                end
+            else
+                print("No player selected for autokill orbit.")
+            end
+        elseif selectedAutokillMethod == "Crazy" then
+            print("Crazy autokill method not implemented yet.")
+        end
+    else
+        if currentOrbitCleanup then
+            currentOrbitCleanup()
+            currentOrbitCleanup = nil
+        end
+        -- Disable autokill-specific noclip by re-enabling collisions
+        clip()
+    end
+end)
+
+
+------------------------------------------------------------
 -- NEW: SILENT AIM & FOV OPTIONS (PVP TAB)
 ------------------------------------------------------------
 local silentAimToggle = Tabs.PVP:CreateToggle("SilentAimToggle", {
@@ -1339,6 +1376,8 @@ Tabs.Selling:CreateToggle("Cash_Drop", {
         coroutine.wrap(CashDrop)()
     end
 end)
+
+
 
 ------------------------------------------------------------
 -- MISC TAB
