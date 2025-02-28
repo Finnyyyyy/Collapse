@@ -1,30 +1,40 @@
---[[ 
-  AdvanceTech Arsenal | v1.7 (Fluent-Renewed GUI Version)
-  Converted by AdvancedFalling Team
-  This script uses Fluent-Renewed’s API to rebuild the UI.
-  All original functionalities (hitbox, fly, autofarm, gun mods, player hacks, skins, ESP, performance, etc.)
-  have been re‐organized into separate Fluent tabs.
+--[[
+    AdvanceTech Arsenal | v1.7 (Fluent-Renewed GUI Version – Revised)
+    Modified by AdvancedFalling Team
+
+    Changes:
+      • Theme set to "VSC Dark High Contrast"
+      • Removed Infinite Ammo v1; only the Infinite Ammo toggle remains.
+      • Hitbox expansion:
+            - The team-check toggle is off by default (so hitboxes expand for everyone).
+            - The extended hitboxes are set to be non-collidable (to avoid interfering with movement).
+              (If you prefer collision enabled, change 'part.CanCollide = false' to true.)
+      • Default jump height is set to 50.
+      • A new Third Person toggle has been added in the Player tab.
 --]]
 
--- Load Fluent and add‑ons
+-------------------------------
+-- Load Fluent and Add‑Ons
+-------------------------------
 local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
+-------------------------------
 -- Create Window using Fluent
+-------------------------------
 local Window = Library:CreateWindow{
-    Title = "Collapse | Arsenal | v1.0",
-    SubTitle = "Modified by AdvancedFalling Team",
+    Title = "Collapse | Arsenal | v1.1",
+    SubTitle = "Made by Finny <3",
     TabWidth = 160,
-    Size = UDim2.fromOffset(1250,800),
+    Size = UDim2.fromOffset(830,525),
     Resize = true,
     MinSize = Vector2.new(470,380),
     Acrylic = true,
-    Theme = "Dark",
+    Theme = "VSC Dark High Contrast", -- Theme changed here
     MinimizeKey = Enum.KeyCode.RightControl
 }
 
--- Create Tabs
 local Tabs = {
     Main = Window:CreateTab{
         Title = "Main",
@@ -54,17 +64,27 @@ local Tabs = {
         Title = "Settings",
         Icon = "settings"
     },
+    Credits = Window:CreateTab{
+        Title = "Credits",
+        Icon = "phosphor-info-bold"
+    }
 }
 
 --------------------------------
--- [ COMMON FUNCTIONS SETUP ] --
+-- COMMON FUNCTIONS & VARIABLES
 --------------------------------
 
--- Fly hack functions
-local flySettings = {fly = false, flyspeed = 50}
+
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+--------------------------------
+-- FLY FUNCTIONS
+--------------------------------
+local flySettings = { fly = false, flyspeed = 50 }
 local c, h, bv, bav, cam, flying
-local player = game.Players.LocalPlayer
-local buttons = {W = false, S = false, A = false, D = false, Moving = false}
+local buttons = { W = false, S = false, A = false, D = false, Moving = false }
 
 local function startFly()
     if not player.Character or not player.Character:FindFirstChild("Head") or flying then return end
@@ -86,10 +106,8 @@ end
 
 local function endFly()
     if not player.Character or not flying then return end
-    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = false
-    end
+    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
     if bv then bv:Destroy() end
     if bav then bav:Destroy() end
     flying = false
@@ -111,12 +129,11 @@ game:GetService("RunService").Heartbeat:Connect(function(step)
             if buttons.S then t = t - setVec(cf.LookVector) end
             if buttons.A then t = t - setVec(cf.RightVector) end
             if buttons.D then t = t + setVec(cf.RightVector) end
-            c:TranslateBy(t*step)
+            c:TranslateBy(t * step)
         end
     end
 end)
 
--- Input for fly movement (bind keys once)
 game:GetService("UserInputService").InputBegan:Connect(function(input, GPE)
     if GPE then return end
     for key, _ in pairs(buttons) do
@@ -138,15 +155,18 @@ game:GetService("UserInputService").InputEnded:Connect(function(input, GPE)
     buttons.Moving = moving
 end)
 
--- Hitbox functions
+--------------------------------
+-- HITBOX FUNCTIONS
+--------------------------------
 local hitboxEnabled = false
-local noCollisionEnabled = false
+-- Collision is always enabled; no toggle.
 local hitbox_original_properties = {}
 local hitboxSize = 21
 local hitboxTransparency = 6
-local teamCheck = "FFA" 
 local defaultBodyParts = {"UpperTorso", "Head", "HumanoidRootPart"}
-local Players = game:GetService("Players")
+
+-- New flag for team-check; default is false (hitboxes expand for everyone)
+local hitboxTeamCheckEnabled = false
 
 local function savedPart(plr, part)
     if not hitbox_original_properties[plr] then
@@ -189,18 +209,21 @@ local function extendHitbox(plr)
         local part = plr.Character and (plr.Character:FindFirstChild(partName) or findClosestPart(plr, partName))
         if part and part:IsA("BasePart") then
             savedPart(plr, part)
-            part.CanCollide = not noCollisionEnabled
+            -- Set hitbox collision off to prevent interference:
+            part.CanCollide = false  -- Change to true if you want collision enabled
             part.Transparency = hitboxTransparency / 10
             part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         end
     end
 end
 
+-- When team-check is enabled, only expand hitboxes for enemies.
 local function isEnemy(plr)
-    if teamCheck == "FFA" or teamCheck == "Everyone" then
+    if hitboxTeamCheckEnabled then
+        return plr.Team ~= player.Team
+    else
         return true
     end
-    return plr.Team ~= player.Team
 end
 
 local function updateHitboxes()
@@ -215,7 +238,9 @@ local function updateHitboxes()
     end
 end
 
--- AutoFarm functions (simplified version)
+--------------------------------
+-- AUTOFARM FUNCTIONS (Simplified)
+--------------------------------
 getgenv().AutoFarm = false
 local runServiceConnection
 local mouseDown = false
@@ -275,7 +300,9 @@ local function AutoFarm()
     end)
 end
 
--- Triggerbot functions (simplified)
+--------------------------------
+-- TRIGGERBOT FUNCTIONS (Simplified)
+--------------------------------
 getgenv().triggerb = false
 local triggerTeamCheck = "Team-Based"
 local shotDelay = 0.2
@@ -307,11 +334,13 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 
--- Gun Mods functions (original values storage)
+--------------------------------
+-- GUN MODS
+--------------------------------
 local originalValues = {FireRate = {}, ReloadTime = {}, EReloadTime = {}, Auto = {}, Spread = {}, Recoil = {}}
 
 --------------------------------
--- [ FLUENT UI ELEMENTS BELOW ]
+-- FLUENT UI ELEMENTS
 --------------------------------
 
 --------------------------------
@@ -367,27 +396,12 @@ hitboxTransSlider:OnChanged(function(val)
     print("Hitbox Transparency set to:", val)
 end)
 
-local teamCheckDropdown = MainTab:CreateDropdown("Team Check", {
-    Title = "Team Check Mode",
-    Values = {"FFA", "Team-Based", "Everyone"},
-    Multi = false,
-    Default = "FFA"
-})
-teamCheckDropdown:OnChanged(function(val)
-    teamCheck = val
+-- New Team Check Toggle (default off)
+local teamCheckToggle = MainTab:CreateToggle("Enable Team Check (Hitbox)", {Title = "Team Check (Hitbox)", Default = false, Description = "When enabled, only enemy hitboxes expand"})
+teamCheckToggle:OnChanged(function(state)
+    hitboxTeamCheckEnabled = state
     if hitboxEnabled then updateHitboxes() end
-    print("Team Check set to:", val)
-end)
-
-local noCollisionToggle = MainTab:CreateToggle("No Collision", {
-    Title = "No Collision",
-    Default = false,
-    Description = "Toggle collision off for hitboxes"
-})
-noCollisionToggle:OnChanged(function(state)
-    noCollisionEnabled = state
-    if hitboxEnabled then updateHitboxes() end
-    print("No Collision set to:", state)
+    print("Team Check (Hitbox) set to:", state)
 end)
 
 -- AutoFarm Section
@@ -442,18 +456,9 @@ end)
 --------------------------------
 local GunTab = Tabs["Gun Mods"]
 
-local infiniteAmmoToggle = GunTab:CreateToggle("Infinite Ammo v1", {
-    Title = "Infinite Ammo v1", Default = false, Description = "Toggle Infinite Ammo v1"
-})
+-- Only one Infinite Ammo toggle (v2 renamed)
+local infiniteAmmoToggle = GunTab:CreateToggle("Infinite Ammo", {Title = "Infinite Ammo", Default = false, Description = "Toggle infinite ammo"})
 infiniteAmmoToggle:OnChanged(function(state)
-    game:GetService("ReplicatedStorage").wkspc.CurrentCurse.Value = state and "Infinite Ammo" or ""
-    print("Infinite Ammo v1 set to:", state)
-end)
-
-local infiniteAmmoV2Toggle = GunTab:CreateToggle("Infinite Ammo v2", {
-    Title = "Infinite Ammo v2", Default = false, Description = "Toggle Infinite Ammo v2"
-})
-infiniteAmmoV2Toggle:OnChanged(function(state)
     if state then
         game:GetService("RunService").Stepped:Connect(function()
             pcall(function()
@@ -463,12 +468,10 @@ infiniteAmmoV2Toggle:OnChanged(function(state)
             end)
         end)
     end
-    print("Infinite Ammo v2 set to:", state)
+    print("Infinite Ammo set to:", state)
 end)
 
-local fastReloadToggle = GunTab:CreateToggle("Fast Reload", {
-    Title = "Fast Reload", Default = false, Description = "Toggle fast reload"
-})
+local fastReloadToggle = GunTab:CreateToggle("Fast Reload", {Title = "Fast Reload", Default = false, Description = "Toggle fast reload"})
 fastReloadToggle:OnChanged(function(state)
     for _, v in pairs(game.ReplicatedStorage.Weapons:GetChildren()) do
         if v:FindFirstChild("ReloadTime") then
@@ -495,9 +498,7 @@ fastReloadToggle:OnChanged(function(state)
     print("Fast Reload set to:", state)
 end)
 
-local fastFireRateToggle = GunTab:CreateToggle("Fast Fire Rate", {
-    Title = "Fast Fire Rate", Default = false, Description = "Toggle fast fire rate"
-})
+local fastFireRateToggle = GunTab:CreateToggle("Fast Fire Rate", {Title = "Fast Fire Rate", Default = false, Description = "Toggle fast fire rate"})
 fastFireRateToggle:OnChanged(function(state)
     for _, v in pairs(game.ReplicatedStorage.Weapons:GetDescendants()) do
         if v.Name == "FireRate" or v.Name == "BFireRate" then
@@ -514,9 +515,7 @@ fastFireRateToggle:OnChanged(function(state)
     print("Fast Fire Rate set to:", state)
 end)
 
-local alwaysAutoToggle = GunTab:CreateToggle("Always Auto", {
-    Title = "Always Auto", Default = false, Description = "Toggle always automatic fire"
-})
+local alwaysAutoToggle = GunTab:CreateToggle("Always Auto", {Title = "Always Auto", Default = false, Description = "Toggle always automatic fire"})
 alwaysAutoToggle:OnChanged(function(state)
     for _, v in pairs(game.ReplicatedStorage.Weapons:GetDescendants()) do
         if v.Name == "Auto" or v.Name == "AutoFire" or v.Name == "Automatic" or v.Name == "AutoShoot" or v.Name == "AutoGun" then
@@ -533,9 +532,7 @@ alwaysAutoToggle:OnChanged(function(state)
     print("Always Auto set to:", state)
 end)
 
-local noSpreadToggle = GunTab:CreateToggle("No Spread", {
-    Title = "No Spread", Default = false, Description = "Toggle no spread"
-})
+local noSpreadToggle = GunTab:CreateToggle("No Spread", {Title = "No Spread", Default = false, Description = "Toggle no spread"})
 noSpreadToggle:OnChanged(function(state)
     for _, v in pairs(game:GetService("ReplicatedStorage").Weapons:GetDescendants()) do
         if v.Name == "MaxSpread" or v.Name == "Spread" or v.Name == "SpreadControl" then
@@ -552,9 +549,7 @@ noSpreadToggle:OnChanged(function(state)
     print("No Spread set to:", state)
 end)
 
-local noRecoilToggle = GunTab:CreateToggle("No Recoil", {
-    Title = "No Recoil", Default = false, Description = "Toggle no recoil"
-})
+local noRecoilToggle = GunTab:CreateToggle("No Recoil", {Title = "No Recoil", Default = false, Description = "Toggle no recoil"})
 noRecoilToggle:OnChanged(function(state)
     for _, v in pairs(game:GetService("ReplicatedStorage").Weapons:GetDescendants()) do
         if v.Name == "RecoilControl" or v.Name == "Recoil" then
@@ -572,10 +567,11 @@ noRecoilToggle:OnChanged(function(state)
 end)
 
 --------------------------------
--- Player Tab (Fly, WalkSpeed, JumpPower, AntiAim, Object Teleport)
+-- Player Tab (Fly, Movement, Jump, Anti-Aim, Debris, Third Person)
 --------------------------------
 local PlayerTab = Tabs.Player
 
+-- Fly Controls
 local flyToggle = PlayerTab:CreateToggle("Fly", {Title = "Fly", Default = false, Description = "Toggle fly mode"})
 flyToggle:OnChanged(function(state)
     if state then
@@ -599,87 +595,104 @@ flySpeedSlider:OnChanged(function(val)
     print("Fly Speed set to:", val)
 end)
 
--- WalkSpeed Section
-local customWalkToggle = PlayerTab:CreateToggle("Custom WalkSpeed", {Title = "Custom WalkSpeed", Default = false, Description = "Toggle custom walk speed"})
-customWalkToggle:OnChanged(function(state)
-    _G.isWalkSpeedEnabled = state
+-- Custom WalkSpeed Controls
+local isWalkSpeedEnabled = false
+local selectedWalkMethod = "Velocity"
+local walkSettings = { WalkSpeed = 16 }
+PlayerTab:CreateToggle("Custom WalkSpeed", {Title = "Custom WalkSpeed", Default = false, Description = "Toggle custom walk speed"}):OnChanged(function(state)
+    isWalkSpeedEnabled = state
     print("Custom WalkSpeed set to:", state)
 end)
-
-local walkMethodDropdown = PlayerTab:CreateDropdown("Walk Method", {
+PlayerTab:CreateDropdown("Walk Method", {
     Title = "Walk Method",
     Values = {"Velocity", "Vector", "CFrame"},
     Multi = false,
     Default = "Velocity"
-})
-walkMethodDropdown:OnChanged(function(val)
-    _G.selectedWalkMethod = val
+}):OnChanged(function(val)
+    selectedWalkMethod = val
     print("Walk Method set to:", val)
 end)
-
-local walkSpeedSlider = PlayerTab:CreateSlider("Walkspeed Power", {
+PlayerTab:CreateSlider("Walkspeed Power", {
     Title = "Walkspeed Power",
     Description = "Adjust walkspeed power",
-    Default = 16,
+    Default = walkSettings.WalkSpeed,
     Min = 16,
     Max = 500,
     Rounding = 0
-})
-walkSpeedSlider:OnChanged(function(val)
-    _G.settings = _G.settings or {WalkSpeed = 16}
-    _G.settings.WalkSpeed = val
+}):OnChanged(function(val)
+    walkSettings.WalkSpeed = val
     print("WalkSpeed Power set to:", val)
 end)
 
--- JumpPower Section
-local infiniteJumpToggle = PlayerTab:CreateToggle("Infinite Jump", {Title = "Infinite Jump", Default = false, Description = "Toggle infinite jump"})
-infiniteJumpToggle:OnChanged(function(state)
-    _G.IJ = state
-    game:GetService("UserInputService").JumpRequest:Connect(function()
-        if _G.IJ then
-            player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+game:GetService("RunService").Stepped:Connect(function(deltaTime)
+    if isWalkSpeedEnabled then
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoid and rootPart then
+                local moveDir = humanoid.MoveDirection
+                local speed = walkSettings.WalkSpeed
+                if selectedWalkMethod == "Velocity" then
+                    if moveDir.Magnitude > 0 then
+                        rootPart.Velocity = Vector3.new(moveDir.X * speed, rootPart.Velocity.Y, moveDir.Z * speed)
+                    else
+                        rootPart.Velocity = Vector3.new(0, rootPart.Velocity.Y, 0)
+                    end
+                elseif selectedWalkMethod == "Vector" then
+                    local scaleFactor = 0.0001
+                    rootPart.CFrame = rootPart.CFrame + (moveDir * speed * deltaTime * scaleFactor)
+                elseif selectedWalkMethod == "CFrame" then
+                    local scaleFactor = 0.0001
+                    rootPart.CFrame = rootPart.CFrame + (moveDir * speed * deltaTime * scaleFactor)
+                else
+                    humanoid.WalkSpeed = speed
+                end
+            end
         end
-    end)
-    print("Infinite Jump set to:", state)
+    end
 end)
 
-local customJumpToggle = PlayerTab:CreateToggle("Custom JumpPower", {Title = "Custom JumpPower", Default = false, Description = "Toggle custom jump power"})
-customJumpToggle:OnChanged(function(state)
-    _G.isJumpPowerEnabled = state
+-- Custom JumpPower Controls
+local isJumpPowerEnabled = false
+local jumpMethod = "Velocity"
+local currentJumpPower = 50  -- Default set to 50
+local jumpConn
+PlayerTab:CreateToggle("Custom JumpPower", {Title = "Custom JumpPower", Default = false, Description = "Toggle custom jump power"}):OnChanged(function(state)
+    isJumpPowerEnabled = state
     print("Custom JumpPower set to:", state)
 end)
-
-local jumpMethodDropdown = PlayerTab:CreateDropdown("Jump Method", {
+PlayerTab:CreateDropdown("Jump Method", {
     Title = "Jump Method",
     Values = {"Velocity", "Vector", "CFrame"},
     Multi = false,
     Default = "Velocity"
-})
-jumpMethodDropdown:OnChanged(function(val)
-    _G.selectedJumpMethod = val
+}):OnChanged(function(val)
+    jumpMethod = val
     print("Jump Method set to:", val)
 end)
-
-local jumpPowerSlider = PlayerTab:CreateSlider("Change JumpPower", {
+PlayerTab:CreateSlider("Change JumpPower", {
     Title = "JumpPower",
     Description = "Adjust jump power",
-    Default = 500,
+    Default = currentJumpPower,
     Min = 30,
     Max = 500,
     Rounding = 0
-})
-jumpPowerSlider:OnChanged(function(val)
-    local humanoid = player.Character and player.Character:WaitForChild("Humanoid")
-    if humanoid then
+}):OnChanged(function(val)
+    currentJumpPower = val
+    local character = player.Character
+    if character then
+        local humanoid = character:WaitForChild("Humanoid")
         humanoid.UseJumpPower = true
-        humanoid.Jumping:Connect(function(isActive)
-            if _G.isJumpPowerEnabled and isActive and player.Character:FindFirstChild("HumanoidRootPart") then
-                if _G.selectedJumpMethod == "Velocity" then
-                    player.Character.HumanoidRootPart.Velocity = player.Character.HumanoidRootPart.Velocity * Vector3.new(1,0,1) + Vector3.new(0,val,0)
-                elseif _G.selectedJumpMethod == "Vector" then
-                    player.Character.HumanoidRootPart.Velocity = Vector3.new(0,val,0)
-                elseif _G.selectedJumpMethod == "CFrame" then
-                    player.Character:SetPrimaryPartCFrame(player.Character:GetPrimaryPartCFrame() + Vector3.new(0,val,0))
+        if jumpConn then jumpConn:Disconnect() end
+        jumpConn = humanoid.Jumping:Connect(function(isActive)
+            if isJumpPowerEnabled and isActive and character:FindFirstChild("HumanoidRootPart") then
+                if jumpMethod == "Velocity" then
+                    character.HumanoidRootPart.Velocity = Vector3.new(character.HumanoidRootPart.Velocity.X, val, character.HumanoidRootPart.Velocity.Z)
+                elseif jumpMethod == "Vector" then
+                    character.HumanoidRootPart.Velocity = Vector3.new(0, val, 0)
+                elseif jumpMethod == "CFrame" then
+                    character:SetPrimaryPartCFrame(character:GetPrimaryPartCFrame() + Vector3.new(0, val, 0))
                 end
             end
         end)
@@ -687,7 +700,7 @@ jumpPowerSlider:OnChanged(function(val)
     print("JumpPower set to:", val)
 end)
 
--- Anti-Aim Section
+-- Anti-Aim Controls
 local antiAimToggle = PlayerTab:CreateToggle("Anti-Aim v1", {Title = "Anti-Aim v1", Default = false, Description = "Toggle anti-aim"})
 antiAimToggle:OnChanged(function(state)
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -712,16 +725,14 @@ antiAimToggle:OnChanged(function(state)
     end
     print("Anti-Aim set to:", state)
 end)
-
-local spinSpeedSlider = PlayerTab:CreateSlider("Spin Speed", {
+PlayerTab:CreateSlider("Spin Speed", {
     Title = "Spin Speed",
     Description = "Adjust anti-aim spin speed",
     Default = 10,
     Min = 10,
     Max = 100,
     Rounding = 0
-})
-spinSpeedSlider:OnChanged(function(val)
+}):OnChanged(function(val)
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if hrp then
         local spin = hrp:FindFirstChild("AntiAimSpin")
@@ -732,24 +743,22 @@ spinSpeedSlider:OnChanged(function(val)
     print("Spin Speed set to:", val)
 end)
 
--- Object Teleport Section (Debris Collection)
+-- Object Teleport (Debris Collection)
 local debrisSelected = "Both"
-local objectTeleportToggle = PlayerTab:CreateToggle("Enable Collect Debris", {
-    Title = "Collect Debris", Default = false, Description = "Teleport DeadHP/DeadAmmo to you"
-})
-objectTeleportToggle:OnChanged(function(state)
+local debrisToggle = PlayerTab:CreateToggle("Enable Collect Debris", {Title = "Collect Debris", Default = false, Description = "Teleport DeadHP/DeadAmmo to you"})
+debrisToggle:OnChanged(function(state)
     _G.isCollecting = state
     if state then
         spawn(function()
             while _G.isCollecting do
                 pcall(function()
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
+                    local character = player.Character
+                    if character and character:FindFirstChild("HumanoidRootPart") then
                         for _, v in pairs(workspace.Debris:GetChildren()) do
                             if (debrisSelected == "DeadHP" and v.Name == "DeadHP") or
                                (debrisSelected == "DeadAmmo" and v.Name == "DeadAmmo") or
                                (debrisSelected == "Both" and (v.Name == "DeadHP" or v.Name == "DeadAmmo")) then
-                                v.CFrame = char.HumanoidRootPart.CFrame * CFrame.new(0, 0.2, 0)
+                                v.CFrame = character.HumanoidRootPart.CFrame * CFrame.new(0, 0.2, 0)
                             end
                         end
                     end
@@ -760,20 +769,38 @@ objectTeleportToggle:OnChanged(function(state)
     end
     print("Collect Debris set to:", state)
 end)
-
-local debrisDropdown = PlayerTab:CreateDropdown("Select Object", {
+PlayerTab:CreateDropdown("Select Object", {
     Title = "Select Object",
     Values = {"DeadHP", "DeadAmmo", "Both"},
     Multi = false,
     Default = "Both"
-})
-debrisDropdown:OnChanged(function(val)
+}):OnChanged(function(val)
     debrisSelected = val
     print("Debris selection set to:", val)
 end)
 
+-- Third Person Toggle
+local thirdPersonToggle = PlayerTab:CreateToggle("Third Person", {Title = "Third Person", Default = false, Description = "Toggle third-person view"})
+thirdPersonToggle:OnChanged(function(state)
+    if state then
+        -- Adjust zoom distances and force the camera to follow your humanoid
+        game:GetService("StarterPlayer").CameraMaxZoomDistance = 1000
+        game:GetService("StarterPlayer").CameraMinZoomDistance = 0
+        player.CameraMode = Enum.CameraMode.Classic
+        if player.Character then
+            workspace.CurrentCamera.CameraSubject = player.Character:FindFirstChildOfClass("Humanoid")
+        end
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        print("Third person enabled")
+    else
+        player.CameraMode = Enum.CameraMode.LockFirstPerson
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        print("Third person disabled, first person locked")
+    end
+end)
+
 --------------------------------
--- Color Skins Tab
+-- Color Skins Tab (Arm & Gun Chams)
 --------------------------------
 local SkinsTab = Tabs["Color Skins"]
 
@@ -788,7 +815,6 @@ armMaterialDropdown:OnChanged(function(val)
     _G.armMaterial = val
     print("Arm Material set to:", val)
 end)
-
 local armColorPicker = SkinsTab:CreateColorpicker("Arm Color", {
     Title = "Arm Color",
     Default = Color3.fromRGB(50,50,50)
@@ -797,7 +823,6 @@ armColorPicker:OnChanged(function()
     _G.armColor = armColorPicker.Value
     print("Arm Color set to:", armColorPicker.Value)
 end)
-
 local armCharmsToggle = SkinsTab:CreateToggle("Arm Charms", {Title = "Arm Charms", Default = false})
 armCharmsToggle:OnChanged(function(state)
     _G.armCharms = state
@@ -805,7 +830,7 @@ armCharmsToggle:OnChanged(function(state)
         spawn(function()
             while _G.armCharms do
                 wait(0.01)
-                local cameraArms = workspace.Camera and workspace.Camera:FindFirstChild("Arms")
+                local cameraArms = workspace.CurrentCamera:WaitForChild("Arms")
                 if cameraArms then
                     for _, part in pairs(cameraArms:GetDescendants()) do
                         if (part.Name == "Right Arm" or part.Name == "Left Arm") and part:IsA("BasePart") then
@@ -831,7 +856,6 @@ gunMaterialDropdown:OnChanged(function(val)
     _G.gunMaterial = val
     print("Gun Material set to:", val)
 end)
-
 local gunColorPicker = SkinsTab:CreateColorpicker("Gun Color", {
     Title = "Gun Color",
     Default = Color3.fromRGB(50,50,50)
@@ -840,7 +864,6 @@ gunColorPicker:OnChanged(function()
     _G.gunColor = gunColorPicker.Value
     print("Gun Color set to:", gunColorPicker.Value)
 end)
-
 local gunCharmsToggle = SkinsTab:CreateToggle("Gun Charms", {Title = "Gun Charms", Default = false})
 gunCharmsToggle:OnChanged(function(state)
     _G.gunCharms = state
@@ -848,7 +871,7 @@ gunCharmsToggle:OnChanged(function(state)
         spawn(function()
             while _G.gunCharms do
                 wait(0.01)
-                local arms = workspace.Camera and workspace.Camera:FindFirstChild("Arms")
+                local arms = workspace.CurrentCamera:WaitForChild("Arms")
                 if arms then
                     for _, part in pairs(arms:GetDescendants()) do
                         if part:IsA("MeshPart") then
@@ -863,23 +886,22 @@ gunCharmsToggle:OnChanged(function(state)
     print("Gun Charms set to:", state)
 end)
 
--- Rainbow Gun (v1 and v2 examples)
+-- Rainbow Gun examples
 local rainbowGunToggle1 = SkinsTab:CreateToggle("Rainbow Gun v1", {Title = "Rainbow Gun v1", Default = false})
 rainbowGunToggle1:OnChanged(function(state)
     _G.rainbowGun1 = state
     print("Rainbow Gun v1 set to:", state)
 end)
 game:GetService("RunService").RenderStepped:Connect(function() 
-    if workspace.Camera and workspace.Camera:FindFirstChild('Arms') and _G.rainbowGun1 then 
+    if workspace.CurrentCamera:FindFirstChild('Arms') and _G.rainbowGun1 then 
         local c = tick() % 1
-        for _, part in pairs(workspace.Camera.Arms:GetDescendants()) do 
+        for _, part in pairs(workspace.CurrentCamera.Arms:GetDescendants()) do 
             if part:IsA('MeshPart') then 
                 part.Color = Color3.fromHSV(c, 1, 1)
             end 
         end 
     end 
 end)
-
 local rainbowGunToggle2 = SkinsTab:CreateToggle("Rainbow Gun v2 [Crazy Fast Animation]", {Title = "Rainbow Gun v2", Default = false})
 rainbowGunToggle2:OnChanged(function(state)
     _G.rainbowGun2 = state
@@ -888,10 +910,10 @@ end)
 local rainbowHue = 0
 local hueIncrement = 0.1
 game:GetService("RunService").RenderStepped:Connect(function()
-    if workspace.Camera and workspace.Camera:FindFirstChild('Arms') and _G.rainbowGun2 then
+    if workspace.CurrentCamera:FindFirstChild('Arms') and _G.rainbowGun2 then
         rainbowHue = rainbowHue + hueIncrement
         if rainbowHue >= 1 then rainbowHue = rainbowHue % 1 end
-        for _, part in pairs(workspace.Camera.Arms:GetDescendants()) do
+        for _, part in pairs(workspace.CurrentCamera.Arms:GetDescendants()) do
             if part:IsA('MeshPart') then
                 part.Color = Color3.fromHSV(rainbowHue, 1, 1)
             end
@@ -925,13 +947,9 @@ end)
 local maxLevelToggle = ExtraTab:CreateToggle("Max Level???", {Title = "Max Level", Default = false, Description = "Set your score and kills to astronomical values"})
 maxLevelToggle:OnChanged(function(state)
     local stats = player.CareerStatsCache
-    if state then
-        if stats then
-            stats.Score.Value = 1e18
-            stats.Kills.Value = 1e14
-        end
-    else
-        -- Restore logic can be added here if desired
+    if state and stats then
+        stats.Score.Value = 1e18
+        stats.Kills.Value = 1e14
     end
     print("Max Level set to:", state)
 end)
@@ -953,8 +971,6 @@ changeNameToggle:OnChanged(function(state)
                 wait(0.2)
             end
         end)
-    else
-        -- Restoring original names if needed
     end
     print("Change Name set to:", state)
 end)
@@ -993,7 +1009,7 @@ end)
 -- Visuals Tab (ESP)
 --------------------------------
 local VisualsTab = Tabs.Visuals
-local espLib = loadstring(game:HttpGet("https://rawscript.vercel.app/api/raw/esp_1"))()  -- kiriot22’s esp
+local espLib = loadstring(game:HttpGet("https://rawscript.vercel.app/api/raw/esp_1"))()
 
 local espToggle = VisualsTab:CreateToggle("Enable ESP", {Title = "Enable ESP", Default = false})
 espToggle:OnChanged(function(state)
@@ -1001,37 +1017,31 @@ espToggle:OnChanged(function(state)
     espLib.Players = state
     print("ESP set to:", state)
 end)
-
 local tracersToggle = VisualsTab:CreateToggle("Tracers ESP", {Title = "Tracers", Default = false})
 tracersToggle:OnChanged(function(state)
     espLib.Tracers = state
     print("ESP Tracers set to:", state)
 end)
-
 local namesToggle = VisualsTab:CreateToggle("Name ESP", {Title = "Names", Default = false})
 namesToggle:OnChanged(function(state)
     espLib.Names = state
     print("ESP Names set to:", state)
 end)
-
 local boxesToggle = VisualsTab:CreateToggle("Boxes ESP", {Title = "Boxes", Default = false})
 boxesToggle:OnChanged(function(state)
     espLib.Boxes = state
     print("ESP Boxes set to:", state)
 end)
-
 local teamColorToggle = VisualsTab:CreateToggle("Team Coordinate", {Title = "Team Color", Default = false})
 teamColorToggle:OnChanged(function(state)
     espLib.TeamColor = state
     print("ESP Team Color set to:", state)
 end)
-
 local teammatesToggle = VisualsTab:CreateToggle("Teammates", {Title = "Show Teammates", Default = false})
 teammatesToggle:OnChanged(function(state)
     espLib.TeamMates = state
     print("ESP Teammates set to:", state)
 end)
-
 local espColorPicker = VisualsTab:CreateColorpicker("ESP Color", {Title = "ESP Color", Default = Color3.fromRGB(255,255,255)})
 espColorPicker:OnChanged(function()
     espLib.Color = espColorPicker.Value
@@ -1039,7 +1049,7 @@ espColorPicker:OnChanged(function()
 end)
 
 --------------------------------
--- Settings Tab (Performance, Server hop, etc.)
+-- Settings Tab (Performance, Server Hop, etc.)
 --------------------------------
 local SettingsTab = Tabs.Settings
 
@@ -1052,27 +1062,24 @@ antiLagToggle:OnChanged(function(state)
             end
         end
     else
-        -- Restore logic can be added here
+        -- Restoration logic can be added if desired.
     end
     print("Anti Lag set to:", state)
 end)
-
 local fpsBoostToggle = SettingsTab:CreateToggle("FPS Boost", {Title = "FPS Boost", Default = false})
 fpsBoostToggle:OnChanged(function(state)
     if state then
-        local t = workspace.Terrain
-        t.WaterWaveSize = 0
-        t.WaterWaveSpeed = 0
+        local terrain = workspace.Terrain
+        terrain.WaterWaveSize = 0
+        terrain.WaterWaveSpeed = 0
         game.Lighting.GlobalShadows = false
         game.Lighting.FogEnd = 9e9
         settings().Rendering.QualityLevel = "Level01"
     else
-        -- Restore logic can be added here
         settings().Rendering.QualityLevel = "Automatic"
     end
     print("FPS Boost set to:", state)
 end)
-
 local fullBrightToggle = SettingsTab:CreateToggle("Full Bright", {Title = "Full Bright", Default = false})
 fullBrightToggle:OnChanged(function(state)
     local L = game:GetService("Lighting")
@@ -1087,16 +1094,14 @@ fullBrightToggle:OnChanged(function(state)
     end
     print("Full Bright set to:", state)
 end)
-
 local serverHopButton = SettingsTab:CreateButton{
     Title = "Server Hop",
     Description = "Hop to another server",
     Callback = function()
-        -- Server hop logic (omitted for brevity – use your original code)
+        -- Insert your full server hop logic here.
         print("Server Hop triggered")
     end
 }
-
 local rejoinButton = SettingsTab:CreateButton{
     Title = "Rejoin Server",
     Description = "Rejoin current server",
@@ -1104,7 +1109,6 @@ local rejoinButton = SettingsTab:CreateButton{
         game:GetService("TeleportService"):Teleport(game.PlaceId, player)
     end
 }
-
 local closeUIKeybind = SettingsTab:CreateKeybind("Close UI", {
     Title = "Close UI Keybind",
     Default = "LeftControl",
@@ -1118,11 +1122,8 @@ closeUIKeybind:OnChanged(function(val)
     print("Close UI Keybind changed:", val)
 end)
 
-
-
-
 --------------------------------
--- Hand over to SaveManager and InterfaceManager
+-- Hand Over to SaveManager & InterfaceManager
 --------------------------------
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
@@ -1134,7 +1135,7 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 Library:Notify{
-    Title = "Collapse",
+    Title = "Arsenal - Collapse",
     Content = "The script has been loaded.",
     Duration = 8
 }
