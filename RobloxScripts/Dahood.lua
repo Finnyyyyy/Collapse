@@ -1,1425 +1,1142 @@
-local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+--[[
+    AdvanceTech Arsenal | v1.7 (Fluent-Renewed GUI Version – Revised)
+    Modified by AdvancedFalling Team
 
-------------------------------------------------------------
--- STATE MANAGEMENT
-------------------------------------------------------------
-local State = {
-    TravelMethod = "Teleport(Risky)",
-    AttackMethod = "Heavy Attack", -- Default is Heavy Attack (using Combat tool)
-    ATMRunning = false,
-    CashAuraActive = false,
-    CashDropActive = false,
-    VisualizeActive = false,
-    ActiveTweens = {},
-    CurrentFarm = nil,
-    ESPEnabled = false,
-    NoclipEnabled = false,
-    CurrentATMPosition = nil
-}
+    Changes:
+      • Theme set to "VSC Dark High Contrast"
+      • Removed Infinite Ammo v1; only the Infinite Ammo toggle remains.
+      • Hitbox expansion:
+            - The team-check toggle is off by default (so hitboxes expand for everyone).
+            - The extended hitboxes are set to be non-collidable (to avoid interfering with movement).
+              (If you prefer collision enabled, change 'part.CanCollide = false' to true.)
+      • Default jump height is set to 50.
+      • A new Third Person toggle has been added in the Player tab.
+--]]
 
-local seatsFound = false
+-------------------------------
+-- Load Fluent and Add‑Ons
+-------------------------------
+local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
-------------------------------------------------------------
--- CREATE WINDOW AND TABS (Selling appears above PVP; Selling tab icon is "banknote")
-------------------------------------------------------------
-local Window = Library:CreateWindow({
-    Title = "Collapse-Dahood",
-    SubTitle = "Made by Finny<3",
+-------------------------------
+-- Create Window using Fluent
+-------------------------------
+local Window = Library:CreateWindow{
+    Title = "Collapse | Arsenal | v1.1",
+    SubTitle = "Made by Finny <3",
     TabWidth = 160,
-    Size = UDim2.fromOffset(1250, 800),
+    Size = UDim2.fromOffset(830,525),
     Resize = true,
-    MinSize = Vector2.new(500, 500),
+    MinSize = Vector2.new(470,380),
     Acrylic = true,
-    Theme = "VSC Dark High Contrast",
+    Theme = "VSC Dark High Contrast", -- Theme changed here
     MinimizeKey = Enum.KeyCode.RightControl
-})
+}
 
 local Tabs = {
-    Status = Window:CreateTab({Title = "Status", Icon = "info"}),
-    Main = Window:CreateTab({Title = "Main", Icon = "target"}),
-    Teleports = Window:CreateTab({Title = "Teleports", Icon = "telescope"}),
-    Selling = Window:CreateTab({Title = "Selling", Icon = "banknote"}),
-    PVP = Window:CreateTab({Title = "PVP", Icon = "sword"}),
-    Misc = Window:CreateTab({Title = "Misc", Icon = "book"}),
-    Settings = Window:CreateTab({Title = "Settings", Icon = "settings"})
+    Main = Window:CreateTab{
+        Title = "Main",
+        Icon = "phosphor-users-bold"
+    },
+    ["Gun Mods"] = Window:CreateTab{
+        Title = "Gun Mods",
+        Icon = "phosphor-gun-bold"
+    },
+    Player = Window:CreateTab{
+        Title = "Player",
+        Icon = "phosphor-rocket-bold"
+    },
+    ["Color Skins"] = Window:CreateTab{
+        Title = "Color Skins",
+        Icon = "phosphor-paintbrush-bold"
+    },
+    Extra = Window:CreateTab{
+        Title = "Extra",
+        Icon = "phosphor-star-bold"
+    },
+    Visuals = Window:CreateTab{
+        Title = "Visuals",
+        Icon = "phosphor-eye-bold"
+    },
+    Settings = Window:CreateTab{
+        Title = "Settings",
+        Icon = "settings"
+    },
+    Credits = Window:CreateTab{
+        Title = "Credits",
+        Icon = "phosphor-info-bold"
+    }
 }
 
-------------------------------------------------------------
--- STATUS TAB: RE-ORDERED STATUS INFORMATION
-------------------------------------------------------------
-local startTime = tick()
-local timeParagraph = Tabs.Status:CreateParagraph("TimeInServerParagraph", {
-    Title = "Time in Server",
-    Content = "Time: 00:00:00"
-})
+--------------------------------
+-- COMMON FUNCTIONS & VARIABLES
+--------------------------------
 
-local statusParagraph = Tabs.Status:CreateParagraph("DroppedCashParagraph", {
-    Title = "Total Cash Dropped",
-    Content = "Total Cash Dropped: 0"
-})
 
-local totalCashCollected = 0
-local totalCashCollectedParagraph = Tabs.Status:CreateParagraph("TotalCashCollectedParagraph", {
-    Title = "Total Cash Collected",
-    Content = "Total Cash Collected: 0"
-})
 
-local tweenStatusParagraph = Tabs.Status:CreateParagraph("TweenStatusParagraph", {
-    Title = "Tween Status",
-    Content = "Tween Status: Idle"
-})
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
-local function formatNumber(n)
-    local formatted = string.format("%d", n)
-    local k
-    repeat
-        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
-    until k == 0
-    return formatted
+--------------------------------
+-- FLY FUNCTIONS
+--------------------------------
+local flySettings = { fly = false, flyspeed = 50 }
+local c, h, bv, bav, cam, flying
+local buttons = { W = false, S = false, A = false, D = false, Moving = false }
+
+local function startFly()
+    if not player.Character or not player.Character:FindFirstChild("Head") or flying then return end
+    c = player.Character
+    h = c:FindFirstChildOfClass("Humanoid")
+    h.PlatformStand = true
+    cam = workspace:WaitForChild("Camera")
+    bv = Instance.new("BodyVelocity", c.Head)
+    bav = Instance.new("BodyAngularVelocity", c.Head)
+    bv.Velocity = Vector3.new(0,0,0)
+    bv.MaxForce = Vector3.new(10000,10000,10000)
+    bv.P = 1000
+    bav.AngularVelocity = Vector3.new(0,0,0)
+    bav.MaxTorque = Vector3.new(10000,10000,10000)
+    bav.P = 1000
+    flying = true
+    h.Died:Connect(function() flying = false end)
 end
 
-local function parseCashValue(text)
-    if not text then return 0 end
-    text = text:gsub("[$,]", "")
-    local value = tonumber(text)
-    if value then return value end
-    local numStr = text:match("([%d%.]+)%s*[kK]")
-    if numStr then
-        return tonumber(numStr) * 1000
-    end
-    numStr = text:match("([%d%.]+)%s*[mM]")
-    if numStr then
-        return tonumber(numStr) * 1000000
-    end
-    numStr = text:match("([%d%.]+)")
-    if numStr then
-        return tonumber(numStr)
-    end
-    return 0
+local function endFly()
+    if not player.Character or not flying then return end
+    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+    if bv then bv:Destroy() end
+    if bav then bav:Destroy() end
+    flying = false
 end
 
-local function getMoneyDropValue(moneyDrop)
-    if not moneyDrop then return 0 end
-    local billboardGui = moneyDrop:FindFirstChild("BillboardGui")
-    if billboardGui then
-        local textLabel = billboardGui:FindFirstChild("TextLabel")
-        if textLabel then
-            local text = textLabel.Text
-            local parsed = parseCashValue(text)
-            return parsed
-        else
-            warn("TextLabel not found in " .. moneyDrop:GetFullName())
+local function setVec(vec)
+    return vec * (flySettings.flyspeed / vec.Magnitude)
+end
+
+game:GetService("RunService").Heartbeat:Connect(function(step)
+    if flying and c and c.PrimaryPart then
+        local pos = c.PrimaryPart.Position
+        local cf = cam.CFrame
+        local ax, ay, az = cf:ToEulerAnglesXYZ()
+        c:SetPrimaryPartCFrame(CFrame.new(pos.x, pos.y, pos.z) * CFrame.Angles(ax,ay,az))
+        if buttons.Moving then
+            local t = Vector3.new()
+            if buttons.W then t = t + setVec(cf.LookVector) end
+            if buttons.S then t = t - setVec(cf.LookVector) end
+            if buttons.A then t = t - setVec(cf.RightVector) end
+            if buttons.D then t = t + setVec(cf.RightVector) end
+            c:TranslateBy(t * step)
         end
+    end
+end)
+
+game:GetService("UserInputService").InputBegan:Connect(function(input, GPE)
+    if GPE then return end
+    for key, _ in pairs(buttons) do
+        if key ~= "Moving" and input.KeyCode == Enum.KeyCode[key] then
+            buttons[key] = true
+            buttons.Moving = true
+        end
+    end
+end)
+game:GetService("UserInputService").InputEnded:Connect(function(input, GPE)
+    if GPE then return end
+    local moving = false
+    for key, _ in pairs(buttons) do
+        if key ~= "Moving" and input.KeyCode == Enum.KeyCode[key] then
+            buttons[key] = false
+        end
+        if key ~= "Moving" and buttons[key] then moving = true end
+    end
+    buttons.Moving = moving
+end)
+
+--------------------------------
+-- HITBOX FUNCTIONS
+--------------------------------
+local hitboxEnabled = false
+-- Collision is always enabled; no toggle.
+local hitbox_original_properties = {}
+local hitboxSize = 21
+local hitboxTransparency = 6
+local defaultBodyParts = {"UpperTorso", "Head", "HumanoidRootPart"}
+
+-- New flag for team-check; default is false (hitboxes expand for everyone)
+local hitboxTeamCheckEnabled = false
+
+local function savedPart(plr, part)
+    if not hitbox_original_properties[plr] then
+        hitbox_original_properties[plr] = {}
+    end
+    if not hitbox_original_properties[plr][part.Name] then
+        hitbox_original_properties[plr][part.Name] = {
+            CanCollide = part.CanCollide,
+            Transparency = part.Transparency,
+            Size = part.Size
+        }
+    end
+end
+
+local function restoredPart(plr)
+    if hitbox_original_properties[plr] then
+        for partName, props in pairs(hitbox_original_properties[plr]) do
+            local part = plr.Character and plr.Character:FindFirstChild(partName)
+            if part and part:IsA("BasePart") then
+                part.CanCollide = props.CanCollide
+                part.Transparency = props.Transparency
+                part.Size = props.Size
+            end
+        end
+    end
+end
+
+local function findClosestPart(plr, partName)
+    if not plr.Character then return nil end
+    for _, part in ipairs(plr.Character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name:lower():find(partName:lower()) then
+            return part
+        end
+    end
+    return nil
+end
+
+local function extendHitbox(plr)
+    for _, partName in ipairs(defaultBodyParts) do
+        local part = plr.Character and (plr.Character:FindFirstChild(partName) or findClosestPart(plr, partName))
+        if part and part:IsA("BasePart") then
+            savedPart(plr, part)
+            -- Set hitbox collision off to prevent interference:
+            part.CanCollide = false  -- Change to true if you want collision enabled
+            part.Transparency = hitboxTransparency / 10
+            part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        end
+    end
+end
+
+-- When team-check is enabled, only expand hitboxes for enemies.
+local function isEnemy(plr)
+    if hitboxTeamCheckEnabled then
+        return plr.Team ~= player.Team
     else
-        warn("BillboardGui not found in " .. moneyDrop:GetFullName())
-    end
-    return 0
-end
-
-local function updateDroppedCashTotal()
-    local total = 0
-    local ignored = game.Workspace:FindFirstChild("Ignored")
-    if ignored then
-        local dropFolder = ignored:FindFirstChild("Drop")
-        if dropFolder then
-            for _, child in ipairs(dropFolder:GetChildren()) do
-                if child:FindFirstChild("BillboardGui") then
-                    total = total + getMoneyDropValue(child)
-                end
-            end
-        else
-            warn("Drop folder not found in Workspace.Ignored!")
-        end
-    else
-        warn("Ignored folder not found in Workspace!")
-    end
-    return total
-end
-
--- Update Total Cash Dropped continuously
-coroutine.wrap(function()
-    while true do
-        local totalCash = updateDroppedCashTotal()
-        statusParagraph:SetValue("Total Cash Dropped: " .. formatNumber(totalCash))
-        wait(0.4)
-    end
-end)()
-
--- Update Time in Server continuously
-coroutine.wrap(function()
-    while true do
-        local elapsed = tick() - startTime
-        local hours = math.floor(elapsed / 3600)
-        local minutes = math.floor((elapsed % 3600) / 60)
-        local seconds = math.floor(elapsed % 60)
-        local timeString = string.format("%02d:%02d:%02d", hours, minutes, seconds)
-        timeParagraph:SetValue("Time in Server: " .. timeString)
-        wait(1)
-    end
-end)()
-
--- Update Tween Status continuously
-coroutine.wrap(function()
-    while true do
-        local tweenActive = false
-        for _, tween in pairs(State.ActiveTweens) do
-            if tween.PlaybackState == Enum.PlaybackState.Playing then
-                tweenActive = true
-                break
-            end
-        end
-        if tweenActive then
-            tweenStatusParagraph:SetValue("Tween Status: Active")
-        else
-            tweenStatusParagraph:SetValue("Tween Status: Idle")
-        end
-        wait(0.5)
-    end
-end)()
-
--- Update Total Cash Collected continuously
-coroutine.wrap(function()
-    while true do
-        totalCashCollectedParagraph:SetValue("Total Cash Collected: " .. formatNumber(totalCashCollected))
-        wait(0.4)
-    end
-end)()
-
--- Listen for money being picked up (child removed from drop folder)
-local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
-if dropFolder then
-    dropFolder.ChildRemoved:Connect(function(child)
-        if child:FindFirstChild("BillboardGui") then
-            local value = getMoneyDropValue(child)
-            totalCashCollected = totalCashCollected + value
-        end
-    end)
-end
-
-------------------------------------------------------------
--- POSITION UPDATE SYSTEM
-------------------------------------------------------------
-local PositionUpdateConnection = nil
-
-local function StartPositionUpdate(position)
-    if PositionUpdateConnection then
-        PositionUpdateConnection:Disconnect()
-    end
-    PositionUpdateConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        local char = game.Players.LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and position then
-            char.HumanoidRootPart.CFrame = position
-        end
-    end)
-end
-
-------------------------------------------------------------
--- Noclip Functions
-------------------------------------------------------------
-local Noclip = nil
-local Clip = nil
-
-local function noclip()
-    Clip = false
-    local function Nocl()
-        if not Clip and game.Players.LocalPlayer.Character then
-            for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
-                    v.CanCollide = false
-                end
-            end
-        end
-        wait(0.21)
-    end
-    Noclip = game:GetService("RunService").Stepped:Connect(Nocl)
-end
-
-local function farmNoclip()
-    Clip = false
-    local function Nocl()
-        if not Clip and game.Players.LocalPlayer.Character then
-            for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if v:IsA("BasePart") and v.CanCollide and v.Name ~= "floatName" then
-                    v.CanCollide = false
-                end
-            end
-            for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
-                if cashier:FindFirstChild("Open") then
-                    cashier.Open.CanCollide = false
-                end
-                if cashier:FindFirstChild("Hitbox") then
-                    cashier.Hitbox.CanCollide = false
-                end
-            end
-        end
-        wait(0.21)
-    end
-    Noclip = game:GetService("RunService").Stepped:Connect(Nocl)
-end
-
-local function clip()
-    if Noclip then Noclip:Disconnect() end
-    Clip = true
-    if game.Players.LocalPlayer.Character then
-        for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = true
-            end
-        end
-    end
-    for _, cashier in ipairs(game.Workspace.Cashiers:GetChildren()) do
-        if cashier:FindFirstChild("Open") then
-            cashier.Open.CanCollide = true
-        end
-        if cashier:FindFirstChild("Hitbox") then
-            cashier.Hitbox.CanCollide = true
-        end
-    end
-end
-
-------------------------------------------------------------
--- CORE FUNCTIONS
-------------------------------------------------------------
-local function CancelTweens()
-    for _, tween in pairs(State.ActiveTweens) do
-        pcall(function() tween:Cancel() end)
-    end
-    State.ActiveTweens = {}
-end
-
-local function getSpeed(distance)
-    if distance > 150 then
-        return 60
-    elseif distance > 125 then
-        return 55
-    elseif distance > 100 then
-        return 45
-    elseif distance > 50 then
-        return 30
-    elseif distance > 25 then
-        return 15
-    elseif distance > 10 then
-        return 8
-    else
-        return 6
-    end
-end
-
--- Travel Method: Moves while preserving current rotation.
-local function MoveTo(targetCFrame)
-    local char = game.Players.LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = char.HumanoidRootPart
-    CancelTweens()
-    
-    local currentOrientation = hrp.CFrame - hrp.CFrame.Position
-    local newTarget = currentOrientation + targetCFrame.Position
-
-    if State.TravelMethod == "Tween(slower)" then
-        noclip()
-        local distance = (hrp.Position - targetCFrame.Position).Magnitude
-        local speed = getSpeed(distance)
-        local tween = game:GetService("TweenService"):Create(
-            hrp,
-            TweenInfo.new(distance / speed, Enum.EasingStyle.Linear),
-            {CFrame = newTarget}
-        )
-        table.insert(State.ActiveTweens, tween)
-        tween:Play()
-        tween.Completed:Connect(function()
-            clip()
-            for i, t in ipairs(State.ActiveTweens) do
-                if t == tween then
-                    table.remove(State.ActiveTweens, i)
-                    break
-                end
-            end
-        end)
-        return tween
-    else
-        hrp.CFrame = newTarget
-        return nil
-    end
-end
-
--- TP2 Teleport Function for Main Tab
-local PlayersService = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local function TP2(P1)
-    local Player = PlayersService.LocalPlayer
-    if not Player.Character then return end
-    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local newTarget = (hrp.CFrame - hrp.CFrame.Position) + P1.Position
-    local Distance = (P1.Position - hrp.Position).Magnitude
-    local Speed = 150
-    
-    local tween = TweenService:Create(
-        hrp,
-        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
-        {CFrame = newTarget}
-    )
-    table.insert(State.ActiveTweens, tween)
-    tween:Play()
-    tween.Completed:Connect(function()
-         for i, t in ipairs(State.ActiveTweens) do
-              if t == tween then
-                   table.remove(State.ActiveTweens, i)
-                   break
-              end
-         end
-    end)
-    
-    if _G.Stop_Tween == true then
-        tween:Cancel()
-    end
-    
-    _G.Clip = true
-    wait(Distance / Speed)
-    _G.Clip = false
-end
-
-------------------------------------------------------------
--- NEW: KNIFE PURCHASE FUNCTION
-------------------------------------------------------------
-local function BuyKnife()
-    local player = game.Players.LocalPlayer
-    local existingKnife = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
-    if existingKnife then
-        print("Knife already exists. Using the existing knife.")
-        existingKnife.Parent = player.Character
         return true
     end
+end
 
-    local knifeShopItem = game.Workspace.Ignored.Shop["[Knife] - $164"]
-    if knifeShopItem and knifeShopItem:FindFirstChild("ClickDetector") then
-        print("Knife not in inventory, attempting to purchase...")
-        fireclickdetector(knifeShopItem.ClickDetector, 4)
-        local knifeTool
-        for i = 2, 11 do
-            knifeTool = player.Backpack:FindFirstChild("[Knife]") or (player.Character and player.Character:FindFirstChild("[Knife]"))
-                      or player.Backpack:FindFirstChild("[Knife] - $164") or (player.Character and player.Character:FindFirstChild("[Knife] - $164"))
-            if knifeTool then break end
-            task.wait(0.5)
-        end
-        if knifeTool then
-            if knifeTool.Name == "[Knife] - $164" then
-                knifeTool.Name = "[Knife]"
+local function updateHitboxes()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if isEnemy(plr) then
+                extendHitbox(plr)
+            else
+                restoredPart(plr)
             end
-            knifeTool.Parent = player.Character
-            return true
-        else
-            print("Knife not acquired after purchase attempt!")
-            Library:Notify({Title = "Error", Content = "Knife not found in inventory after purchase!", Duration = 3})
-            return false
         end
-    else
-        print("Knife or ClickDetector not found in shop!")
-        Library:Notify({Title = "Error", Content = "Knife not found in Shop!", Duration = 3})
-        return false
     end
 end
 
-------------------------------------------------------------
--- NEW: RIFLE PURCHASE FUNCTION
-------------------------------------------------------------
-local function BuyRifle()
-    local player = game.Players.LocalPlayer
-    local existingRifle = player.Backpack:FindFirstChild("[Rifle]") or (player.Character and player.Character:FindFirstChild("[Rifle]"))
-    if existingRifle then
-        print("Rifle already exists. Using the existing rifle.")
-        existingRifle.Parent = player.Character
-        return true
-    end
+--------------------------------
+-- AUTOFARM FUNCTIONS (Simplified)
+--------------------------------
+getgenv().AutoFarm = false
+local runServiceConnection
+local mouseDown = false
+local camera = workspace.CurrentCamera
 
-    local rifleShopItem = game.Workspace.Ignored.Shop["[Rifle] - $1694"]
-    if rifleShopItem and rifleShopItem:FindFirstChild("ClickDetector") then
-        print("Rifle not in inventory, attempting to purchase...")
-        fireclickdetector(rifleShopItem.ClickDetector, 4)
-        local rifleTool = nil
-        for i = 2, 11 do
-            rifleTool = player.Backpack:FindFirstChild("[Rifle]") or (player.Character and player.Character:FindFirstChild("[Rifle]"))
-                        or player.Backpack:FindFirstChild("[Rifle] - $1694") or (player.Character and player.Character:FindFirstChild("[Rifle] - $1694"))
-            if rifleTool then break end
-            task.wait(0.5)
-        end
-        if rifleTool then
-            if rifleTool.Name == "[Rifle] - $1694" then
-                rifleTool.Name = "[Rifle]"
-            end
-            rifleTool.Parent = player.Character
-            return true
-        else
-            print("Rifle not acquired after purchase attempt!")
-            Library:Notify({Title = "Error", Content = "Rifle not found in inventory after purchase!", Duration = 3})
-            return false
-        end
-    else
-        print("Rifle or ClickDetector not found in shop!")
-        Library:Notify({Title = "Error", Content = "Rifle not found in Shop!", Duration = 3})
-        return false
-    end
-end
-
-------------------------------------------------------------
--- UPDATED ATM AUTOFARM (integrated with Attack Method selection)
-------------------------------------------------------------
-local function RunATMAutofarm()
-    if State.AttackMethod == "Knife" then
-        local knifeCFrame = CFrame.new(-277.65, 23.849, -236)
-        local tween = MoveTo(knifeCFrame)
-        if tween then tween.Completed:Wait() end
-        task.wait(0.5)
-        
-        if not BuyKnife() then
-            State.ATMRunning = false
-            clip()
-            return
-        end
-    end
-
-    local lastPunchTime = tick()
-    while State.ATMRunning do
-        local char = game.Players.LocalPlayer.Character
-        if not char then
-            task.wait(3)
-            continue
-        end
-
-        local toolName = (State.AttackMethod == "Knife") and "[Knife]" or "Combat"
-        local tool = char:FindFirstChild(toolName) or game.Players.LocalPlayer.Backpack:FindFirstChild(toolName)
-        if not tool then
-            Library:Notify({Title = "Error", Content = toolName.." tool missing!", Duration = 3})
-            State.ATMRunning = false
-            clip()
-            break
-        end
-        tool.Parent = char
-
-        if State.AttackMethod ~= "Knife" then
-            if not (tool and tool.Parent == char) then
-                local combatTool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
-                if combatTool then
-                    combatTool.Parent = char
-                    tool = combatTool
-                else
-                    Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
-                    State.ATMRunning = false
-                    clip()
-                    break
+local function closestPlayer()
+    local closestDistance = math.huge
+    local closestPlr = nil
+    for _, enemy in ipairs(Players:GetPlayers()) do
+        if enemy ~= player and enemy.TeamColor ~= player.TeamColor and enemy.Character then
+            local hrp = enemy.Character:FindFirstChild("HumanoidRootPart")
+            local humanoid = enemy.Character:FindFirstChildOfClass("Humanoid")
+            if hrp and humanoid and humanoid.Health > 0 then
+                local dist = (player.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+                if dist < closestDistance then
+                    closestDistance = dist
+                    closestPlr = enemy
                 end
             end
         end
+    end
+    return closestPlr
+end
 
-        local cashiers = game.Workspace.Cashiers:GetChildren()
-        if #cashiers == 0 then
-            task.wait(1)
-            continue
-        end
-
-        for _, cashier in ipairs(cashiers) do
-            if not State.ATMRunning then break end
-            if not cashier:FindFirstChild("Open") then
-                continue
-            end
-
-            farmNoclip()
-            local targetPosition = cashier.Open.CFrame * CFrame.new(-1.4, 0, 3)
-            local tween = MoveTo(targetPosition)
-            if tween then tween.Completed:Wait() end
-
-            clip()
-            task.wait(0.5)
-
-            local lockRunning = true
-            local lockCoroutine = coroutine.create(function()
-                while lockRunning do
-                    local char = game.Players.LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        char.HumanoidRootPart.CFrame = targetPosition
-                    end
-                    task.wait(1)
+local function AutoFarm()
+    game:GetService("ReplicatedStorage").wkspc.TimeScale.Value = 12
+    runServiceConnection = game:GetService("RunService").Stepped:Connect(function()
+        if getgenv().AutoFarm then
+            local target = closestPlayer()
+            if target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local enemyHRP = target.Character.HumanoidRootPart
+                local targetPos = enemyHRP.Position - enemyHRP.CFrame.LookVector * 2 + Vector3.new(0,2,0)
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
+                if target.Character:FindFirstChild("Head") then
+                    camera.CFrame = CFrame.new(camera.CFrame.Position, target.Character.Head.Position)
                 end
-            end)
-            coroutine.resume(lockCoroutine)
-
-            local numAttacks = (State.AttackMethod == "Knife") and 5 or 10
-            local attackWait = (State.AttackMethod == "Knife") and 1 or 0.5
-            for i = 1, numAttacks do
-                if not State.ATMRunning then break end
-                if State.AttackMethod ~= "Knife" then
-                    if not (tool and tool.Parent == char) then
-                        local combatTool = char:FindFirstChild("Combat") or game.Players.LocalPlayer.Backpack:FindFirstChild("Combat")
-                        if combatTool then
-                            combatTool.Parent = char
-                            tool = combatTool
-                        else
-                            Library:Notify({Title = "Error", Content = "Combat tool missing!", Duration = 3})
-                            State.ATMRunning = false
-                            clip()
-                            break
-                        end
-                    end
-                end
-                tool:Activate()
-                lastPunchTime = tick()
-                task.wait(attackWait)
-            end
-
-            lockRunning = false
-            task.wait(3.4)
-        end
-
-        if State.ATMRunning and tick() - lastPunchTime > 5 then
-            local allCashiers = game.Workspace.Cashiers:GetChildren()
-            if #allCashiers > 0 and allCashiers[1]:FindFirstChild("Open") then
-                local firstATMPosition = allCashiers[1].Open.CFrame * CFrame.new(-1.4, 0, 3)
-                local tween = MoveTo(firstATMPosition)
-                if tween then tween.Completed:Wait() end
-                task.wait(0.5)
-                lastPunchTime = tick()
-            end
-        end
-
-        task.wait(0.4)
-    end
-
-    if PositionUpdateConnection then
-        PositionUpdateConnection:Disconnect()
-    end
-end
-
-------------------------------------------------------------
--- CASH AURA
-------------------------------------------------------------
-local function CashAura()
-    while State.CashAuraActive do
-        local char = game.Players.LocalPlayer.Character
-        if char then
-            for _, money in ipairs(game.Workspace.Ignored.Drop:GetChildren()) do
-                if money.Name == "MoneyDrop" and money:FindFirstChild("ClickDetector") then
-                    if (money.Position - char.HumanoidRootPart.Position).Magnitude <= 20 then
-                        fireclickdetector(money.ClickDetector)
-                    end
-                end
-            end
-        end
-        task.wait(0.35)
-    end
-end
-
-------------------------------------------------------------
--- CASH DROP
-------------------------------------------------------------
-local function CashDrop()
-    while State.CashDropActive do
-        game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "15000")
-        task.wait(5)
-    end
-end
-
-------------------------------------------------------------
--- CASH ESP (CHAMS + VALUE DISPLAY)
-------------------------------------------------------------
-local cashESPConnection = nil
-
-local function applyCashESPToMoneyDrop(inst)
-    if inst.Name == "MoneyDrop" then
-         if not inst:FindFirstChild("CashESPHighlight") then
-              local highlight = Instance.new("Highlight")
-              highlight.Name = "CashESPHighlight"
-              highlight.FillColor = Color3.fromRGB(0,255,0)
-              highlight.OutlineColor = Color3.fromRGB(0,200,0)
-              highlight.FillTransparency = 0.5
-              highlight.OutlineTransparency = 0
-              highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-              highlight.Adornee = inst
-              highlight.Parent = inst
-         end
-         if not inst:FindFirstChild("CashESPBillboard") then
-              local billboard = Instance.new("BillboardGui")
-              billboard.Name = "CashESPBillboard"
-              billboard.Adornee = inst
-              billboard.AlwaysOnTop = true
-              billboard.Size = UDim2.new(0, 128, 0, 50)
-              billboard.StudsOffset = Vector3.new(0, 2, 0)
-              billboard.Parent = inst
-              
-              local textLabel = Instance.new("TextLabel")
-              textLabel.Name = "CashESPText"
-              textLabel.BackgroundTransparency = 1
-              textLabel.TextColor3 = Color3.fromRGB(255,255,255)
-              textLabel.TextScaled = false
-              textLabel.TextSize = 12       
-              textLabel.Size = UDim2.new(1,0,1,0)
-              textLabel.Text = "Value: " .. formatNumber(getMoneyDropValue(inst))
-              textLabel.Parent = billboard
-              
-              coroutine.wrap(function()
-                  while inst.Parent do
-                      if textLabel and textLabel.Parent then
-                          textLabel.Text = "Value: " .. formatNumber(getMoneyDropValue(inst))
-                      end
-                      wait(0.5)
-                  end
-              end)()
-         end
-    end
-end
-
-local function ToggleCashESP(state)
-    local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
-    if not dropFolder then return end
-
-    if state then
-        for _, money in ipairs(dropFolder:GetChildren()) do
-            applyCashESPToMoneyDrop(money)
-        end
-        cashESPConnection = dropFolder.ChildAdded:Connect(function(child)
-            applyCashESPToMoneyDrop(child)
-        end)
-    else
-        if cashESPConnection then
-            cashESPConnection:Disconnect()
-            cashESPConnection = nil
-        end
-        for _, money in ipairs(dropFolder:GetChildren()) do
-            if money:FindFirstChild("CashESPHighlight") then
-                money.CashESPHighlight:Destroy()
-            end
-            if money:FindFirstChild("CashESPBillboard") then
-                money.CashESPBillboard:Destroy()
-            end
-        end
-    end
-end
-
-------------------------------------------------------------
--- UI ELEMENTS FOR MAIN TAB
-------------------------------------------------------------
-Tabs.Main:CreateDropdown("TravelMethod", {
-    Title = "Travel Method",
-    Values = {"Teleport(Risky)", "Tween(slower)"},
-    Multi = false,
-    Default = 2,
-}):OnChanged(function(value)
-    State.TravelMethod = value
-end)
-
-Tabs.Main:CreateDropdown("AttackMethod", {
-    Title = "Attack Method",
-    Values = {"Light Attack", "Heavy Attack", "Knife"},
-    Multi = false,
-    Default = 2,
-}):OnChanged(function(value)
-    State.AttackMethod = value
-end)
-
-Tabs.Main:CreateToggle("ATM_Autofarm", {
-    Title = "ATM Autofarm", 
-    Default = false
-}):OnChanged(function(state)
-    State.ATMRunning = state
-    if state then
-        coroutine.wrap(RunATMAutofarm)()
-    else
-        if PositionUpdateConnection then
-            PositionUpdateConnection:Disconnect()
-        end
-    end
-end)
-
-Tabs.Main:CreateToggle("Cash_Aura", {
-    Title = "Cash Aura", 
-    Default = false
-}):OnChanged(function(state)
-    State.CashAuraActive = state
-    if state then
-        coroutine.wrap(CashAura)()
-    end
-end)
-
-Tabs.Main:CreateToggle("Noclip", {
-    Title = "Noclip",
-    Default = false
-}):OnChanged(function(state)
-    State.NoclipEnabled = state
-    if state then
-        noclip()
-    else
-        clip()
-    end
-end)
-
-Tabs.Main:CreateToggle("Cash_ESP", {
-    Title = "Cash ESP",
-    Default = false
-}):OnChanged(function(state)
-    ToggleCashESP(state)
-end)
-
-Tabs.Main:CreateButton({
-    Title = "Collect all money",
-    Description = "Tween/Teleport to all MoneyDrop objects using a fixed speed of 60 studs/sec. Cash Aura must be active.",
-    Callback = function()
-        Window:Dialog({
-            Title = "KICK/DEATH RISKKK!!, proceed?",
-            Content = "Collects all MoneyDrop objects available when the button is pressed. Cash Aura must be active.",
-            Buttons = {
-                {
-                    Title = "Confirm",
-                    Callback = function()
-                        print("Collecting cash...")
-                        local dropFolder = game.Workspace:FindFirstChild("Ignored") and game.Workspace.Ignored:FindFirstChild("Drop")
-                        if dropFolder then
-                            local TweenService = game:GetService("TweenService")
-                            noclip()
-                            while #dropFolder:GetChildren() > 0 do
-                                for _, drop in ipairs(dropFolder:GetChildren()) do
-                                    if drop.Name == "MoneyDrop" and drop.Parent then
-                                        local char = game.Players.LocalPlayer.Character
-                                        if not char or not char:FindFirstChild("HumanoidRootPart") then
-                                            continue
-                                        end
-                                        local hrp = char.HumanoidRootPart
-                                        local targetPos = drop.CFrame * CFrame.new(0, 1, 0)
-                                        local currentYaw = math.atan2(hrp.CFrame.LookVector.X, hrp.CFrame.LookVector.Z)
-                                        local targetCFrame = CFrame.new(targetPos.Position) * CFrame.Angles(0, currentYaw, 0)
-                                        local distance = (hrp.Position - targetPos.Position).Magnitude
-                                        local duration = distance / 500
-                                        local tween = TweenService:Create(
-                                            hrp,
-                                            TweenInfo.new(duration, Enum.EasingStyle.Linear),
-                                            {CFrame = targetCFrame}
-                                        )
-                                        tween:Play()
-                                        tween.Completed:Wait()
-                                        task.wait(5)
-                                    end
-                                end
-                                wait(5)
-                            end
-                            clip()
-                        else
-                            print("Drop folder not found!")
-                        end
-                    end
-                },
-                {
-                    Title = "Cancel",
-                    Callback = function()
-                        print("Cash collection cancelled.")
-                    end
-                }
-            }
-        })
-    end
-})
-
-------------------------------------------------------------
--- TELEPORT BUTTONS
-------------------------------------------------------------
-local teleportLocations = {
-    {Title = "Bank", Position = Vector3.new(-373, 18.75, -346)},
-    {Title = "Hood Fitness", Position = Vector3.new(-76, 19.45, -594.25)},
-    {Title = "Club", Position = Vector3.new(-262.5, -1.208, -376)},
-    {Title = "School", Position = Vector3.new(-652.5, 18.75, 197.5)},
-    {Title = "Uphill Gunz", Position = Vector3.new(-562.75, 5.66, -736.25)},
-    {Title = "Hospital", Position = Vector3.new(80, 19.255, -484.75)},
-    {Title = "Ufo", Position = Vector3.new(49.75, 159.75, -686.25)}
-}
-
-for _, loc in ipairs(teleportLocations) do
-    Tabs.Teleports:CreateButton({
-        Title = loc.Title,
-        Callback = function()
-            MoveTo(CFrame.new(loc.Position))
-        end
-    })
-end
-
-------------------------------------------------------------
--- PVP TAB: PLAYER DROPDOWN & AUTOKILL OPTIONS
-------------------------------------------------------------
-local pvpDropdown = Tabs.PVP:CreateDropdown("PVPDropdown", {
-    Title = "Select Player",
-    Description = "Choose a player from the lobby",
-    Values = {},
-    Multi = false,
-    Default = 1,
-})
-
-local selectedPlayerName = nil
-local function updatePvpDropdown()
-    local players = game:GetService("Players"):GetPlayers()
-    local options = {}
-    for _, player in ipairs(players) do
-        table.insert(options, player.Name)
-    end
-    if #options > 40 then
-        while #options > 40 do
-            table.remove(options, 41)
-        end
-    end
-    pvpDropdown:SetValues(options)
-end
-
-updatePvpDropdown()
-
-game:GetService("Players").PlayerAdded:Connect(function(player)
-    updatePvpDropdown()
-end)
-
-game:GetService("Players").PlayerRemoving:Connect(function(player)
-    updatePvpDropdown()
-end)
-
-pvpDropdown:OnChanged(function(Value)
-    selectedPlayerName = Value
-    print("Player dropdown changed:", Value)
-end)
-
-local function TP2(P1)
-    local Player = game:GetService("Players").LocalPlayer
-    if not Player.Character then return end
-    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local newTarget = (hrp.CFrame - hrp.CFrame.Position) + P1.Position
-    local Distance = (P1.Position - hrp.Position).Magnitude
-    local Speed = 150
-    
-    local tween = TweenService:Create(
-        hrp,
-        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
-        {CFrame = newTarget}
-    )
-    table.insert(State.ActiveTweens, tween)
-    tween:Play()
-    tween.Completed:Connect(function()
-         for i, t in ipairs(State.ActiveTweens) do
-              if t == tween then
-                   table.remove(State.ActiveTweens, i)
-                   break
-              end
-         end
-    end)
-    
-    if _G.Stop_Tween == true then
-        tween:Cancel()
-    end
-    
-    _G.Clip = true
-    wait(Distance / Speed)
-    _G.Clip = false
-end
-
--- Declare orbit parameter variables
-local orbitSizeValue = 20
-local orbitSpeedValue = 20
-
-local function createCircleAndOrbit(targetPlayer)
-    if not targetPlayer.Character then return end
-    local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-
-    local baseRadius = orbitSizeValue
-    local maxRadius = orbitSizeValue
-    local segments = orbitSizeValue
-    local rotationSpeed = orbitSpeedValue
-    local expansionSpeed = 0
-    local circleParts = {}
-    local rotationAngle = 0
-    local currentRadius = baseRadius
-
-    for i = 1, segments do
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(0.5, 0.5, 0.5)
-        part.Shape = Enum.PartType.Ball
-        part.Material = Enum.Material.Neon
-        part.Color = Color3.new(1, 1, 1)
-        part.Anchored = true
-        part.CanCollide = false
-        part.Parent = game.Workspace
-        table.insert(circleParts, part)
-    end
-
-    local connection
-    connection = game:GetService("RunService").RenderStepped:Connect(function()
-        if not targetPlayer or not targetPlayer.Character or not rootPart then
-            connection:Disconnect()
-            for _, part in ipairs(circleParts) do
-                part:Destroy()
-            end
-            return
-        end
-
-        rotationAngle = rotationAngle + rotationSpeed * math.pi / 180
-        currentRadius = math.min(currentRadius + expansionSpeed, maxRadius)
-
-        for i, part in ipairs(circleParts) do
-            local angle = ((math.pi * 2) * (i / segments)) + rotationAngle
-            local offset = Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
-            part.Position = rootPart.Position + offset
-        end
-
-        if game:GetService("Players").LocalPlayer.Character and game:GetService("Players").LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRootPart = game:GetService("Players").LocalPlayer.Character.HumanoidRootPart
-            local orbitPosition = rootPart.Position + Vector3.new(
-                math.cos(rotationAngle) * currentRadius,
-                0,
-                math.sin(rotationAngle) * currentRadius
-            )
-            playerRootPart.CFrame = CFrame.new(orbitPosition, rootPart.Position)
-        end
-    end)
-
-    return function()
-        connection:Disconnect()
-        for _, part in ipairs(circleParts) do
-            part:Destroy()
-        end
-    end
-end
-
-----------------------------------------------------------------
--- NEW Dropdown for Autokill Method in PVP Tab
-----------------------------------------------------------------
-local autokillMethodDropdown = Tabs.PVP:CreateDropdown("AutokillMethodDropdown", {
-    Title = "Autokill Method",
-    Description = "Select autokill method",
-    Values = {"Orbit", "Crazy"},
-    Multi = false,
-    Default = 1,
-})
-
-local selectedAutokillMethod = "Orbit"
-autokillMethodDropdown:OnChanged(function(val)
-    selectedAutokillMethod = val
-    print("Autokill method changed:", val)
-end)
-
-----------------------------------------------------------------
--- New Sliders for Orbit Parameters (above Autokill toggle)
-----------------------------------------------------------------
-local orbitSizeSlider = Tabs.PVP:CreateSlider("OrbitSizeSlider", {
-    Title = "Orbit Size",
-    Description = "Determines orbit base & max radius and number of segments.",
-    Default = 20,
-    Min = 1,
-    Max = 50,
-    Rounding = 1,
-    Callback = function(Value)
-        orbitSizeValue = Value
-        print("Orbit size changed:", Value)
-    end,
-})
-orbitSizeSlider:OnChanged(function(Value)
-    orbitSizeValue = Value
-    print("Orbit size changed:", Value)
-end)
-
-local orbitSpeedSlider = Tabs.PVP:CreateSlider("OrbitSpeedSlider", {
-    Title = "Orbit Speed",
-    Description = "Determines rotation speed. Higher = more laggier and risk of getting kicked, recommended between 0-40.",
-    Default = 20,
-    Min = 0,
-    Max = 75,
-    Rounding = 1,
-    Callback = function(Value)
-        orbitSpeedValue = Value
-        print("Orbit speed changed:", Value)
-    end,
-})
-orbitSpeedSlider:OnChanged(function(Value)
-    orbitSpeedValue = Value
-    print("Orbit speed changed:", Value)
-end)
-
-------------------------------------------------------------
--- NEW: AUTOKILL TOGGLE (KILL ALL)
-------------------------------------------------------------
-local currentOrbitCleanup = nil
-Tabs.PVP:CreateToggle("AutokillToggle", {
-    Title = "Autokill",
-    Default = false,
-}):OnChanged(function(state)
-    if state then
-        -- Enable noclip specifically for autokill
-        noclip()
-        if selectedAutokillMethod == "Orbit" then
-            if selectedPlayerName then
-                local targetPlayer = PlayersService:FindFirstChild(selectedPlayerName)
-                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    TP2(targetPlayer.Character.HumanoidRootPart.CFrame)
-                    currentOrbitCleanup = createCircleAndOrbit(targetPlayer)
-                else
-                    print("Selected target is invalid for orbit.")
+                if not mouseDown then
+                    mouse1press()
+                    mouseDown = true
                 end
             else
-                print("No player selected for autokill orbit.")
+                if mouseDown then
+                    mouse1release()
+                    mouseDown = false
+                end
             end
-        elseif selectedAutokillMethod == "Crazy" then
-            print("Crazy autokill method not implemented yet.")
+        else
+            if runServiceConnection then
+                runServiceConnection:Disconnect()
+                runServiceConnection = nil
+            end
+            if mouseDown then
+                mouse1release()
+                mouseDown = false
+            end
         end
-    else
-        if currentOrbitCleanup then
-            currentOrbitCleanup()
-            currentOrbitCleanup = nil
+    end)
+end
+
+--------------------------------
+-- TRIGGERBOT FUNCTIONS (Simplified)
+--------------------------------
+getgenv().triggerb = false
+local triggerTeamCheck = "Team-Based"
+local shotDelay = 0.2
+local isAlive = true
+local function checkHealth()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.HealthChanged:Connect(function(health)
+            isAlive = health > 0
+        end)
+    end
+end
+player.CharacterAdded:Connect(checkHealth)
+checkHealth()
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    if getgenv().triggerb and isAlive then
+        local mouse = player:GetMouse()
+        local target = mouse.Target
+        if target and target.Parent and target.Parent:FindFirstChild("Humanoid") and target.Parent.Name ~= player.Name then
+            local targetPlr = Players:FindFirstChild(target.Parent.Name)
+            if targetPlr and ((triggerTeamCheck == "FFA") or (triggerTeamCheck == "Everyone") or (triggerTeamCheck == "Team-Based" and targetPlr.Team ~= player.Team)) then
+                mouse1press()
+                wait(shotDelay)
+                mouse1release()
+            end
         end
-        -- Disable autokill-specific noclip by re-enabling collisions
-        clip()
     end
 end)
 
+--------------------------------
+-- GUN MODS
+--------------------------------
+local originalValues = {FireRate = {}, ReloadTime = {}, EReloadTime = {}, Auto = {}, Spread = {}, Recoil = {}}
 
-------------------------------------------------------------
--- NEW: SILENT AIM & FOV OPTIONS (PVP TAB)
-------------------------------------------------------------
-local silentAimToggle = Tabs.PVP:CreateToggle("SilentAimToggle", {
-    Title = "Silent Aim",
-    Default = false
-})
-local silentAimDistanceSlider = Tabs.PVP:CreateSlider("SilentAimDistanceSlider", {
-    Title = "Distance",
-    Description = "Max world distance for silent aim (5-500)",
-    Default = 100,
-    Min = 5,
-    Max = 500,
-    Rounding = 1,
-})
-local fovToggle = Tabs.PVP:CreateToggle("FOVToggle", {
-    Title = "FOV",
-    Default = false
-})
-local fovSizeSlider = Tabs.PVP:CreateSlider("FOVSizeSlider", {
-    Title = "FOV Size",
-    Description = "Radius of the FOV circle (10-750)",
-    Default = 100,
-    Min = 10,
-    Max = 750,
-    Rounding = 1,
-})
-local fovPlacementDropdown = Tabs.PVP:CreateDropdown("FOVPlacementDropdown", {
-    Title = "FOV Placement",
-    Values = {"Fixed", "Mouse"},
-    Multi = false,
-    Default = 1,
-})
+--------------------------------
+-- FLUENT UI ELEMENTS
+--------------------------------
 
-getgenv().silentaim_settings = getgenv().silentaim_settings or {}
-getgenv().silentaim_settings.enabled = false
-getgenv().silentaim_settings.distance = 100           -- world distance threshold
-getgenv().silentaim_settings.fov = 100                -- silent aim boundary circle radius when FOV toggle is off
-getgenv().silentaim_settings.fovtoggle = false
-getgenv().silentaim_settings.fovsize = 100            -- radius for FOV circle when toggle is on
-getgenv().silentaim_settings.fovPlacement = "Fixed"   -- "Fixed" or "Mouse"
-getgenv().silentaim_settings.hitbox = "Head"          -- target hitbox
+--------------------------------
+-- Main Tab (Hitbox, AutoFarm, Triggerbot)
+--------------------------------
+local MainTab = Tabs.Main
 
-silentAimToggle:OnChanged(function(state)
-    getgenv().silentaim_settings.enabled = state
-end)
-
-silentAimDistanceSlider:OnChanged(function(value)
-    getgenv().silentaim_settings.distance = value
-end)
-
-fovToggle:OnChanged(function(state)
-    getgenv().silentaim_settings.fovtoggle = state
-end)
-
-fovSizeSlider:OnChanged(function(value)
-    getgenv().silentaim_settings.fovsize = value
-end)
-
-fovPlacementDropdown:OnChanged(function(value)
-    getgenv().silentaim_settings.fovPlacement = value
-end)
-
--- Create Drawing objects for the two circles
-local UserInputService = game:GetService("UserInputService")
-local CurrentCamera = workspace.CurrentCamera
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
--- Silent Aim circle: fixed at center, fully transparent
-local silentAimCircle = Drawing.new("Circle")
-silentAimCircle.Visible = false
-silentAimCircle.Thickness = 1
-silentAimCircle.Color = Color3.fromRGB(255, 255, 255)
-silentAimCircle.Transparency = 1
-silentAimCircle.Filled = false
-silentAimCircle.Radius = getgenv().silentaim_settings.fov
-
--- FOV circle: visible when FOV toggle is on
-local fovCircle = Drawing.new("Circle")
-fovCircle.Visible = false
-fovCircle.Thickness = 1
-fovCircle.Color = Color3.fromRGB(255, 255, 255)
-fovCircle.Transparency = 0.5
-fovCircle.Filled = false
-fovCircle.Radius = getgenv().silentaim_settings.fovsize
-
-local function WorldToScreen(position)
-    local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(position)
-    return {Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
-end
-
--- Get the closest player within the FOV and distance threshold
-local SilentAimTarget = nil
-local function GetClosestPlayer()
-    local screenCenter = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
-    local closestPlayer = nil
-    local shortestDist = math.huge
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if getgenv().silentaim_settings.teamCheck and player.Team == LocalPlayer.Team then
-                continue
+-- Hitbox Section
+local hitboxToggle = MainTab:CreateToggle("Enable Hitbox", {Title = "[CLICK THIS FIRST] Enable Hitbox", Default = false, Description = "Continuously update hitboxes"})
+hitboxToggle:OnChanged(function(state)
+    hitboxEnabled = state
+    if state then
+        spawn(function()
+            while hitboxEnabled do
+                updateHitboxes()
+                wait(0.1)
             end
-            local targetPart = player.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
-            if targetPart then
-                local screenPos = WorldToScreen(targetPart.Position)
-                if screenPos.OnScreen then
-                    local dist = (screenPos.Position - screenCenter).Magnitude
-                    local radius = getgenv().silentaim_settings.fovtoggle and getgenv().silentaim_settings.fovsize or getgenv().silentaim_settings.fov
-                    if dist <= radius and (targetPart.Position - CurrentCamera.CFrame.Position).Magnitude <= getgenv().silentaim_settings.distance then
-                        if dist < shortestDist then
-                            shortestDist = dist
-                            closestPlayer = player
+        end)
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            restoredPart(plr)
+        end
+        hitbox_original_properties = {}
+    end
+    print("Hitbox enabled:", state)
+end)
+
+local hitboxSizeSlider = MainTab:CreateSlider("Hitbox Size", {
+    Title = "Hitbox Size",
+    Description = "Adjust the hitbox size",
+    Default = hitboxSize,
+    Min = 1,
+    Max = 25,
+    Rounding = 0
+})
+hitboxSizeSlider:OnChanged(function(val)
+    hitboxSize = val
+    if hitboxEnabled then updateHitboxes() end
+    print("Hitbox Size set to:", val)
+end)
+
+local hitboxTransSlider = MainTab:CreateSlider("Hitbox Transparency", {
+    Title = "Hitbox Transparency",
+    Description = "Adjust transparency (1-10)",
+    Default = hitboxTransparency,
+    Min = 1,
+    Max = 10,
+    Rounding = 0
+})
+hitboxTransSlider:OnChanged(function(val)
+    hitboxTransparency = val
+    if hitboxEnabled then updateHitboxes() end
+    print("Hitbox Transparency set to:", val)
+end)
+
+-- New Team Check Toggle (default off)
+local teamCheckToggle = MainTab:CreateToggle("Enable Team Check (Hitbox)", {Title = "Team Check (Hitbox)", Default = false, Description = "When enabled, only enemy hitboxes expand"})
+teamCheckToggle:OnChanged(function(state)
+    hitboxTeamCheckEnabled = state
+    if hitboxEnabled then updateHitboxes() end
+    print("Team Check (Hitbox) set to:", state)
+end)
+
+-- AutoFarm Section
+local autofarmToggle = MainTab:CreateToggle("AutoFarm", {Title = "AutoFarm", Default = false, Description = "Automatically move and shoot nearest enemy"})
+autofarmToggle:OnChanged(function(state)
+    getgenv().AutoFarm = state
+    if state then
+        wait(0.5)
+        AutoFarm()
+    else
+        game:GetService("ReplicatedStorage").wkspc.CurrentCurse.Value = ""
+        game:GetService("ReplicatedStorage").wkspc.TimeScale.Value = 1
+        if runServiceConnection then runServiceConnection:Disconnect() end
+        if mouseDown then mouse1release() end
+    end
+    print("AutoFarm set to:", state)
+end)
+
+-- Triggerbot Section
+local triggerbotToggle = MainTab:CreateToggle("Enable Triggerbot", {Title = "Triggerbot", Default = false, Description = "Toggle triggerbot on/off"})
+triggerbotToggle:OnChanged(function(state)
+    getgenv().triggerb = state
+    print("Triggerbot set to:", state)
+end)
+
+local triggerTeamDropdown = MainTab:CreateDropdown("Triggerbot Team Check", {
+    Title = "Triggerbot Team Check Mode",
+    Values = {"FFA", "Team-Based", "Everyone"},
+    Multi = false,
+    Default = "Team-Based"
+})
+triggerTeamDropdown:OnChanged(function(val)
+    triggerTeamCheck = val
+    print("Triggerbot Team Check set to:", val)
+end)
+
+local shotDelaySlider = MainTab:CreateSlider("Shot Delay", {
+    Title = "Shot Delay",
+    Description = "Delay between shots (in 0.1 increments)",
+    Default = shotDelay * 10,
+    Min = 1,
+    Max = 10,
+    Rounding = 0
+})
+shotDelaySlider:OnChanged(function(val)
+    shotDelay = val / 10
+    print("Shot Delay set to:", shotDelay)
+end)
+
+--------------------------------
+-- Gun Mods Tab
+--------------------------------
+local GunTab = Tabs["Gun Mods"]
+
+-- Only one Infinite Ammo toggle (v2 renamed)
+local infiniteAmmoToggle = GunTab:CreateToggle("Infinite Ammo", {Title = "Infinite Ammo", Default = false, Description = "Toggle infinite ammo"})
+infiniteAmmoToggle:OnChanged(function(state)
+    if state then
+        game:GetService("RunService").Stepped:Connect(function()
+            pcall(function()
+                local playerGui = player.PlayerGui
+                playerGui.GUI.Client.Variables.ammocount.Value = 99
+                playerGui.GUI.Client.Variables.ammocount2.Value = 99
+            end)
+        end)
+    end
+    print("Infinite Ammo set to:", state)
+end)
+
+local fastReloadToggle = GunTab:CreateToggle("Fast Reload", {Title = "Fast Reload", Default = false, Description = "Toggle fast reload"})
+fastReloadToggle:OnChanged(function(state)
+    for _, v in pairs(game.ReplicatedStorage.Weapons:GetChildren()) do
+        if v:FindFirstChild("ReloadTime") then
+            if state then
+                if not originalValues.ReloadTime[v] then
+                    originalValues.ReloadTime[v] = v.ReloadTime.Value
+                end
+                v.ReloadTime.Value = 0.01
+            else
+                v.ReloadTime.Value = originalValues.ReloadTime[v] or 0.8
+            end
+        end
+        if v:FindFirstChild("EReloadTime") then
+            if state then
+                if not originalValues.EReloadTime[v] then
+                    originalValues.EReloadTime[v] = v.EReloadTime.Value
+                end
+                v.EReloadTime.Value = 0.01
+            else
+                v.EReloadTime.Value = originalValues.EReloadTime[v] or 0.8
+            end
+        end
+    end
+    print("Fast Reload set to:", state)
+end)
+
+local fastFireRateToggle = GunTab:CreateToggle("Fast Fire Rate", {Title = "Fast Fire Rate", Default = false, Description = "Toggle fast fire rate"})
+fastFireRateToggle:OnChanged(function(state)
+    for _, v in pairs(game.ReplicatedStorage.Weapons:GetDescendants()) do
+        if v.Name == "FireRate" or v.Name == "BFireRate" then
+            if state then
+                if not originalValues.FireRate[v] then
+                    originalValues.FireRate[v] = v.Value
+                end
+                v.Value = 0.02
+            else
+                v.Value = originalValues.FireRate[v] or 0.8
+            end
+        end
+    end
+    print("Fast Fire Rate set to:", state)
+end)
+
+local alwaysAutoToggle = GunTab:CreateToggle("Always Auto", {Title = "Always Auto", Default = false, Description = "Toggle always automatic fire"})
+alwaysAutoToggle:OnChanged(function(state)
+    for _, v in pairs(game.ReplicatedStorage.Weapons:GetDescendants()) do
+        if v.Name == "Auto" or v.Name == "AutoFire" or v.Name == "Automatic" or v.Name == "AutoShoot" or v.Name == "AutoGun" then
+            if state then
+                if not originalValues.Auto[v] then
+                    originalValues.Auto[v] = v.Value
+                end
+                v.Value = true
+            else
+                v.Value = originalValues.Auto[v] or false
+            end
+        end
+    end
+    print("Always Auto set to:", state)
+end)
+
+local noSpreadToggle = GunTab:CreateToggle("No Spread", {Title = "No Spread", Default = false, Description = "Toggle no spread"})
+noSpreadToggle:OnChanged(function(state)
+    for _, v in pairs(game:GetService("ReplicatedStorage").Weapons:GetDescendants()) do
+        if v.Name == "MaxSpread" or v.Name == "Spread" or v.Name == "SpreadControl" then
+            if state then
+                if not originalValues.Spread[v] then
+                    originalValues.Spread[v] = v.Value
+                end
+                v.Value = 0
+            else
+                v.Value = originalValues.Spread[v] or 1
+            end
+        end
+    end
+    print("No Spread set to:", state)
+end)
+
+local noRecoilToggle = GunTab:CreateToggle("No Recoil", {Title = "No Recoil", Default = false, Description = "Toggle no recoil"})
+noRecoilToggle:OnChanged(function(state)
+    for _, v in pairs(game:GetService("ReplicatedStorage").Weapons:GetDescendants()) do
+        if v.Name == "RecoilControl" or v.Name == "Recoil" then
+            if state then
+                if not originalValues.Recoil[v] then
+                    originalValues.Recoil[v] = v.Value
+                end
+                v.Value = 0
+            else
+                v.Value = originalValues.Recoil[v] or 1
+            end
+        end
+    end
+    print("No Recoil set to:", state)
+end)
+
+--------------------------------
+-- Player Tab (Fly, Movement, Jump, Anti-Aim, Debris, Third Person)
+--------------------------------
+local PlayerTab = Tabs.Player
+
+-- Fly Controls
+local flyToggle = PlayerTab:CreateToggle("Fly", {Title = "Fly", Default = false, Description = "Toggle fly mode"})
+flyToggle:OnChanged(function(state)
+    if state then
+        startFly()
+    else
+        endFly()
+    end
+    print("Fly set to:", state)
+end)
+
+local flySpeedSlider = PlayerTab:CreateSlider("Fly Speed", {
+    Title = "Fly Speed",
+    Description = "Adjust fly speed",
+    Default = flySettings.flyspeed,
+    Min = 1,
+    Max = 500,
+    Rounding = 0
+})
+flySpeedSlider:OnChanged(function(val)
+    flySettings.flyspeed = val
+    print("Fly Speed set to:", val)
+end)
+
+-- Custom WalkSpeed Controls
+local isWalkSpeedEnabled = false
+local selectedWalkMethod = "Velocity"
+local walkSettings = { WalkSpeed = 16 }
+PlayerTab:CreateToggle("Custom WalkSpeed", {Title = "Custom WalkSpeed", Default = false, Description = "Toggle custom walk speed"}):OnChanged(function(state)
+    isWalkSpeedEnabled = state
+    print("Custom WalkSpeed set to:", state)
+end)
+PlayerTab:CreateDropdown("Walk Method", {
+    Title = "Walk Method",
+    Values = {"Velocity", "Vector", "CFrame"},
+    Multi = false,
+    Default = "Velocity"
+}):OnChanged(function(val)
+    selectedWalkMethod = val
+    print("Walk Method set to:", val)
+end)
+PlayerTab:CreateSlider("Walkspeed Power", {
+    Title = "Walkspeed Power",
+    Description = "Adjust walkspeed power",
+    Default = walkSettings.WalkSpeed,
+    Min = 16,
+    Max = 500,
+    Rounding = 0
+}):OnChanged(function(val)
+    walkSettings.WalkSpeed = val
+    print("WalkSpeed Power set to:", val)
+end)
+
+game:GetService("RunService").Stepped:Connect(function(deltaTime)
+    if isWalkSpeedEnabled then
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoid and rootPart then
+                local moveDir = humanoid.MoveDirection
+                local speed = walkSettings.WalkSpeed
+                if selectedWalkMethod == "Velocity" then
+                    if moveDir.Magnitude > 0 then
+                        rootPart.Velocity = Vector3.new(moveDir.X * speed, rootPart.Velocity.Y, moveDir.Z * speed)
+                    else
+                        rootPart.Velocity = Vector3.new(0, rootPart.Velocity.Y, 0)
+                    end
+                elseif selectedWalkMethod == "Vector" then
+                    local scaleFactor = 0.0001
+                    rootPart.CFrame = rootPart.CFrame + (moveDir * speed * deltaTime * scaleFactor)
+                elseif selectedWalkMethod == "CFrame" then
+                    local scaleFactor = 0.0001
+                    rootPart.CFrame = rootPart.CFrame + (moveDir * speed * deltaTime * scaleFactor)
+                else
+                    humanoid.WalkSpeed = speed
+                end
+            end
+        end
+    end
+end)
+
+-- Custom JumpPower Controls
+local isJumpPowerEnabled = false
+local jumpMethod = "Velocity"
+local currentJumpPower = 50  -- Default set to 50
+local jumpConn
+PlayerTab:CreateToggle("Custom JumpPower", {Title = "Custom JumpPower", Default = false, Description = "Toggle custom jump power"}):OnChanged(function(state)
+    isJumpPowerEnabled = state
+    print("Custom JumpPower set to:", state)
+end)
+PlayerTab:CreateDropdown("Jump Method", {
+    Title = "Jump Method",
+    Values = {"Velocity", "Vector", "CFrame"},
+    Multi = false,
+    Default = "Velocity"
+}):OnChanged(function(val)
+    jumpMethod = val
+    print("Jump Method set to:", val)
+end)
+PlayerTab:CreateSlider("Change JumpPower", {
+    Title = "JumpPower",
+    Description = "Adjust jump power",
+    Default = currentJumpPower,
+    Min = 30,
+    Max = 500,
+    Rounding = 0
+}):OnChanged(function(val)
+    currentJumpPower = val
+    local character = player.Character
+    if character then
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.UseJumpPower = true
+        if jumpConn then jumpConn:Disconnect() end
+        jumpConn = humanoid.Jumping:Connect(function(isActive)
+            if isJumpPowerEnabled and isActive and character:FindFirstChild("HumanoidRootPart") then
+                if jumpMethod == "Velocity" then
+                    character.HumanoidRootPart.Velocity = Vector3.new(character.HumanoidRootPart.Velocity.X, val, character.HumanoidRootPart.Velocity.Z)
+                elseif jumpMethod == "Vector" then
+                    character.HumanoidRootPart.Velocity = Vector3.new(0, val, 0)
+                elseif jumpMethod == "CFrame" then
+                    character:SetPrimaryPartCFrame(character:GetPrimaryPartCFrame() + Vector3.new(0, val, 0))
+                end
+            end
+        end)
+    end
+    print("JumpPower set to:", val)
+end)
+
+-- Anti-Aim Controls
+local antiAimToggle = PlayerTab:CreateToggle("Anti-Aim v1", {Title = "Anti-Aim v1", Default = false, Description = "Toggle anti-aim"})
+antiAimToggle:OnChanged(function(state)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if state and hrp then
+        local spin = Instance.new("BodyAngularVelocity", hrp)
+        spin.Name = "AntiAimSpin"
+        spin.AngularVelocity = Vector3.new(0, 10, 0)
+        spin.MaxTorque = Vector3.new(0, math.huge, 0)
+        spin.P = 500000
+        local gyro = Instance.new("BodyGyro", hrp)
+        gyro.Name = "AntiAimGyro"
+        gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        gyro.CFrame = hrp.CFrame
+        gyro.P = 3000
+    else
+        if hrp then
+            local spin = hrp:FindFirstChild("AntiAimSpin")
+            if spin then spin:Destroy() end
+            local gyro = hrp:FindFirstChild("AntiAimGyro")
+            if gyro then gyro:Destroy() end
+        end
+    end
+    print("Anti-Aim set to:", state)
+end)
+PlayerTab:CreateSlider("Spin Speed", {
+    Title = "Spin Speed",
+    Description = "Adjust anti-aim spin speed",
+    Default = 10,
+    Min = 10,
+    Max = 100,
+    Rounding = 0
+}):OnChanged(function(val)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local spin = hrp:FindFirstChild("AntiAimSpin")
+        if spin then
+            spin.AngularVelocity = Vector3.new(0, val, 0)
+        end
+    end
+    print("Spin Speed set to:", val)
+end)
+
+-- Object Teleport (Debris Collection)
+local debrisSelected = "Both"
+local debrisToggle = PlayerTab:CreateToggle("Enable Collect Debris", {Title = "Collect Debris", Default = false, Description = "Teleport DeadHP/DeadAmmo to you"})
+debrisToggle:OnChanged(function(state)
+    _G.isCollecting = state
+    if state then
+        spawn(function()
+            while _G.isCollecting do
+                pcall(function()
+                    local character = player.Character
+                    if character and character:FindFirstChild("HumanoidRootPart") then
+                        for _, v in pairs(workspace.Debris:GetChildren()) do
+                            if (debrisSelected == "DeadHP" and v.Name == "DeadHP") or
+                               (debrisSelected == "DeadAmmo" and v.Name == "DeadAmmo") or
+                               (debrisSelected == "Both" and (v.Name == "DeadHP" or v.Name == "DeadAmmo")) then
+                                v.CFrame = character.HumanoidRootPart.CFrame * CFrame.new(0, 0.2, 0)
+                            end
+                        end
+                    end
+                end)
+                wait(0.1)
+            end
+        end)
+    end
+    print("Collect Debris set to:", state)
+end)
+PlayerTab:CreateDropdown("Select Object", {
+    Title = "Select Object",
+    Values = {"DeadHP", "DeadAmmo", "Both"},
+    Multi = false,
+    Default = "Both"
+}):OnChanged(function(val)
+    debrisSelected = val
+    print("Debris selection set to:", val)
+end)
+
+-- Third Person Toggle
+local thirdPersonToggle = PlayerTab:CreateToggle("Third Person", {Title = "Third Person", Default = false, Description = "Toggle third-person view"})
+thirdPersonToggle:OnChanged(function(state)
+    if state then
+        -- Adjust zoom distances and force the camera to follow your humanoid
+        game:GetService("StarterPlayer").CameraMaxZoomDistance = 1000
+        game:GetService("StarterPlayer").CameraMinZoomDistance = 0
+        player.CameraMode = Enum.CameraMode.Classic
+        if player.Character then
+            workspace.CurrentCamera.CameraSubject = player.Character:FindFirstChildOfClass("Humanoid")
+        end
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        print("Third person enabled")
+    else
+        player.CameraMode = Enum.CameraMode.LockFirstPerson
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        print("Third person disabled, first person locked")
+    end
+end)
+
+--------------------------------
+-- Color Skins Tab (Arm & Gun Chams)
+--------------------------------
+local SkinsTab = Tabs["Color Skins"]
+
+-- Arm Skins
+local armMaterialDropdown = SkinsTab:CreateDropdown("Arm Material", {
+    Title = "Arm Material",
+    Values = {"Plastic", "ForceField", "Wood", "Grass"},
+    Multi = false,
+    Default = "Plastic"
+})
+armMaterialDropdown:OnChanged(function(val)
+    _G.armMaterial = val
+    print("Arm Material set to:", val)
+end)
+local armColorPicker = SkinsTab:CreateColorpicker("Arm Color", {
+    Title = "Arm Color",
+    Default = Color3.fromRGB(50,50,50)
+})
+armColorPicker:OnChanged(function()
+    _G.armColor = armColorPicker.Value
+    print("Arm Color set to:", armColorPicker.Value)
+end)
+local armCharmsToggle = SkinsTab:CreateToggle("Arm Charms", {Title = "Arm Charms", Default = false})
+armCharmsToggle:OnChanged(function(state)
+    _G.armCharms = state
+    if state then
+        spawn(function()
+            while _G.armCharms do
+                wait(0.01)
+                local cameraArms = workspace.CurrentCamera:WaitForChild("Arms")
+                if cameraArms then
+                    for _, part in pairs(cameraArms:GetDescendants()) do
+                        if (part.Name == "Right Arm" or part.Name == "Left Arm") and part:IsA("BasePart") then
+                            part.Material = Enum.Material[_G.armMaterial or "Plastic"]
+                            part.Color = _G.armColor or Color3.fromRGB(50,50,50)
                         end
                     end
                 end
             end
-        end
+        end)
     end
-    return closestPlayer
-end
-
--- Update circles and target every RenderStepped
-game:GetService("RunService").RenderStepped:Connect(function()
-    if getgenv().silentaim_settings.fovtoggle then
-        if getgenv().silentaim_settings.fovPlacement == "Mouse" then
-            fovCircle.Position = UserInputService:GetMouseLocation()
-        else
-            fovCircle.Position = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
-        end
-        fovCircle.Radius = getgenv().silentaim_settings.fovsize
-        fovCircle.Visible = true
-        silentAimCircle.Visible = false
-    else
-        fovCircle.Visible = false
-        silentAimCircle.Position = Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)
-        silentAimCircle.Radius = getgenv().silentaim_settings.fov
-        silentAimCircle.Visible = getgenv().silentaim_settings.enabled
-    end
-    if getgenv().silentaim_settings.enabled then
-        SilentAimTarget = GetClosestPlayer()
-    else
-        SilentAimTarget = nil
-    end
+    print("Arm Charms set to:", state)
 end)
 
--- New hook method: override workspace.Raycast using hookfunction (or direct assignment)
-local oldRaycast
-if hookfunction then
-    oldRaycast = hookfunction(workspace.Raycast, newcclosure(function(origin, direction, params, ignoreList)
-        if getgenv().silentaim_settings.enabled and SilentAimTarget and SilentAimTarget.Character then
-            local targetPart = SilentAimTarget.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
-            if targetPart then
-                local newDirection = (targetPart.Position - origin).Unit * 1000
-                direction = newDirection
-            end
-        end
-        return oldRaycast(origin, direction, params, ignoreList)
-    end))
-else
-    oldRaycast = workspace.Raycast
-    workspace.Raycast = newcclosure(function(origin, direction, params, ignoreList)
-        if getgenv().silentaim_settings.enabled and SilentAimTarget and SilentAimTarget.Character then
-            local targetPart = SilentAimTarget.Character:FindFirstChild(getgenv().silentaim_settings.hitbox)
-            if targetPart then
-                local newDirection = (targetPart.Position - origin).Unit * 1000
-                direction = newDirection
-            end
-        end
-        return oldRaycast(origin, direction, params, ignoreList)
-    end)
-end
-
-------------------------------------------------------------
--- SELLING TAB FUNCTIONS (NEW)
-------------------------------------------------------------
-local sellingDropdown = Tabs.Selling:CreateDropdown("PlayerPositionDropdown", {
-    Title = "Player Position",
-    Values = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+-- Gun Skins
+local gunMaterialDropdown = SkinsTab:CreateDropdown("Gun Material", {
+    Title = "Gun Material",
+    Values = {"Plastic", "ForceField", "Wood", "Grass"},
     Multi = false,
-    Default = 1,
+    Default = "Plastic"
 })
-local selectedSellingPosition = "1"
-sellingDropdown:OnChanged(function(value)
-    selectedSellingPosition = value
-    print("Selling dropdown changed:", value)
+gunMaterialDropdown:OnChanged(function(val)
+    _G.gunMaterial = val
+    print("Gun Material set to:", val)
 end)
-
-local sellingPositions = {
-    [1] = Vector3.new(-368.5, 27.75, -316.5),
-    [2] = Vector3.new(-386.5, 27.75, -316.5),
-    [3] = Vector3.new(-368.5, 27.75, -308.5),
-    [4] = Vector3.new(-386.5, 27.75, -308.5),
-    [5] = Vector3.new(-368.5, 27.75, -300.5),
-    [6] = Vector3.new(-386.5, 27.75, -300.5),
-    [7] = Vector3.new(-368.5, 27.75, -292.5),
-    [8] = Vector3.new(-386.5, 27.75, -292.5),
-    [9] = Vector3.new(-368.5, 27.75, -284.5),
-    [10] = Vector3.new(-386.5, 27.75, -284.5),
-}
-
-local sellingParts = {}
-local partsSpawned = false
-
-local lockActive = false
-local lockConnection = nil
-local lockedPosition = nil
-
-Tabs.Selling:CreateButton({
-    Title = "Setup Position",
-    Callback = function()
-        local selectedIndex = tonumber(selectedSellingPosition) or 1
-
-        if not partsSpawned then
-            for i = 1, 10 do
-                local pos = sellingPositions[i]
-                local part = Instance.new("Part")
-                part.Size = Vector3.new(1, 1, 1)
-                part.Anchored = true
-                part.Transparency = 0.9
-                part.CFrame = CFrame.new(pos)
-                part.Parent = game.Workspace
-                sellingParts[i] = part
-            end
-            partsSpawned = true
-        end
-
-        local targetPart = sellingParts[selectedIndex]
-        local player = game.Players.LocalPlayer
-        if targetPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = player.Character.HumanoidRootPart
-            local targetCFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
-            local distance = (hrp.Position - targetCFrame.Position).Magnitude
-            local tween = TweenService:Create(hrp, TweenInfo.new(distance / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-            table.insert(State.ActiveTweens, tween)
-            tween:Play()
-            tween.Completed:Connect(function()
-                for i, t in ipairs(State.ActiveTweens) do
-                    if t == tween then
-                        table.remove(State.ActiveTweens, i)
-                        break
+local gunColorPicker = SkinsTab:CreateColorpicker("Gun Color", {
+    Title = "Gun Color",
+    Default = Color3.fromRGB(50,50,50)
+})
+gunColorPicker:OnChanged(function()
+    _G.gunColor = gunColorPicker.Value
+    print("Gun Color set to:", gunColorPicker.Value)
+end)
+local gunCharmsToggle = SkinsTab:CreateToggle("Gun Charms", {Title = "Gun Charms", Default = false})
+gunCharmsToggle:OnChanged(function(state)
+    _G.gunCharms = state
+    if state then
+        spawn(function()
+            while _G.gunCharms do
+                wait(0.01)
+                local arms = workspace.CurrentCamera:WaitForChild("Arms")
+                if arms then
+                    for _, part in pairs(arms:GetDescendants()) do
+                        if part:IsA("MeshPart") then
+                            part.Material = Enum.Material[_G.gunMaterial or "Plastic"]
+                            part.Color = _G.gunColor or Color3.fromRGB(50,50,50)
+                        end
                     end
                 end
-            end)
-            tween.Completed:Wait()
-            if lockActive then
-                lockedPosition = player.Character.HumanoidRootPart.CFrame
             end
-        else
-            Library:Notify({Title = "Error", Content = "Player or target part not found!", Duration = 3})
+        end)
+    end
+    print("Gun Charms set to:", state)
+end)
+
+-- Rainbow Gun examples
+local rainbowGunToggle1 = SkinsTab:CreateToggle("Rainbow Gun v1", {Title = "Rainbow Gun v1", Default = false})
+rainbowGunToggle1:OnChanged(function(state)
+    _G.rainbowGun1 = state
+    print("Rainbow Gun v1 set to:", state)
+end)
+game:GetService("RunService").RenderStepped:Connect(function() 
+    if workspace.CurrentCamera:FindFirstChild('Arms') and _G.rainbowGun1 then 
+        local c = tick() % 1
+        for _, part in pairs(workspace.CurrentCamera.Arms:GetDescendants()) do 
+            if part:IsA('MeshPart') then 
+                part.Color = Color3.fromHSV(c, 1, 1)
+            end 
+        end 
+    end 
+end)
+local rainbowGunToggle2 = SkinsTab:CreateToggle("Rainbow Gun v2 [Crazy Fast Animation]", {Title = "Rainbow Gun v2", Default = false})
+rainbowGunToggle2:OnChanged(function(state)
+    _G.rainbowGun2 = state
+    print("Rainbow Gun v2 set to:", state)
+end)
+local rainbowHue = 0
+local hueIncrement = 0.1
+game:GetService("RunService").RenderStepped:Connect(function()
+    if workspace.CurrentCamera:FindFirstChild('Arms') and _G.rainbowGun2 then
+        rainbowHue = rainbowHue + hueIncrement
+        if rainbowHue >= 1 then rainbowHue = rainbowHue % 1 end
+        for _, part in pairs(workspace.CurrentCamera.Arms:GetDescendants()) do
+            if part:IsA('MeshPart') then
+                part.Color = Color3.fromHSV(rainbowHue, 1, 1)
+            end
         end
     end
-})
+end)
 
-Tabs.Selling:CreateToggle("Lock_Position", {
-    Title = "Lock Position",
-    Default = false
-}):OnChanged(function(state)
-    local player = game.Players.LocalPlayer
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+--------------------------------
+-- Extra Tab
+--------------------------------
+local ExtraTab = Tabs.Extra
+
+local particlesToggle = ExtraTab:CreateToggle("Mess up your screen lol", {Title = "Particles", Default = false, Description = "Enable/disable particles on your character"})
+particlesToggle:OnChanged(function(state)
     if state then
-        if hrp then
-            lockedPosition = hrp.CFrame
-            originalAnchored = hrp.Anchored
-            hrp.Anchored = true
-            lockActive = true
-            lockConnection = coroutine.create(function()
-                while lockActive do
-                    wait(3)
-                    if not lockActive then break end
-                    local offset = Vector3.new(0, 0, -0.8)
-                    local tween1 = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = lockedPosition * CFrame.new(offset)})
-                    tween1:Play()
-                    tween1.Completed:Wait()
-                    local tween2 = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = lockedPosition})
-                    tween2:Play()
-                    tween2.Completed:Wait()
-                end
-            end)
-            coroutine.resume(lockConnection)
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("ParticleEmitter") then
+                v.Parent = player.Character and player.Character:FindFirstChild("Particle Area") or v.Parent
+            end
         end
     else
-        lockActive = false
-        if hrp then
-            hrp.Anchored = originalAnchored or false
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("ParticleEmitter") then
+                v.Parent = workspace
+            end
         end
-        lockConnection = nil
     end
+    print("Particles set to:", state)
 end)
 
-Tabs.Selling:CreateToggle("Cash_Drop", {
-    Title = "Cash Drop", 
-    Default = false
-}):OnChanged(function(state)
-    State.CashDropActive = state
+local maxLevelToggle = ExtraTab:CreateToggle("Max Level???", {Title = "Max Level", Default = false, Description = "Set your score and kills to astronomical values"})
+maxLevelToggle:OnChanged(function(state)
+    local stats = player.CareerStatsCache
+    if state and stats then
+        stats.Score.Value = 1e18
+        stats.Kills.Value = 1e14
+    end
+    print("Max Level set to:", state)
+end)
+
+local changeNameToggle = ExtraTab:CreateToggle("Change Name", {Title = "Change Name", Default = false, Description = "Change your name in various GUIs"})
+changeNameToggle:OnChanged(function(state)
+    _G.hidename = state
     if state then
-        coroutine.wrap(CashDrop)()
+        spawn(function()
+            while _G.hidename do
+                pcall(function()
+                    local gui = player.PlayerGui
+                    if gui and gui.Menew_Main and gui.GUI_Scorecard then
+                        gui.Menew_Main.Container.PlrName.Text = "AdvanceChan UwU"
+                        gui.Menew_Main.Container.PlrName2.Text = "AdvanceChan UwU"
+                        gui.GUI_Scorecard.Scorecard.PlayerCard.Username.Text = "AdvanceFalling Team"
+                    end
+                end)
+                wait(0.2)
+            end
+        end)
     end
+    print("Change Name set to:", state)
 end)
 
+local chadToggle = ExtraTab:CreateToggle("IsChad", {Title = "IsChad", Default = false})
+chadToggle:OnChanged(function(state)
+    if state then
+        if not player:FindFirstChild("IsChad") then
+            local iv = Instance.new("IntValue", player)
+            iv.Name = "IsChad"
+        end
+    else
+        if player:FindFirstChild("IsChad") then
+            player.IsChad:Destroy()
+        end
+    end
+    print("IsChad set to:", state)
+end)
 
+local vipToggle = ExtraTab:CreateToggle("VIP", {Title = "VIP", Default = false})
+vipToggle:OnChanged(function(state)
+    if state then
+        if not player:FindFirstChild("VIP") then
+            local iv = Instance.new("IntValue", player)
+            iv.Name = "VIP"
+        end
+    else
+        if player:FindFirstChild("VIP") then
+            player.VIP:Destroy()
+        end
+    end
+    print("VIP set to:", state)
+end)
 
-------------------------------------------------------------
--- MISC TAB
-------------------------------------------------------------
-Tabs.Misc:CreateButton({
-    Title = "Destroy Map",
-    Callback = DestroyMap
+--------------------------------
+-- Visuals Tab (ESP)
+--------------------------------
+local VisualsTab = Tabs.Visuals
+local espLib = loadstring(game:HttpGet("https://rawscript.vercel.app/api/raw/esp_1"))()
+
+local espToggle = VisualsTab:CreateToggle("Enable ESP", {Title = "Enable ESP", Default = false})
+espToggle:OnChanged(function(state)
+    espLib:Toggle(state)
+    espLib.Players = state
+    print("ESP set to:", state)
+end)
+local tracersToggle = VisualsTab:CreateToggle("Tracers ESP", {Title = "Tracers", Default = false})
+tracersToggle:OnChanged(function(state)
+    espLib.Tracers = state
+    print("ESP Tracers set to:", state)
+end)
+local namesToggle = VisualsTab:CreateToggle("Name ESP", {Title = "Names", Default = false})
+namesToggle:OnChanged(function(state)
+    espLib.Names = state
+    print("ESP Names set to:", state)
+end)
+local boxesToggle = VisualsTab:CreateToggle("Boxes ESP", {Title = "Boxes", Default = false})
+boxesToggle:OnChanged(function(state)
+    espLib.Boxes = state
+    print("ESP Boxes set to:", state)
+end)
+local teamColorToggle = VisualsTab:CreateToggle("Team Coordinate", {Title = "Team Color", Default = false})
+teamColorToggle:OnChanged(function(state)
+    espLib.TeamColor = state
+    print("ESP Team Color set to:", state)
+end)
+local teammatesToggle = VisualsTab:CreateToggle("Teammates", {Title = "Show Teammates", Default = false})
+teammatesToggle:OnChanged(function(state)
+    espLib.TeamMates = state
+    print("ESP Teammates set to:", state)
+end)
+local espColorPicker = VisualsTab:CreateColorpicker("ESP Color", {Title = "ESP Color", Default = Color3.fromRGB(255,255,255)})
+espColorPicker:OnChanged(function()
+    espLib.Color = espColorPicker.Value
+    print("ESP Color set to:", espColorPicker.Value)
+end)
+
+--------------------------------
+-- Settings Tab (Performance, Server Hop, etc.)
+--------------------------------
+local SettingsTab = Tabs.Settings
+
+local antiLagToggle = SettingsTab:CreateToggle("Anti Lag", {Title = "Anti Lag", Default = false, Description = "Optimize materials and decals"})
+antiLagToggle:OnChanged(function(state)
+    if state then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj.Parent:FindFirstChild("Humanoid") then
+                obj.Material = Enum.Material.SmoothPlastic
+            end
+        end
+    else
+        -- Restoration logic can be added if desired.
+    end
+    print("Anti Lag set to:", state)
+end)
+local fpsBoostToggle = SettingsTab:CreateToggle("FPS Boost", {Title = "FPS Boost", Default = false})
+fpsBoostToggle:OnChanged(function(state)
+    if state then
+        local terrain = workspace.Terrain
+        terrain.WaterWaveSize = 0
+        terrain.WaterWaveSpeed = 0
+        game.Lighting.GlobalShadows = false
+        game.Lighting.FogEnd = 9e9
+        settings().Rendering.QualityLevel = "Level01"
+    else
+        settings().Rendering.QualityLevel = "Automatic"
+    end
+    print("FPS Boost set to:", state)
+end)
+local fullBrightToggle = SettingsTab:CreateToggle("Full Bright", {Title = "Full Bright", Default = false})
+fullBrightToggle:OnChanged(function(state)
+    local L = game:GetService("Lighting")
+    if state then
+        L.Ambient = Color3.new(1,1,1)
+        L.ColorShift_Bottom = Color3.new(1,1,1)
+        L.ColorShift_Top = Color3.new(1,1,1)
+    else
+        L.Ambient = Color3.new(0.5,0.5,0.5)
+        L.ColorShift_Bottom = Color3.new(0,0,0)
+        L.ColorShift_Top = Color3.new(0,0,0)
+    end
+    print("Full Bright set to:", state)
+end)
+local serverHopButton = SettingsTab:CreateButton{
+    Title = "Server Hop",
+    Description = "Hop to another server",
+    Callback = function()
+        -- Insert your full server hop logic here.
+        print("Server Hop triggered")
+    end
+}
+local rejoinButton = SettingsTab:CreateButton{
+    Title = "Rejoin Server",
+    Description = "Rejoin current server",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(game.PlaceId, player)
+    end
+}
+local closeUIKeybind = SettingsTab:CreateKeybind("Close UI", {
+    Title = "Close UI Keybind",
+    Default = "LeftControl",
+    Mode = "Toggle",
+    Callback = function(val)
+        Library:ToggleUI()
+        print("UI toggled, key state:", val)
+    end
 })
+closeUIKeybind:OnChanged(function(val)
+    print("Close UI Keybind changed:", val)
+end)
 
-------------------------------------------------------------
--- SETTINGS TAB (Interface & Config Sections)
-------------------------------------------------------------
+--------------------------------
+-- Hand Over to SaveManager & InterfaceManager
+--------------------------------
 SaveManager:SetLibrary(Library)
 InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
+InterfaceManager:SetFolder("FluentScriptHub")
+SaveManager:SetFolder("FluentScriptHub/specific-game")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-------------------------------------------------------------
--- ANTI-IDLE
-------------------------------------------------------------
-game:GetService("Players").LocalPlayer.Idled:Connect(function()
-    game:GetService("VirtualUser"):CaptureController()
-    game:GetService("VirtualUser"):ClickButton2(Vector2.new())
-end)
-
-------------------------------------------------------------
--- SEAT REMOVAL
-------------------------------------------------------------
-for _, seat in ipairs(game:GetDescendants()) do
-    if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
-        seat:Destroy()
-        seatsFound = true
-    end
-end
-
-if not seatsFound then
-    warn("No seats found in the game!")
-end
-
-Library:Notify({
-    Title = "Script Loaded",
-    Content = "Script loaded successfully.",
-    Duration = 5
-})
+Window:SelectTab(1)
+Library:Notify{
+    Title = "Arsenal - Collapse",
+    Content = "The script has been loaded.",
+    Duration = 8
+}
+SaveManager:LoadAutoloadConfig()
