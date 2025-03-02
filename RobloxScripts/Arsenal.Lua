@@ -1,5 +1,3 @@
-
-
 -------------------------------
 -- Load Fluent and Add‑Ons
 -------------------------------
@@ -60,8 +58,6 @@ local Tabs = {
 --------------------------------
 -- COMMON FUNCTIONS & VARIABLES
 --------------------------------
-
-
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -146,13 +142,10 @@ end)
 -- HITBOX FUNCTIONS
 --------------------------------
 local hitboxEnabled = false
--- Collision is always enabled; no toggle.
 local hitbox_original_properties = {}
 local hitboxSize = 21
 local hitboxTransparency = 6
 local defaultBodyParts = {"UpperTorso", "Head", "HumanoidRootPart"}
-
--- New flag for team-check; default is false (hitboxes expand for everyone)
 local hitboxTeamCheckEnabled = false
 
 local function savedPart(plr, part)
@@ -196,15 +189,13 @@ local function extendHitbox(plr)
         local part = plr.Character and (plr.Character:FindFirstChild(partName) or findClosestPart(plr, partName))
         if part and part:IsA("BasePart") then
             savedPart(plr, part)
-            -- Set hitbox collision off to prevent interference:
-            part.CanCollide = false  -- Change to true if you want collision enabled
+            part.CanCollide = false
             part.Transparency = hitboxTransparency / 10
             part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         end
     end
 end
 
--- When team-check is enabled, only expand hitboxes for enemies.
 local function isEnemy(plr)
     if hitboxTeamCheckEnabled then
         return plr.Team ~= player.Team
@@ -335,7 +326,6 @@ local originalValues = {FireRate = {}, ReloadTime = {}, EReloadTime = {}, Auto =
 --------------------------------
 local MainTab = Tabs.Main
 
--- Hitbox Section
 local hitboxToggle = MainTab:CreateToggle("Enable Hitbox", {Title = "[CLICK THIS FIRST] Enable Hitbox", Default = false, Description = "Continuously update hitboxes"})
 hitboxToggle:OnChanged(function(state)
     hitboxEnabled = state
@@ -360,7 +350,7 @@ local hitboxSizeSlider = MainTab:CreateSlider("Hitbox Size", {
     Description = "Adjust the hitbox size",
     Default = hitboxSize,
     Min = 1,
-    Max = 25,
+    Max = 25,  -- Maximum set to 25
     Rounding = 0
 })
 hitboxSizeSlider:OnChanged(function(val)
@@ -383,7 +373,6 @@ hitboxTransSlider:OnChanged(function(val)
     print("Hitbox Transparency set to:", val)
 end)
 
--- New Team Check Toggle (default off)
 local teamCheckToggle = MainTab:CreateToggle("Enable Team Check (Hitbox)", {Title = "Team Check (Hitbox)", Default = false, Description = "When enabled, only enemy hitboxes expand"})
 teamCheckToggle:OnChanged(function(state)
     hitboxTeamCheckEnabled = state
@@ -391,7 +380,6 @@ teamCheckToggle:OnChanged(function(state)
     print("Team Check (Hitbox) set to:", state)
 end)
 
--- AutoFarm Section
 local autofarmToggle = MainTab:CreateToggle("AutoFarm", {Title = "AutoFarm", Default = false, Description = "Automatically move and shoot nearest enemy"})
 autofarmToggle:OnChanged(function(state)
     getgenv().AutoFarm = state
@@ -407,7 +395,6 @@ autofarmToggle:OnChanged(function(state)
     print("AutoFarm set to:", state)
 end)
 
--- Triggerbot Section
 local triggerbotToggle = MainTab:CreateToggle("Enable Triggerbot", {Title = "Triggerbot", Default = false, Description = "Toggle triggerbot on/off"})
 triggerbotToggle:OnChanged(function(state)
     getgenv().triggerb = state
@@ -443,7 +430,6 @@ end)
 --------------------------------
 local GunTab = Tabs["Gun Mods"]
 
--- Only one Infinite Ammo toggle (v2 renamed)
 local infiniteAmmoToggle = GunTab:CreateToggle("Infinite Ammo", {Title = "Infinite Ammo", Default = false, Description = "Toggle infinite ammo"})
 infiniteAmmoToggle:OnChanged(function(state)
     if state then
@@ -558,7 +544,6 @@ end)
 --------------------------------
 local PlayerTab = Tabs.Player
 
--- Fly Controls
 local flyToggle = PlayerTab:CreateToggle("Fly", {Title = "Fly", Default = false, Description = "Toggle fly mode"})
 flyToggle:OnChanged(function(state)
     if state then
@@ -582,35 +567,35 @@ flySpeedSlider:OnChanged(function(val)
     print("Fly Speed set to:", val)
 end)
 
+-----------------------------
 -- Custom WalkSpeed Controls
+-----------------------------
 local isWalkSpeedEnabled = false
-local selectedWalkMethod = "Velocity"
-local walkSettings = { WalkSpeed = 16 }
 PlayerTab:CreateToggle("Custom WalkSpeed", {Title = "Custom WalkSpeed", Default = false, Description = "Toggle custom walk speed"}):OnChanged(function(state)
     isWalkSpeedEnabled = state
     print("Custom WalkSpeed set to:", state)
 end)
+local walkSpeedSlider = PlayerTab:CreateSlider("Walkspeed Power", {
+    Title = "Walkspeed Power",
+    Description = "Adjust walkspeed power",
+    Default = 16,
+    Min = 16,
+    Max = 500,
+    Rounding = 0
+})
+walkSpeedSlider:OnChanged(function(val)
+    print("WalkSpeed Power set to:", val)
+end)
+local selectedWalkMethod = "Vector"
 PlayerTab:CreateDropdown("Walk Method", {
     Title = "Walk Method",
     Values = {"Velocity", "Vector", "CFrame"},
     Multi = false,
-    Default = "Velocity"
+    Default = "Vector"
 }):OnChanged(function(val)
     selectedWalkMethod = val
     print("Walk Method set to:", val)
 end)
-PlayerTab:CreateSlider("Walkspeed Power", {
-    Title = "Walkspeed Power",
-    Description = "Adjust walkspeed power",
-    Default = walkSettings.WalkSpeed,
-    Min = 16,
-    Max = 500,
-    Rounding = 0
-}):OnChanged(function(val)
-    walkSettings.WalkSpeed = val
-    print("WalkSpeed Power set to:", val)
-end)
-
 game:GetService("RunService").Stepped:Connect(function(deltaTime)
     if isWalkSpeedEnabled then
         local character = player.Character
@@ -619,7 +604,7 @@ game:GetService("RunService").Stepped:Connect(function(deltaTime)
             local rootPart = character:FindFirstChild("HumanoidRootPart")
             if humanoid and rootPart then
                 local moveDir = humanoid.MoveDirection
-                local speed = walkSettings.WalkSpeed
+                local speed = walkSpeedSlider.Value
                 if selectedWalkMethod == "Velocity" then
                     if moveDir.Magnitude > 0 then
                         rootPart.Velocity = Vector3.new(moveDir.X * speed, rootPart.Velocity.Y, moveDir.Z * speed)
@@ -640,10 +625,12 @@ game:GetService("RunService").Stepped:Connect(function(deltaTime)
     end
 end)
 
+-----------------------------
 -- Custom JumpPower Controls
+-----------------------------
 local isJumpPowerEnabled = false
-local jumpMethod = "Velocity"
-local currentJumpPower = 50  -- Default set to 50
+local jumpMethod = "Vector"
+local currentJumpPower = 50
 local jumpConn
 PlayerTab:CreateToggle("Custom JumpPower", {Title = "Custom JumpPower", Default = false, Description = "Toggle custom jump power"}):OnChanged(function(state)
     isJumpPowerEnabled = state
@@ -653,7 +640,7 @@ PlayerTab:CreateDropdown("Jump Method", {
     Title = "Jump Method",
     Values = {"Velocity", "Vector", "CFrame"},
     Multi = false,
-    Default = "Velocity"
+    Default = "Vector"
 }):OnChanged(function(val)
     jumpMethod = val
     print("Jump Method set to:", val)
@@ -687,50 +674,60 @@ PlayerTab:CreateSlider("Change JumpPower", {
     print("JumpPower set to:", val)
 end)
 
+-----------------------------
 -- Anti-Aim Controls
-local antiAimToggle = PlayerTab:CreateToggle("Anti-Aim v1", {Title = "Anti-Aim v1", Default = false, Description = "Toggle anti-aim"})
+-----------------------------
+local antiAimEnabled = false
+local antiAimConnection
+-- The slider value now represents spins per second (1 = 360° per sec)
+local spinSpeed = 1
+
+local antiAimToggle = PlayerTab:CreateToggle("Anti-Aim v1", {Title = "Anti-Aim v1", Default = false, Description = "Toggle anti-aim (continuous spin)"})
 antiAimToggle:OnChanged(function(state)
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if state and hrp then
-        local spin = Instance.new("BodyAngularVelocity", hrp)
-        spin.Name = "AntiAimSpin"
-        spin.AngularVelocity = Vector3.new(0, 10, 0)
-        spin.MaxTorque = Vector3.new(0, math.huge, 0)
-        spin.P = 500000
-        local gyro = Instance.new("BodyGyro", hrp)
-        gyro.Name = "AntiAimGyro"
-        gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-        gyro.CFrame = hrp.CFrame
-        gyro.P = 3000
+    antiAimEnabled = state
+    if state then
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        local head = player.Character and player.Character:FindFirstChild("Head")
+        antiAimConnection = game:GetService("RunService").RenderStepped:Connect(function(delta)
+            if hrp then
+                hrp.CFrame = hrp.CFrame * CFrame.Angles(0, spinSpeed * 2 * math.pi * delta, 0)
+            end
+            if head then
+                local gyro = head:FindFirstChild("AntiAimGyro")
+                if not gyro then
+                    gyro = Instance.new("BodyGyro", head)
+                    gyro.Name = "AntiAimGyro"
+                    gyro.MaxTorque = Vector3.new(400000,400000,400000)
+                    gyro.P = 3000
+                end
+                gyro.CFrame = gyro.CFrame * CFrame.Angles(0, spinSpeed * 2 * math.pi * delta, 0)
+            end
+        end)
     else
-        if hrp then
-            local spin = hrp:FindFirstChild("AntiAimSpin")
-            if spin then spin:Destroy() end
-            local gyro = hrp:FindFirstChild("AntiAimGyro")
-            if gyro then gyro:Destroy() end
+        if antiAimConnection then
+            antiAimConnection:Disconnect()
+            antiAimConnection = nil
         end
     end
     print("Anti-Aim set to:", state)
 end)
-PlayerTab:CreateSlider("Spin Speed", {
+
+local spinSpeedSlider = PlayerTab:CreateSlider("Spin Speed", {
     Title = "Spin Speed",
-    Description = "Adjust anti-aim spin speed",
-    Default = 10,
-    Min = 10,
-    Max = 100,
+    Description = "Set spins per second (1 = 360°/sec)",
+    Default = spinSpeed,
+    Min = 1,
+    Max = 10,
     Rounding = 0
-}):OnChanged(function(val)
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local spin = hrp:FindFirstChild("AntiAimSpin")
-        if spin then
-            spin.AngularVelocity = Vector3.new(0, val, 0)
-        end
-    end
-    print("Spin Speed set to:", val)
+})
+spinSpeedSlider:OnChanged(function(val)
+    spinSpeed = val
+    print("Spin Speed set to:", val, "spins per second")
 end)
 
+-----------------------------
 -- Object Teleport (Debris Collection)
+-----------------------------
 local debrisSelected = "Both"
 local debrisToggle = PlayerTab:CreateToggle("Enable Collect Debris", {Title = "Collect Debris", Default = false, Description = "Teleport DeadHP/DeadAmmo to you"})
 debrisToggle:OnChanged(function(state)
@@ -766,11 +763,12 @@ PlayerTab:CreateDropdown("Select Object", {
     print("Debris selection set to:", val)
 end)
 
+-----------------------------
 -- Third Person Toggle
+-----------------------------
 local thirdPersonToggle = PlayerTab:CreateToggle("Third Person", {Title = "Third Person", Default = false, Description = "Toggle third-person view"})
 thirdPersonToggle:OnChanged(function(state)
     if state then
-        -- Adjust zoom distances and force the camera to follow your humanoid
         game:GetService("StarterPlayer").CameraMaxZoomDistance = 1000
         game:GetService("StarterPlayer").CameraMinZoomDistance = 0
         player.CameraMode = Enum.CameraMode.Classic
@@ -780,9 +778,9 @@ thirdPersonToggle:OnChanged(function(state)
         workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
         print("Third person enabled")
     else
-        player.CameraMode = Enum.CameraMode.LockFirstPerson
+        player.CameraMode = Enum.CameraMode.Classic
         workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-        print("Third person disabled, first person locked")
+        print("Third person disabled")
     end
 end)
 
@@ -791,7 +789,6 @@ end)
 --------------------------------
 local SkinsTab = Tabs["Color Skins"]
 
--- Arm Skins
 local armMaterialDropdown = SkinsTab:CreateDropdown("Arm Material", {
     Title = "Arm Material",
     Values = {"Plastic", "ForceField", "Wood", "Grass"},
@@ -832,7 +829,6 @@ armCharmsToggle:OnChanged(function(state)
     print("Arm Charms set to:", state)
 end)
 
--- Gun Skins
 local gunMaterialDropdown = SkinsTab:CreateDropdown("Gun Material", {
     Title = "Gun Material",
     Values = {"Plastic", "ForceField", "Wood", "Grass"},
@@ -873,7 +869,6 @@ gunCharmsToggle:OnChanged(function(state)
     print("Gun Charms set to:", state)
 end)
 
--- Rainbow Gun examples
 local rainbowGunToggle1 = SkinsTab:CreateToggle("Rainbow Gun v1", {Title = "Rainbow Gun v1", Default = false})
 rainbowGunToggle1:OnChanged(function(state)
     _G.rainbowGun1 = state
@@ -1085,7 +1080,6 @@ local serverHopButton = SettingsTab:CreateButton{
     Title = "Server Hop",
     Description = "Hop to another server",
     Callback = function()
-        -- Insert your full server hop logic here.
         print("Server Hop triggered")
     end
 }
