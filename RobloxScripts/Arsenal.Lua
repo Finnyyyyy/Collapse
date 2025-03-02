@@ -360,7 +360,7 @@ local hitboxSizeSlider = MainTab:CreateSlider("Hitbox Size", {
     Description = "Adjust the hitbox size",
     Default = hitboxSize,
     Min = 1,
-    Max = 50,
+    Max = 25,
     Rounding = 0
 })
 hitboxSizeSlider:OnChanged(function(val)
