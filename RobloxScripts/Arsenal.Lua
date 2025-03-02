@@ -1,17 +1,4 @@
---[[
-    AdvanceTech Arsenal | v1.7 (Fluent-Renewed GUI Version – Revised)
-    Modified by AdvancedFalling Team
 
-    Changes:
-      • Theme set to "VSC Dark High Contrast"
-      • Removed Infinite Ammo v1; only the Infinite Ammo toggle remains.
-      • Hitbox expansion:
-            - The team-check toggle is off by default (so hitboxes expand for everyone).
-            - The extended hitboxes are set to be non-collidable (to avoid interfering with movement).
-              (If you prefer collision enabled, change 'part.CanCollide = false' to true.)
-      • Default jump height is set to 50.
-      • A new Third Person toggle has been added in the Player tab.
---]]
 
 -------------------------------
 -- Load Fluent and Add‑Ons
@@ -373,7 +360,7 @@ local hitboxSizeSlider = MainTab:CreateSlider("Hitbox Size", {
     Description = "Adjust the hitbox size",
     Default = hitboxSize,
     Min = 1,
-    Max = 25,
+    Max = 50,
     Rounding = 0
 })
 hitboxSizeSlider:OnChanged(function(val)
