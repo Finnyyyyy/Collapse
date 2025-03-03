@@ -586,7 +586,7 @@ local function RunATMAutofarm()
             end
         end
 
-        task.wait(0.4)
+        task.wait(0.5)
     end
 
     if PositionUpdateConnection then
@@ -609,7 +609,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.35)
+        task.wait(0.425
     end
 end
 
