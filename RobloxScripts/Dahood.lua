@@ -609,7 +609,7 @@ local function CashAura()
                 end
             end
         end
-        task.wait(0.425
+        task.wait(0.425)
     end
 end
 
