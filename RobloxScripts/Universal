@@ -3,7 +3,7 @@ local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/re
 
 -- Create the main window using MacLib (GUI size set to 800x500) with keybind set to RightShift
 local Window = MacLib:Window({
-	Title = "Collapse | Vampire Hunters",
+	Title = "Collapse | Vh3",
 	Subtitle = "| Made by Finny <3",
 	Size = UDim2.fromOffset(800, 500),
 	DragStyle = 2,
@@ -59,10 +59,11 @@ local tabGroups = {
 	Other = Window:TabGroup()
 }
 
--- Create Tabs
+-- Create Tabs in the desired order: Aim Assist, Visuals, Player, then Settings.
 local tabs = {
 	AimAssist = tabGroups.Aim:Tab({ Name = "Aim Assist", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
+	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }), -- using an eye-like icon
 	Settings = tabGroups.Other:Tab({ Name = "Settings", Image = "rbxassetid://110807522910450" })
 }
 
@@ -83,7 +84,7 @@ local currentTracerPosition = "Bottom"  -- default tracer position
 local Aiming = false
 local currentTarget = nil
 
--- ESP Table
+-- ESP Table (for visuals only)
 local ESP = {
     Enabled = true,
     Box = {
@@ -117,7 +118,19 @@ local ESP = {
     }
 }
 
--- Aim Settings (global) with extra customization defaults
+--------------------------------------------------
+-- Global ESP Distance Check Settings (for ESP) --
+--------------------------------------------------
+if getgenv().distanceCheckEnabled == nil then
+    getgenv().distanceCheckEnabled = false
+end
+if getgenv().distanceCheckValue == nil then
+    getgenv().distanceCheckValue = 500
+end
+
+--------------------------------------------------
+-- Aim Settings and FOV Circle Setup              --
+--------------------------------------------------
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
@@ -126,19 +139,19 @@ getgenv().aim_settings = {
     aimKey = Enum.KeyCode.E,
     
     -- FOV circle customizations:
-    method = "Camera",           -- Dropdown: "Camera" (default) or "Mouse"
-    fovThickness = 1,            -- Slider 1 to 5 (thickness of the FOV circle)
+    method = "Camera",           -- "Camera" (default) or "Mouse"
+    fovThickness = 1,            -- thickness of the FOV circle
     fovCircleColor = Color3.fromRGB(255,255,255),
-    fovCircleFilled = false,     -- Whether the circle is filled
-    fovCircleTransparency = 1,   -- Slider 0.1 to 1, applies to the entire circle
+    fovCircleFilled = false,     -- whether the circle is filled
+    fovCircleTransparency = 1,   -- transparency (0.1 to 1)
     
     -- Smoothing and Prediction settings:
-    enableSmoothness = false,    -- When enabled, makes lock-on less snappy
-    smoothnessX = 1,             -- Slider 1 to 10 (affects interpolation factor)
-    smoothnessY = 1,             -- Slider 1 to 10 (we average these for simplicity)
-    enablePredictions = false,   -- When enabled, offsets the target position
-    predictionOffsetX = 0,       -- Slider -10 to 10 (in studs; x offset)
-    predictionOffsetY = 0        -- Slider -10 to 10 (in studs; y offset)
+    enableSmoothness = false,    -- when enabled, makes lock-on less snappy
+    smoothnessX = 1,             -- affects interpolation factor
+    smoothnessY = 1,             -- affects interpolation factor
+    enablePredictions = false,   -- offsets the target position
+    predictionOffsetX = 0,       -- x offset in studs
+    predictionOffsetY = 0        -- y offset in studs
 }
 local currentAimKey = getgenv().aim_settings.aimKey
 
@@ -170,13 +183,11 @@ local function AimLock()
         if onScreen and distance <= getgenv().aim_settings.fov then
             local pos = CurrentCamera.CFrame.Position
             local targetPos = targetPart.Position
-            -- Apply prediction offset if enabled
             if getgenv().aim_settings.enablePredictions then
                 targetPos = targetPos + Vector3.new(getgenv().aim_settings.predictionOffsetX, getgenv().aim_settings.predictionOffsetY, 0)
             end
             local desiredLook = (targetPos - pos).Unit
             if getgenv().aim_settings.enableSmoothness then
-                -- Average smoothness factor from X and Y (the higher the value, the slower the movement)
                 local smoothFactor = 1 / ((getgenv().aim_settings.smoothnessX + getgenv().aim_settings.smoothnessY) / 2)
                 local currentLook = CurrentCamera.CFrame.LookVector
                 local newLook = currentLook:Lerp(desiredLook, smoothFactor)
@@ -232,6 +243,7 @@ end
 ------------------
 -- ESP Functions --
 ------------------
+-- (This Functions table is used solely by the ESP)
 local Functions = {}
 do 
     function Functions:IsAlive(Player)
@@ -329,6 +341,20 @@ do
 
             local HumanoidRootPart = Player.Character.HumanoidRootPart
             if not HumanoidRootPart then return HideESP() end
+
+            -- For ESP only: if distance check is enabled and the player is beyond the limit, hide drawings.
+            if getgenv().distanceCheckEnabled and Functions:GetDistance(Player) > getgenv().distanceCheckValue then
+                BoxOutline.Visible = false
+                Box.Visible = false
+                TracerOutline.Visible = false
+                Tracer.Visible = false
+                HealthBarOutline.Visible = false
+                HealthBar.Visible = false
+                ToolText.Visible = false
+                DistanceText.Visible = false
+                HealthText.Visible = false
+                return
+            end
 
             local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
             if not OnScreen then return HideESP() end
@@ -473,7 +499,7 @@ end)
 --------------------------
 -- GUI: Aim Assist Tab --
 --------------------------
--- Left Column: Basic Controls and then below it, Smooth & Prediction settings
+-- Left Column: Basic Controls then Smooth & Prediction settings
 local aimBasic = tabs.AimAssist:Section({ Side = "Left" })
 aimBasic:Toggle({
 	Name = "Aim Assist",
@@ -535,7 +561,7 @@ aimBasic:Dropdown({
 	end,
 }, "AimTargetDropdown")
 
--- Below Basic Controls: Smoothness & Prediction (in a separate section below on the left)
+-- Below Basic Controls: Smoothness & Prediction
 local aimSmooth = tabs.AimAssist:Section({ Side = "Left", VerticalOrder = true })
 aimSmooth:Toggle({
 	Name = "Enable Smoothness",
@@ -720,6 +746,29 @@ visualsLeft:Toggle({
 	end,
 }, "DistanceESPToggle")
 
+-- Checks Section (for ESP only – distance filtering)
+local visualsChecks = tabs.Visuals:Section({ Side = "Left", Title = "Checks" })
+visualsChecks:Toggle({
+    Name = "Distance Check",
+    Default = false,
+    Callback = function(Value)
+        getgenv().distanceCheckEnabled = Value
+        Window:Notify({ Title = "Distance Check", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "VisualsDistanceCheckToggle")
+visualsChecks:Slider({
+    Name = "Distance Limit",
+    Default = 500,
+    Minimum = 100,
+    Maximum = 500,
+    DisplayMethod = "Value",
+    Precision = 0,
+    Callback = function(Value)
+        getgenv().distanceCheckValue = Value
+        Window:Notify({ Title = "Distance Limit", Description = "Distance limit set to: " .. tostring(Value), Lifetime = 5 })
+    end,
+}, "VisualsDistanceLimitSlider")
+
 visualsRight:Colorpicker({
 	Name = "Box ESP Color",
 	Default = ESP.Box.Color,
@@ -765,13 +814,85 @@ visualsRight:Colorpicker({
 	end,
 }, "HealthBarESPColor")
 
+----------------------------
+-- GUI: Player Tab (Other)  --
+----------------------------
+local playerSection = tabs.Player:Section({ Side = "Left" })
+
+-- Default values
+local defaultWalkSpeed = 16
+local defaultJumpPower = 50
+
+playerSection:Toggle({
+    Name = "Speed",
+    Default = false,
+    Callback = function(Value)
+        getgenv().speedEnabled = Value
+        Window:Notify({ Title = "Speed", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "SpeedToggle")
+playerSection:Slider({
+    Name = "Speed Value",
+    Default = 16,
+    Minimum = 16,
+    Maximum = 500, -- increased max speed to 500
+    DisplayMethod = "Value",
+    Precision = 0,
+    Callback = function(Value)
+        getgenv().speedValue = Value
+        Window:Notify({ Title = "Speed Value", Description = "Speed set to: " .. tostring(Value), Lifetime = 5 })
+    end,
+}, "SpeedSlider")
+
+local jumpSection = tabs.Player:Section({ Side = "Left", Title = "Jump" })
+jumpSection:Toggle({
+    Name = "Jump Height",
+    Default = false,
+    Callback = function(Value)
+        getgenv().jumpEnabled = Value
+        Window:Notify({ Title = "Jump Height", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "JumpToggle")
+jumpSection:Slider({
+    Name = "Jump Height Value",
+    Default = 50,
+    Minimum = 50,
+    Maximum = 250, -- increased max jump height to 250
+    DisplayMethod = "Value",
+    Precision = 0,
+    Callback = function(Value)
+        getgenv().jumpValue = Value
+        Window:Notify({ Title = "Jump Height", Description = "Jump Height set to: " .. tostring(Value), Lifetime = 5 })
+    end,
+}, "JumpSlider")
+
+-- Continuously update player speed and jump height if toggled
+RunService.RenderStepped:Connect(function()
+    local character = LocalPlayer.Character
+    if character then
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            if getgenv().speedEnabled then
+                humanoid.WalkSpeed = getgenv().speedValue or defaultWalkSpeed
+            else
+                humanoid.WalkSpeed = defaultWalkSpeed
+            end
+            if getgenv().jumpEnabled then
+                humanoid.JumpPower = getgenv().jumpValue or defaultJumpPower
+            else
+                humanoid.JumpPower = defaultJumpPower
+            end
+        end
+    end
+end)
+
 ---------------------
 -- Finalize GUI  --
 ---------------------
 tabs.AimAssist:Select()
 
 Window:Notify({
-	Title = "Collapse:Vampire Hunters",
+	Title = "Collapse:Vampire Hunters 3",
 	Description = "Script loaded successfully! - Made by Finny <3",
 	Lifetime = 5
 })
