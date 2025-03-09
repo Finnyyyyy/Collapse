@@ -3,7 +3,7 @@ local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/re
 
 -- Create the main window using MacLib (GUI size set to 800x500) with keybind set to RightShift
 local Window = MacLib:Window({
-	Title = "Collapse | Vampire Hunters",
+	Title = "Collapse | Vh3",
 	Subtitle = "| Made by Finny <3",
 	Size = UDim2.fromOffset(800, 500),
 	DragStyle = 2,
@@ -279,7 +279,7 @@ do
         HealthBar.Filled = true
         HealthBar.ZIndex = 5
 
-        HealthText.Size = 13
+        HealthText.Size = 10
         HealthText.Center = true
         HealthText.Outline = true
         HealthText.Font = 2
@@ -291,7 +291,7 @@ do
         ToolText.Font = 2
         ToolText.Color = ESP.Tool.Color
 
-        DistanceText.Size = 13
+        DistanceText.Size = 11
         DistanceText.Center = true
         DistanceText.Outline = true
         DistanceText.Font = 2
@@ -771,7 +771,7 @@ visualsRight:Colorpicker({
 tabs.AimAssist:Select()
 
 Window:Notify({
-	Title = "Collapse:Vampire Hunters",
+	Title = "Collapse:Vampire Hunters 3",
 	Description = "Script loaded successfully! - Made by Finny <3",
 	Lifetime = 5
 })
