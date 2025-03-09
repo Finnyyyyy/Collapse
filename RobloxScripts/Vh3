@@ -1,7 +1,76 @@
-local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+-- Load MacLib from the demo (new GUI)
+local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
 
+-- Create the main window using MacLib (GUI size set to 800x500)
+local Window = MacLib:Window({
+	Title = "Collapse | Vh3",
+	Subtitle = "| Made by Finny <3",
+	Size = UDim2.fromOffset(800, 500),
+	DragStyle = 2,
+	DisabledWindowControls = {},
+	ShowUserInfo = true,
+	Keybind = Enum.KeyCode.RightControl,
+	AcrylicBlur = false,
+})
+
+local globalSettings = {
+	UIBlurToggle = Window:GlobalSetting({
+		Name = "UI Blur",
+		Default = Window:GetAcrylicBlurState(),
+		Callback = function(bool)
+			Window:SetAcrylicBlurState(bool)
+			Window:Notify({
+				Title = Window.Settings.Title,
+				Description = (bool and "Enabled" or "Disabled") .. " UI Blur",
+				Lifetime = 5
+			})
+		end,
+	}),
+	NotificationToggler = Window:GlobalSetting({
+		Name = "Notifications",
+		Default = Window:GetNotificationsState(),
+		Callback = function(bool)
+			Window:SetNotificationsState(bool)
+			Window:Notify({
+				Title = Window.Settings.Title,
+				Description = (bool and "Enabled" or "Disabled") .. " Notifications",
+				Lifetime = 5
+			})
+		end,
+	}),
+	ShowUserInfo = Window:GlobalSetting({
+		Name = "Show User Info",
+		Default = Window:GetUserInfoState(),
+		Callback = function(bool)
+			Window:SetUserInfoState(bool)
+			Window:Notify({
+				Title = Window.Settings.Title,
+				Description = (bool and "Showing" or "Redacted") .. " User Info",
+				Lifetime = 5
+			})
+		end,
+	})
+}
+
+-- Create Tab Groups
+local tabGroups = {
+	Aim = Window:TabGroup(),
+	World = Window:TabGroup(),
+	Other = Window:TabGroup()
+}
+
+-- Create Tabs (Removed extra Configs tab; only "Settings" remains)
+local tabs = {
+	AimAssist = tabGroups.Aim:Tab({ Name = "Aim Assist", Image = "rbxassetid://99275039709063" }),
+	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
+	Settings = tabGroups.Other:Tab({ Name = "Settings", Image = "rbxassetid://110807522910450" })
+}
+
+tabs.Settings:InsertConfigSection("Left")
+
+--------------------------------------------
+-- Existing Game Services and Variables  --
+--------------------------------------------
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CurrentCamera = game:GetService("Workspace").CurrentCamera
@@ -9,20 +78,20 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Current Tracer Position
-local currentTracerPosition = "Bottom"
+-- Current Tracer Position and Aim Variables
+local currentTracerPosition = "Bottom"  -- default tracer position
 local Aiming = false
 local currentTarget = nil
 
--- ESP Table
+-- ESP Table (Box size remains dynamic; thickness is forced to 1)
 local ESP = {
     Enabled = true,
     Box = {
         Enabled = false,
-        Color = Color3.fromRGB(255, 255, 255),
-        Thickness = 1,
+        Color = Color3.fromRGB(255, 255, 255),  -- white (forced)
+        Thickness = 1, -- fixed thickness
         Outlines = true,
-        OutlineThickness = 1
+        OutlineThickness = 0
     },
     Tool = {
         Enabled = false,
@@ -34,30 +103,32 @@ local ESP = {
     },
     Tracers = {
         Enabled = false,
-        Color = Color3.fromRGB(255, 255, 255),
-        Thickness = 1,
+        Color = Color3.fromRGB(255, 255, 255),  -- forced white
+        Thickness = 1, -- fixed thickness
         Outlines = true,
-        OutlineThickness = 1
+        OutlineThickness = 0
     },
     HealthBar = {
         Enabled = false,
         Color = Color3.fromRGB(0, 255, 0),
         Outlines = true,
-        ShowNumber = true, -- Added health number display option
-        NumberColor = Color3.fromRGB(255, 255, 255) -- Added color for health number
+        ShowNumber = true,
+        NumberColor = Color3.fromRGB(255, 255, 255)
     }
 }
 
--- Updated Aim Settings
+-- Aim Settings (global)
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
-    hitbox = "Head",
-    fovcircle = false,
+    hitbox = "Head",  -- default target is head
+    fovcircle = false, -- FOV circle toggle is off by default
     aimKey = Enum.KeyCode.E
 }
+-- Local variable to always track the current aim key.
+local currentAimKey = getgenv().aim_settings.aimKey
 
--- Create Circle for FOV
+-- Create a single FOV Circle (follows the mouse; uses the same fov value)
 local Circle = Drawing.new("Circle")
 Circle.Visible = false
 Circle.Thickness = 1
@@ -66,7 +137,9 @@ Circle.Transparency = 0.5
 Circle.Filled = false
 Circle.NumSides = 64
 
--- New Aiming System
+---------------------------
+-- Aiming Functionality  --
+---------------------------
 local function AimLock()
     local mousePos = UserInputService:GetMouseLocation()
     
@@ -115,7 +188,9 @@ local function AimLock()
     end
 end
 
--- ESP Functions
+------------------
+-- ESP Functions --
+------------------
 local Functions = {}
 do 
     function Functions:IsAlive(Player)
@@ -143,7 +218,9 @@ do
     end
 end
 
--- ESP Implementation
+--------------------
+-- ESP Rendering  --
+--------------------
 do
     local function AddESP(Player)
         local BoxOutline = Drawing.new("Square")
@@ -154,18 +231,15 @@ do
         local HealthBar = Drawing.new("Square")
         local ToolText = Drawing.new("Text")
         local DistanceText = Drawing.new("Text")
-        local HealthText = Drawing.new("Text") -- New Health Text
+        local HealthText = Drawing.new("Text") -- Health Number Text
         local Connection
 
         Box.Filled = false
-        BoxOutline.Color = Color3.fromRGB(0, 0, 0)
-        TracerOutline.Color = Color3.fromRGB(0, 0, 0)
         HealthBarOutline.Filled = false
         HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
         HealthBar.Filled = true
         HealthBar.ZIndex = 5
 
-        -- Setup Health Text
         HealthText.Size = 13
         HealthText.Center = true
         HealthText.Outline = true
@@ -206,10 +280,10 @@ do
             ToolText:Remove()
             DistanceText:Remove()
             HealthText:Remove()
-            Connection:Disconnect()
+            if Connection then Connection:Disconnect() end
         end
 
-        Connection = RunService.Heartbeat:Connect(function()
+        Connection = RunService.RenderStepped:Connect(function()
             if not ESP.Enabled then 
                 return HideESP()
             end
@@ -237,6 +311,9 @@ do
             local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
 
             if ESP.Box.Enabled then
+                -- Force the box ESP colors to white
+                BoxOutline.Color = Color3.new(1, 1, 1)
+                Box.Color = Color3.new(1, 1, 1)
                 BoxOutline.Visible = ESP.Box.Outlines
                 BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
                 BoxOutline.Position = Position
@@ -245,7 +322,6 @@ do
                 Box.Visible = true
                 Box.Position = Position
                 Box.Size = Size
-                Box.Color = ESP.Box.Color
                 Box.Thickness = ESP.Box.Thickness
             else
                 Box.Visible = false
@@ -282,13 +358,15 @@ do
                     tracerFrom = UserInputService:GetMouseLocation()
                 end
 
+                -- Force tracer colors to white
+                TracerOutline.Color = Color3.new(1, 1, 1)
                 TracerOutline.Visible = ESP.Tracers.Outlines
                 TracerOutline.Thickness = ESP.Tracers.Thickness + ESP.Tracers.OutlineThickness
                 TracerOutline.From = tracerFrom
                 TracerOutline.To = Vector2.new(ScreenPosition.X, Position.Y + Size.Y)
 
                 Tracer.Visible = true
-                Tracer.Color = ESP.Tracers.Color
+                Tracer.Color = Color3.new(1, 1, 1)
                 Tracer.Thickness = ESP.Tracers.Thickness
                 Tracer.From = tracerFrom
                 Tracer.To = Vector2.new(TracerOutline.To.X, TracerOutline.To.Y)
@@ -312,7 +390,6 @@ do
                 HealthBar.Size = HealthBarOutline.Size
                 HealthBar.Color = ESP.HealthBar.Color
 
-                -- Update Health Text
                 HealthText.Visible = ESP.HealthBar.ShowNumber
                 HealthText.Text = tostring(math.floor(health))
                 HealthText.Position = Vector2.new(Position.X - 4.5, Position.Y + Size.Y - (Size.Y * healthPercent) - 15)
@@ -324,7 +401,7 @@ do
         end)
     end
 
-    for i,v in pairs(Players:GetChildren()) do 
+    for i, v in pairs(Players:GetPlayers()) do 
         if v ~= LocalPlayer then
             AddESP(v)
         end
@@ -335,184 +412,210 @@ do
     end)
 end
 
--- FOV Circle Update
+---------------------------
+-- FOV Circle & Aim Loop  --
+---------------------------
 RunService.RenderStepped:Connect(function()
+    -- Aimbot only runs when enabled and key is held
     if getgenv().aim_settings.enabled and Aiming then
         AimLock()
     end
     
+    -- FOV Circle uses the same fov value; its visibility is independent
     Circle.Position = UserInputService:GetMouseLocation()
     Circle.Radius = getgenv().aim_settings.fov
-    Circle.Visible = getgenv().aim_settings.enabled and getgenv().aim_settings.fovcircle
+    Circle.Visible = getgenv().aim_settings.fovcircle
 end)
 
--- Window Creation
-local Window = Library:CreateWindow{
-    Title = "Collapse:Weaponry",
-    SubTitle = "Made by Finny <3",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(530, 350),
-    Acrylic = false,
-    Theme = "VSC Dark High Contrast",
-    MinimizeKey = Enum.KeyCode.RightControl
-}
-
--- Tabs
-local Tabs = {
-    Main = Window:CreateTab{
-        Title = "Main",
-        Icon = "target"
-    },
-    Visuals = Window:CreateTab{
-        Title = "Visuals",
-        Icon = "eye"
-    },
-    Settings = Window:CreateTab{
-        Title = "Settings",
-        Icon = "settings"
-    }
-}
-
--- Main Tab
-Tabs.Main:CreateToggle("AimAssist", {
-    Title = "Aim Assist",
-    Default = false,
-    Callback = function(Value)
-        getgenv().aim_settings.enabled = Value
-    end
-})
-
-local AimKeybind = Tabs.Main:CreateKeybind("AimKey", {
-    Title = "Aim Key",
-    Default = Enum.KeyCode.E,
-    Mode = "Hold",
-    Callback = function(Value)
-        Aiming = Value
-        if not Value then
-            currentTarget = nil
-        end
-    end,
-    ChangedCallback = function(New)
-        getgenv().aim_settings.aimKey = New
-    end
-})
-
+--------------------------
+-- Input Event Listeners for Aimbot --
+--------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    local currentAimKey = AimKeybind.Value
-    
-    if input.KeyCode == currentAimKey or input.UserInputType == currentAimKey then
-        Aiming = true
-    end
+	if gameProcessed then return end
+	-- Check for both keyboard and mouse input types against the current aim key.
+	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
+		Aiming = true
+	end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    local currentAimKey = AimKeybind.Value
-    
-    if input.KeyCode == currentAimKey or input.UserInputType == currentAimKey then
-        Aiming = false
-        currentTarget = nil
-    end
+	if gameProcessed then return end
+	-- When the aim key is released, disable aiming.
+	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
+		Aiming = false
+		currentTarget = nil
+	end
 end)
 
-Tabs.Main:CreateToggle("FovCircle", {
-    Title = "FOV Circle",
-    Default = false,
-    Callback = function(Value)
-        getgenv().aim_settings.fovcircle = Value
-    end
+--------------------------
+-- GUI: Aim Assist Tab  --
+--------------------------
+local aimSection = tabs.AimAssist:Section({ Side = "Left" })
+
+aimSection:Toggle({
+	Name = "Aim Assist",
+	Default = false,
+	Callback = function(Value)
+		getgenv().aim_settings.enabled = Value
+		if not Value then
+			Aiming = false
+			currentTarget = nil
+		end
+		-- No notification here.
+	end,
+}, "AimAssistToggle")
+
+aimSection:Keybind({
+	Name = "Aim Key",
+	Default = currentAimKey,
+	Callback = function(binded)
+		-- Update both the global setting and our local currentAimKey variable without sending a notification.
+		getgenv().aim_settings.aimKey = binded
+		currentAimKey = binded
+	end,
+	onBinded = function(bind)
+		-- No notification here.
+		getgenv().aim_settings.aimKey = bind
+		currentAimKey = bind
+	end,
+	onBindHeld = function()
+		return Aiming, currentAimKey
+	end,
+}, "AimKey")
+
+aimSection:Toggle({
+	Name = "FOV Circle",
+	Default = false,  -- FOV Circle off by default
+	Callback = function(Value)
+		getgenv().aim_settings.fovcircle = Value
+		-- No notification here.
+	end,
+}, "FOVCircleToggle")
+
+aimSection:Slider({
+	Name = "FOV Size",
+	Default = getgenv().aim_settings.fov,
+	Minimum = 1,
+	Maximum = 800,
+	DisplayMethod = "Value",
+	Precision = 0,
+	Callback = function(Value)
+		getgenv().aim_settings.fov = Value
+		Window:Notify({
+			Title = "FOV Size",
+			Description = "FOV size set to: " .. tostring(Value),
+			Lifetime = 5
+		})
+	end,
+}, "FOVSizeSlider")
+
+aimSection:Dropdown({
+	Name = "Aim Target",
+	Multi = false,
+	Required = true,
+	Search = true,
+	Default = "Head",
+	Options = {"Head", "HumanoidRootPart"},
+	Callback = function(Value)
+		getgenv().aim_settings.hitbox = Value
+		Window:Notify({
+			Title = "Aim Target",
+			Description = "Target set to: " .. tostring(Value),
+			Lifetime = 5
+		})
+	end,
+}, "AimTargetDropdown")
+
+----------------------------
+-- GUI: Visuals (ESP) Tab --
+----------------------------
+local visualsSection = tabs.Visuals:Section({ Side = "Left" })
+
+visualsSection:Toggle({
+	Name = "Box ESP",
+	Default = false,
+	Callback = function(Value)
+		ESP.Box.Enabled = Value
+		Window:Notify({
+			Title = "Box ESP",
+			Description = (Value and "Enabled" or "Disabled"),
+			Lifetime = 5
+		})
+	end,
+}, "BoxESPToggle")
+
+visualsSection:Toggle({
+	Name = "Tracers",
+	Default = false,
+	Callback = function(Value)
+		ESP.Tracers.Enabled = Value
+		Window:Notify({
+			Title = "Tracers",
+			Description = (Value and "Enabled" or "Disabled"),
+			Lifetime = 5
+		})
+	end,
+}, "TracersToggle")
+
+visualsSection:Dropdown({
+	Name = "Tracer Position",
+	Multi = false,
+	Required = true,
+	Search = true,
+	Default = "Bottom",
+	Options = {"Bottom", "Middle", "Top", "Mouse"},
+	Callback = function(Value)
+		currentTracerPosition = Value
+	end,
+}, "TracerPositionDropdown")
+
+visualsSection:Toggle({
+	Name = "Healthbar",
+	Default = false,
+	Callback = function(Value)
+		ESP.HealthBar.Enabled = Value
+		ESP.HealthBar.ShowNumber = Value
+		Window:Notify({
+			Title = "Healthbar",
+			Description = (Value and "Enabled" or "Disabled"),
+			Lifetime = 5
+		})
+	end,
+}, "HealthbarToggle")
+
+visualsSection:Toggle({
+	Name = "Tool ESP",
+	Default = false,
+	Callback = function(Value)
+		ESP.Tool.Enabled = Value
+		Window:Notify({
+			Title = "Tool ESP",
+			Description = (Value and "Enabled" or "Disabled"),
+			Lifetime = 5
+		})
+	end,
+}, "ToolESPToggle")
+
+visualsSection:Toggle({
+	Name = "Distance ESP",
+	Default = false,
+	Callback = function(Value)
+		ESP.Distance.Enabled = Value
+		Window:Notify({
+			Title = "Distance ESP",
+			Description = (Value and "Enabled" or "Disabled"),
+			Lifetime = 5
+		})
+	end,
+}, "DistanceESPToggle")
+
+---------------------
+-- Finalize GUI  --
+---------------------
+tabs.AimAssist:Select()
+
+Window:Notify({
+	Title = "Collapse:Vampire Hunters",
+	Description = "Script loaded successfully! - Made by Finny <3",
+	Lifetime = 5
 })
-
-Tabs.Main:CreateSlider("FovSize", {
-    Title = "FOV Size",
-    Default = 100,
-    Min = 1,
-    Max = 800,
-    Rounding = 0,
-    Callback = function(Value)
-        getgenv().aim_settings.fov = Value
-    end
-})
-
-Tabs.Main:CreateDropdown("AimTarget", {
-    Title = "Aim Target",
-    Values = {"Head", "HumanoidRootPart"},
-    Default = "Head",
-    Callback = function(Value)
-        getgenv().aim_settings.hitbox = Value
-    end
-})
-
--- Visuals Tab
-Tabs.Visuals:CreateToggle("BoxESP", {
-    Title = "Box ESP",
-    Default = false,
-    Callback = function(Value)
-        ESP.Box.Enabled = Value
-    end
-})
-
-Tabs.Visuals:CreateToggle("Tracers", {
-    Title = "Tracers",
-    Default = false,
-    Callback = function(Value)
-        ESP.Tracers.Enabled = Value
-    end
-})
-
-Tabs.Visuals:CreateDropdown("TracerPosition", {
-    Title = "Tracer Position",
-    Values = {"Bottom", "Middle", "Top", "Mouse"},
-    Default = "Bottom",
-    Callback = function(Value)
-        currentTracerPosition = Value
-    end
-})
-
-Tabs.Visuals:CreateToggle("Healthbar", {
-    Title = "Healthbar",
-    Default = false,
-    Callback = function(Value)
-        ESP.HealthBar.Enabled = Value
-        ESP.HealthBar.ShowNumber = Value -- Enable/disable health number with healthbar
-    end
-})
-
-Tabs.Visuals:CreateToggle("ToolESP", {
-    Title = "Tool ESP",
-    Default = false,
-    Callback = function(Value)
-        ESP.Tool.Enabled = Value
-    end
-})
-
-Tabs.Visuals:CreateToggle("DistanceESP", {
-    Title = "Distance ESP",
-    Default = false,
-    Callback = function(Value)
-        ESP.Distance.Enabled = Value
-    end
-})
-
--- Save Manager and Interface Manager Setup
-SaveManager:SetLibrary(Library)
-InterfaceManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetFolder("CollapseWeaponry")
-InterfaceManager:SetFolder("CollapseWeaponry")
-
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
-
--- Notification
-Library:Notify{
-    Title = "Collapse-Weaponry",
-    Content = "Script loaded successfully! - Made by finny<3",
-    Duration = 5
-}
-
--- Load Autoconfig
-SaveManager:LoadAutoloadConfig()
