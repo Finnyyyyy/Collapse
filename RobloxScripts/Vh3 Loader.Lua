@@ -103,7 +103,7 @@ local ESP = {
     Tracers = {
         Enabled = false,
         Color = Color3.fromRGB(255, 255, 255),
-        Thickness = 1,  -- will be adjustable via slider
+        Thickness = 1,
         Outlines = true,
         OutlineThickness = 0
     },
@@ -122,7 +122,7 @@ local ESP = {
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
-    hitbox = "Head",  -- default target is head; options: "Head", "HumanoidRootPart", "Random", "Nearest"
+    hitbox = "Head",  -- default target; options: "Head", "HumanoidRootPart", "Random", "Nearest"
     fovcircle = false,
     aimKey = Enum.KeyCode.E,
     method = "Camera",  -- "Camera" or "Mouse"
@@ -133,7 +133,6 @@ getgenv().aim_settings = {
 }
 local currentAimKey = getgenv().aim_settings.aimKey
 
--- Ensure a default for box ESP filled toggle
 getgenv().boxESPFilled = getgenv().boxESPFilled or false
 
 -- Create FOV Circle drawing
@@ -200,7 +199,6 @@ local function AimLock()
     local bestDistance = math.huge
 
     if getgenv().aim_settings.hitbox == "Nearest" then
-        -- Iterate over all players and all parts to find the global nearest part
         local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
         for _, v in pairs(Players:GetPlayers()) do
             if v ~= LocalPlayer and v.Character then
@@ -221,7 +219,6 @@ local function AimLock()
             end
         end
     else
-        -- For "Head", "HumanoidRootPart", or "Random" modes, use candidate selection based on a fixed part.
         for _, v in pairs(Players:GetPlayers()) do
             if v ~= LocalPlayer and v.Character then
                 local candidatePart = nil
@@ -269,7 +266,6 @@ RunService.RenderStepped:Connect(function()
     Circle.Position = UserInputService:GetMouseLocation()
     Circle.Radius = getgenv().aim_settings.fov
     Circle.Visible = getgenv().aim_settings.fovcircle
-    -- Update FOV circle properties in real time:
     Circle.Thickness = getgenv().aim_settings.fovThickness
     Circle.Color = getgenv().aim_settings.fovCircleColor
     Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
@@ -290,8 +286,16 @@ do
         local ToolText = Drawing.new("Text")
         local DistanceText = Drawing.new("Text")
         local HealthText = Drawing.new("Text")
+        -- NEW: Name ESP drawing for displaying the player's username.
+        local NameESPText = Drawing.new("Text")
+        NameESPText.Size = 12
+        NameESPText.Center = true
+        NameESPText.Outline = true
+        NameESPText.Font = 2
+        NameESPText.Color = Color3.fromRGB(255,255,255)
+        NameESPText.Text = Player.Name
         local Connection
-        local Corners  -- for "Corners" box ESP; will be created on demand
+        local Corners  -- for "Corners" box ESP
 
         Box.Filled = false
         HealthBarOutline.Filled = false
@@ -332,6 +336,7 @@ do
             ToolText.Visible = false
             DistanceText.Visible = false
             HealthText.Visible = false
+            NameESPText.Visible = false
         end
 
         local function DestroyESP()
@@ -349,6 +354,7 @@ do
             ToolText:Remove()
             DistanceText:Remove()
             HealthText:Remove()
+            NameESPText:Remove()
             if Connection then Connection:Disconnect() end
         end
 
@@ -369,7 +375,7 @@ do
             local Size = CurrentCamera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6)
             local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
 
-            -- BOX ESP: Check the type option.
+            -- BOX ESP rendering
             if ESP.Box.Enabled then
                 if getgenv().boxESPType == "Corners" then
                     if not Corners then
@@ -378,27 +384,23 @@ do
                             Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line")
                         }
                     end
-                    local cl = 15  -- increased corner length for better visibility
+                    local cl = 15
                     local x = Position.X
                     local y = Position.Y
                     local w = Size.X
                     local h = Size.Y
-                    -- Top Left
                     Corners[1].From = Vector2.new(x, y)
                     Corners[1].To = Vector2.new(x + cl, y)
                     Corners[2].From = Vector2.new(x, y)
                     Corners[2].To = Vector2.new(x, y + cl)
-                    -- Top Right
                     Corners[3].From = Vector2.new(x + w - cl, y)
                     Corners[3].To = Vector2.new(x + w, y)
                     Corners[4].From = Vector2.new(x + w, y)
                     Corners[4].To = Vector2.new(x + w, y + cl)
-                    -- Bottom Left
                     Corners[5].From = Vector2.new(x, y + h)
                     Corners[5].To = Vector2.new(x + cl, y + h)
                     Corners[6].From = Vector2.new(x, y + h - cl)
                     Corners[6].To = Vector2.new(x, y + h)
-                    -- Bottom Right
                     Corners[7].From = Vector2.new(x + w - cl, y + h)
                     Corners[7].To = Vector2.new(x + w, y + h)
                     Corners[8].From = Vector2.new(x + w, y + h - cl)
@@ -412,7 +414,6 @@ do
                     Box.Visible = false
                     BoxOutline.Visible = false
                 else
-                    -- For "2D" and "3D" (3D is not fully implemented differently)
                     BoxOutline.Color = ESP.Box.Color
                     Box.Color = ESP.Box.Color
                     BoxOutline.Visible = ESP.Box.Outlines
@@ -523,6 +524,11 @@ do
                 HealthBar.Visible = false
                 HealthText.Visible = false
             end
+
+            -- NAME ESP: Display the player's username above the Box ESP.
+            NameESPText.Visible = true
+            NameESPText.Text = Player.Name
+            NameESPText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 20)
         end)
     end
 
@@ -542,7 +548,6 @@ local chamsConnections = {}
 
 local function EnableChams()
     local CoreGui = game:GetService("CoreGui")
-    local Players = game:GetService("Players")
     chamsStorage = Instance.new("Folder")
     chamsStorage.Parent = CoreGui
     chamsStorage.Name = "Highlight_Storage"
@@ -551,7 +556,46 @@ local function EnableChams()
         if plr ~= Players.LocalPlayer then
             local highlight = Instance.new("Highlight")
             highlight.Name = plr.Name
-            highlight.FillColor = getgenv().chamsFillColor or Color3.fromRGB(255,255,255)
+            -- Adjusted team check: Look for the ExpressionID at Workspace/[PlayerName]/Face/ExpressionID
+            if getgenv().chamsTeamCheckEnabled then
+                local playerModel = workspace:FindFirstChild(plr.Name)
+                if playerModel then
+                    local face = playerModel:FindFirstChild("Face")
+                    if face then
+                        local expr = face:FindFirstChild("ExpressionID")
+                        if expr then
+                            if expr.Value == 0 then
+                                highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                            elseif expr.Value == 3 then
+                                highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                            elseif expr.Value == 5 then
+                                highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                            else
+                                highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                            end
+                            expr.Changed:Connect(function(newVal)
+                                if newVal == 0 then
+                                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                                elseif newVal == 3 then
+                                    highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                                elseif newVal == 5 then
+                                    highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                                else
+                                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                end
+                            end)
+                        else
+                            highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                        end
+                    else
+                        highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                    end
+                else
+                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                end
+            else
+                highlight.FillColor = Color3.fromRGB(255, 255, 255)
+            end
             highlight.DepthMode = "AlwaysOnTop"
             highlight.FillTransparency = (getgenv().chamsFillEnabled and 0.8 or 1)
             highlight.OutlineColor = Color3.fromRGB(255,255,255)
@@ -572,7 +616,45 @@ local function EnableChams()
         if plr ~= Players.LocalPlayer then
             local highlight = Instance.new("Highlight")
             highlight.Name = plr.Name
-            highlight.FillColor = getgenv().chamsFillColor or Color3.fromRGB(255,255,255)
+            if getgenv().chamsTeamCheckEnabled then
+                local playerModel = workspace:FindFirstChild(plr.Name)
+                if playerModel then
+                    local face = playerModel:FindFirstChild("Face")
+                    if face then
+                        local expr = face:FindFirstChild("ExpressionID")
+                        if expr then
+                            if expr.Value == 0 then
+                                highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                            elseif expr.Value == 3 then
+                                highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                            elseif expr.Value == 5 then
+                                highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                            else
+                                highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                            end
+                            expr.Changed:Connect(function(newVal)
+                                if newVal == 0 then
+                                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                                elseif newVal == 3 then
+                                    highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                                elseif newVal == 5 then
+                                    highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                                else
+                                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                end
+                            end)
+                        else
+                            highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                        end
+                    else
+                        highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                    end
+                else
+                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                end
+            else
+                highlight.FillColor = Color3.fromRGB(255, 255, 255)
+            end
             highlight.DepthMode = "AlwaysOnTop"
             highlight.FillTransparency = (getgenv().chamsFillEnabled and 0.8 or 1)
             highlight.OutlineColor = Color3.fromRGB(255,255,255)
@@ -614,7 +696,6 @@ end
 ---------------------------------------------------
 -- Skeleton ESP Library and Functions            --
 ---------------------------------------------------
--- (Based on the provided skeleton ESP code)
 local SkeletonLibrary = {}
 do
     local WAIT = task.wait
@@ -839,9 +920,8 @@ do
     end
 end
 
--- Variables and functions for Skeleton ESP toggle
 local skeletonESPEnabled = false
-local Skeletons = {}  -- table to store skeleton objects
+local Skeletons = {}
 
 local function EnableSkeletonESP()
     for _, plr in pairs(Players:GetPlayers()) do
@@ -874,7 +954,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = true
-		-- For "Random" mode, choose a new random part upon activation.
 		if getgenv().aim_settings.hitbox == "Random" then
 		    randomPart = nil
 		end
@@ -886,7 +965,6 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = false
 		currentTarget = nil
-		-- Clear the random part so that a new one is selected next activation.
 		randomPart = nil
 	end
 end)
@@ -1014,7 +1092,7 @@ aimFOV:Slider({
 ---------------------------------------------------
 local visualsLeft = tabs.Visuals:Section({ Side = "Left" })
 local visualsRight = tabs.Visuals:Section({ Side = "Right" })
--- Main ESP toggles (order: Box ESP, Tracers, Skeleton ESP, Healthbar, Tool ESP, Distance ESP, Chams)
+-- Main ESP toggles
 visualsLeft:Toggle({
 	Name = "Box ESP",
 	Default = false,
@@ -1082,7 +1160,7 @@ visualsLeft:Toggle({
          Window:Notify({ Title = "Chams", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "ChamsToggle")
--- New ESP Customization Section (placed below main toggles)
+-- ESP Customization Options
 local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
 espCustom:Dropdown({
     Name = "Tracer Origin",
@@ -1138,7 +1216,8 @@ espCustom:Toggle({
          end
     end,
 }, "ChamsFillToggle")
--- Color pickers (order: Box, Tracers, Skeleton, HealthBar, Tool, Distance, Chams)
+
+-- Visuals Right Color Pickers (except Chams Color picker is removed)
 visualsRight:Colorpicker({
     Name = "Box ESP Color",
     Default = ESP.Box.Color,
@@ -1190,21 +1269,61 @@ visualsRight:Colorpicker({
         ESP.Distance.Color = color
     end,
 }, "DistanceESPColor")
-visualsRight:Colorpicker({
-    Name = "Chams Color",
-    Default = Color3.fromRGB(255,255,255),
-    Alpha = 0,
-    Callback = function(color, alpha)
-         getgenv().chamsFillColor = color
+-- Chams Team Check toggle remains
+visualsRight:Toggle({
+    Name = "Chams Team Check",
+    Default = false,
+    Callback = function(Value)
+         getgenv().chamsTeamCheckEnabled = Value
          if chamsStorage then
              for _, highlight in pairs(chamsStorage:GetChildren()) do
                  if highlight:IsA("Highlight") then
-                     highlight.FillColor = color
+                     local plr = Players:FindFirstChild(highlight.Name)
+                     if getgenv().chamsTeamCheckEnabled then
+                         local playerModel = workspace:FindFirstChild(plr.Name)
+                         if playerModel then
+                             local face = playerModel:FindFirstChild("Face")
+                             if face then
+                                 local expr = face:FindFirstChild("ExpressionID")
+                                 if expr then
+                                     if expr.Value == 0 then
+                                         highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                                     elseif expr.Value == 3 then
+                                         highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                                     elseif expr.Value == 5 then
+                                         highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                                     else
+                                         highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                     end
+                                     expr.Changed:Connect(function(newVal)
+                                         if newVal == 0 then
+                                             highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                                         elseif newVal == 3 then
+                                             highlight.FillColor = Color3.fromRGB(128, 0, 128)
+                                         elseif newVal == 5 then
+                                             highlight.FillColor = Color3.fromRGB(173, 216, 230)
+                                         else
+                                             highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                         end
+                                     end)
+                                 else
+                                     highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                 end
+                             else
+                                 highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                             end
+                         else
+                             highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                         end
+                     else
+                         highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                     end
                  end
              end
          end
+         Window:Notify({ Title = "Chams Team Check", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
-}, "ChamsColor")
+}, "ChamsTeamCheckToggle")
 
 ---------------------------------------------------
 -- GUI: Player Tab (Other)                        --
