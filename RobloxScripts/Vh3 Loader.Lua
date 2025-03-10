@@ -122,7 +122,7 @@ local ESP = {
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
-    hitbox = "Head",  -- default target is head
+    hitbox = "Head",  -- default target is head; options: "Head", "HumanoidRootPart", "Random", "Nearest"
     fovcircle = false,
     aimKey = Enum.KeyCode.E,
     method = "Camera",  -- "Camera" or "Mouse"
@@ -145,49 +145,120 @@ Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
 Circle.Filled = getgenv().aim_settings.fovCircleFilled
 Circle.NumSides = 64
 
+-- Global variable to hold the chosen random part (for "Random" mode)
+local randomPart = nil
+
 ---------------------------------------------------
--- Aiming Functionality                          --
+-- Helper Function for Random Aim Target         --
 ---------------------------------------------------
--- REPLACED AIM ASSIST CODE (Working version from your older script)
-local function AimLock()
-    local mousePos = UserInputService:GetMouseLocation()
-    if currentTarget and currentTarget.Character then
-        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-        if targetPart then
-            local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
-            local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-            local distance = (mousePos - screenPosition).Magnitude
-            if onScreen and distance <= getgenv().aim_settings.fov then
-                local pos = CurrentCamera.CFrame.Position
-                CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
-                return
-            end
+local function GetRandomPartFromCharacter(character)
+    local partsList = {"Head", "HumanoidRootPart", "Right Leg", "Left Leg", "Right Arm", "Left Arm"}
+    local available = {}
+    for _, partName in ipairs(partsList) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            table.insert(available, part)
         end
     end
-    currentTarget = nil
-    local lastMagnitude = math.huge
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character then
-            local targetPart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-            if targetPart then
-                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
-                local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-                local distance = (mousePos - screenPosition).Magnitude
-                if onScreen and distance <= getgenv().aim_settings.fov then
-                    if distance < lastMagnitude then
-                        lastMagnitude = distance
-                        currentTarget = v
-                    end
+    if #available > 0 then
+        return available[math.random(1, #available)]
+    else
+        return character:FindFirstChild("Head")
+    end
+end
+
+---------------------------------------------------
+-- Helper Function for Nearest Aim Target        --
+---------------------------------------------------
+local function GetNearestPartFromCharacter(character, mousePos)
+    local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
+    local bestPart = nil
+    local bestDistance = math.huge
+    for _, partName in ipairs(partsList) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                if dist < bestDistance then
+                    bestDistance = dist
+                    bestPart = part
                 end
             end
         end
     end
-    if currentTarget and currentTarget.Character then
-        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-        if targetPart then
-            local pos = CurrentCamera.CFrame.Position
-            CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
+    return bestPart or character:FindFirstChild("Head")
+end
+
+---------------------------------------------------
+-- Aiming Functionality                          --
+---------------------------------------------------
+local function AimLock()
+    local mousePos = UserInputService:GetMouseLocation()
+    local candidateTarget = nil
+    local targetPart = nil
+    local bestDistance = math.huge
+
+    if getgenv().aim_settings.hitbox == "Nearest" then
+        -- Iterate over all players and all parts to find the global nearest part
+        local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character then
+                for _, partName in ipairs(partsList) do
+                    local part = v.Character:FindFirstChild(partName)
+                    if part then
+                        local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if distance <= getgenv().aim_settings.fov and distance < bestDistance then
+                                bestDistance = distance
+                                candidateTarget = v
+                                targetPart = part
+                            end
+                        end
+                    end
+                end
+            end
         end
+    else
+        -- For "Head", "HumanoidRootPart", or "Random" modes, use candidate selection based on a fixed part.
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character then
+                local candidatePart = nil
+                if getgenv().aim_settings.hitbox == "Random" then
+                    candidatePart = v.Character:FindFirstChild("HumanoidRootPart")
+                else
+                    candidatePart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+                end
+                if candidatePart then
+                    local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(candidatePart.Position)
+                    if onScreen then
+                        local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if distance <= getgenv().aim_settings.fov and distance < bestDistance then
+                            bestDistance = distance
+                            candidateTarget = v
+                        end
+                    end
+                end
+            end
+        end
+
+        if candidateTarget then
+            if getgenv().aim_settings.hitbox == "Random" then
+                if not randomPart then
+                    randomPart = GetRandomPartFromCharacter(candidateTarget.Character)
+                end
+                targetPart = randomPart
+            else
+                targetPart = candidateTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+            end
+        end
+    end
+
+    currentTarget = candidateTarget
+    if currentTarget and currentTarget.Character and targetPart then
+        local pos = CurrentCamera.CFrame.Position
+        CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
     end
 end
 
@@ -198,7 +269,7 @@ RunService.RenderStepped:Connect(function()
     Circle.Position = UserInputService:GetMouseLocation()
     Circle.Radius = getgenv().aim_settings.fov
     Circle.Visible = getgenv().aim_settings.fovcircle
-    -- Update the FOV circle properties from settings in real time:
+    -- Update FOV circle properties in real time:
     Circle.Thickness = getgenv().aim_settings.fovThickness
     Circle.Color = getgenv().aim_settings.fovCircleColor
     Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
@@ -803,6 +874,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = true
+		-- For "Random" mode, choose a new random part upon activation.
+		if getgenv().aim_settings.hitbox == "Random" then
+		    randomPart = nil
+		end
 	end
 end)
 
@@ -811,6 +886,8 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = false
 		currentTarget = nil
+		-- Clear the random part so that a new one is selected next activation.
+		randomPart = nil
 	end
 end)
 
@@ -871,7 +948,7 @@ aimBasic:Dropdown({
 	Required = true,
 	Search = true,
 	Default = "Head",
-	Options = {"Head", "HumanoidRootPart"},
+	Options = {"Head", "HumanoidRootPart", "Random", "Nearest"},
 	Callback = function(Value)
 		getgenv().aim_settings.hitbox = Value
 		Window:Notify({ Title = "Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
