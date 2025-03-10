@@ -544,66 +544,67 @@ end
 -- Chams Functions (Highlight-based ESP)         --
 ---------------------------------------------------
 -- This version uses Workspace to find the model by player name.
+-- Instead of using ExpressionID value 5 to set blue,
+-- it now checks each player's inventory for an item named "Gun".
 local chamsStorage = nil
 local chamsConnections = {}
 local chamsUpdateLoop = nil
 
 local function UpdateChamsColors()
-    print("[DEBUG] UpdateChamsColors: starting update loop")
-    local iteration = 0
     while chamsStorage and chamsStorage.Parent do
-        iteration = iteration + 1
-        print("[DEBUG] UpdateChamsColors iteration", iteration)
         for _, highlight in pairs(chamsStorage:GetChildren()) do
             if highlight:IsA("Highlight") then
-                print("[DEBUG] Processing highlight for:", highlight.Name)
                 local plr = game:GetService("Players"):FindFirstChild(highlight.Name)
                 if plr then
                     local playerModel = plr.Character or workspace:FindFirstChild(plr.Name)
                     if playerModel then
                         if getgenv().chamsTeamCheckEnabled then
-                            local expr = playerModel:FindFirstChild("ExpressionID", true)
-                            if expr then
-                                print("[DEBUG] Found ExpressionID for", plr.Name, "with value", expr.Value, "type:", typeof(expr.Value))
-                                local numVal = tonumber(expr.Value)
-                                if numVal then
-                                    if numVal == 0 then
-                                        highlight.FillColor = Color3.fromRGB(0, 255, 0)
-                                        print("[DEBUG] Set", plr.Name, "to bright green (0)")
-                                    elseif numVal == 3 then
-                                        highlight.FillColor = Color3.fromRGB(128, 0, 255)
-                                        print("[DEBUG] Set", plr.Name, "to bright purple (3)")
-                                    elseif numVal == 5 then
-                                        highlight.FillColor = Color3.fromRGB(0, 191, 255)
-                                        print("[DEBUG] Set", plr.Name, "to bright blue (5)")
+                            local newColor = Color3.fromRGB(255,255,255)
+                            local hasGun = false
+                            if playerModel:FindFirstChild("Gun") then
+                                hasGun = true
+                            else
+                                local backpack = plr:FindFirstChildOfClass("Backpack")
+                                if backpack and backpack:FindFirstChild("Gun") then
+                                    hasGun = true
+                                end
+                            end
+                            if hasGun then
+                                newColor = Color3.fromRGB(0,191,255)  -- Blue
+                            else
+                                local expr = playerModel:FindFirstChild("ExpressionID", true)
+                                if expr then
+                                    local numVal = tonumber(expr.Value)
+                                    if numVal then
+                                        if numVal == 0 then
+                                            newColor = Color3.fromRGB(0,255,0)
+                                        elseif numVal == 3 then
+                                            newColor = Color3.fromRGB(128,0,255)
+                                        else
+                                            newColor = Color3.fromRGB(255,255,255)
+                                        end
                                     else
-                                        highlight.FillColor = Color3.fromRGB(255, 255, 255)
-                                        print("[DEBUG] ExpressionID for", plr.Name, "is", numVal, "setting white")
+                                        newColor = Color3.fromRGB(255,255,255)
                                     end
                                 else
-                                    print("[DEBUG] Could not convert ExpressionID value for", plr.Name)
-                                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                    newColor = Color3.fromRGB(255,255,255)
                                 end
-                            else
-                                highlight.FillColor = Color3.fromRGB(255, 255, 255)
-                                print("[DEBUG] No ExpressionID found for", plr.Name, "in", playerModel:GetFullName(), "setting white")
                             end
+                            highlight.FillColor = newColor
+                            highlight.OutlineColor = newColor
                         else
-                            highlight.FillColor = Color3.fromRGB(255, 255, 255)
-                            print("[DEBUG] Team check disabled for", plr.Name, "setting white")
+                            highlight.FillColor = Color3.fromRGB(255,255,255)
+                            highlight.OutlineColor = Color3.fromRGB(255,255,255)
                         end
                     else
-                        highlight.FillColor = Color3.fromRGB(255, 255, 255)
-                        print("[DEBUG] No player model found for", plr.Name, "setting white")
+                        highlight.FillColor = Color3.fromRGB(255,255,255)
+                        highlight.OutlineColor = Color3.fromRGB(255,255,255)
                     end
-                else
-                    print("[DEBUG] No player found for highlight named:", highlight.Name)
                 end
             end
         end
         task.wait(1)
     end
-    print("[DEBUG] UpdateChamsColors: update loop ended")
 end
 
 local function EnableChams()
@@ -611,7 +612,6 @@ local function EnableChams()
     chamsStorage = Instance.new("Folder")
     chamsStorage.Parent = CoreGui
     chamsStorage.Name = "Highlight_Storage"
-    print("[DEBUG] Chams storage created")
 
     local function createHighlight(plr)
         local highlight = Instance.new("Highlight")
@@ -628,9 +628,7 @@ local function EnableChams()
 
         chamsConnections[plr] = plr.CharacterAdded:Connect(function(char)
             highlight.Adornee = char
-            print("[DEBUG] Updated adornee for", plr.Name)
         end)
-        print("[DEBUG] Created chams for", plr.Name)
     end
 
     for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
@@ -647,7 +645,6 @@ local function EnableChams()
 
     if not chamsUpdateLoop then
         chamsUpdateLoop = task.spawn(UpdateChamsColors)
-        print("[DEBUG] Started chams update loop")
     end
 end
 
@@ -655,7 +652,6 @@ local function DisableChams()
     if chamsStorage then
         chamsStorage:Destroy()
         chamsStorage = nil
-        print("[DEBUG] Destroyed chams storage")
     end
     for plr, conn in pairs(chamsConnections) do
         if conn then
@@ -665,7 +661,6 @@ local function DisableChams()
     chamsConnections = {}
     if chamsUpdateLoop then
         chamsUpdateLoop = nil
-        print("[DEBUG] Stopped chams update loop")
     end
 end
 
@@ -1278,34 +1273,49 @@ visualsRight:Toggle({
          if chamsStorage then
              for _, highlight in pairs(chamsStorage:GetChildren()) do
                  if highlight:IsA("Highlight") then
-                     local plr = Players:FindFirstChild(highlight.Name)
-                     if getgenv().chamsTeamCheckEnabled and plr then
-                         local playerModel = plr.Character or workspace:FindFirstChild(plr.Name)
-                         if playerModel then
-                             local expr = playerModel:FindFirstChild("ExpressionID", true)
-                             if expr then
-                                 local numVal = tonumber(expr.Value)
-                                 if numVal then
-                                     if numVal == 0 then
-                                         highlight.FillColor = Color3.fromRGB(0, 255, 0)
-                                     elseif numVal == 3 then
-                                         highlight.FillColor = Color3.fromRGB(128, 0, 255)
-                                     elseif numVal == 5 then
-                                         highlight.FillColor = Color3.fromRGB(0, 191, 255)
-                                     else
-                                         highlight.FillColor = Color3.fromRGB(255, 255, 255)
-                                     end
+                     if getgenv().chamsTeamCheckEnabled then
+                         local plr = Players:FindFirstChild(highlight.Name)
+                         local newColor = Color3.fromRGB(255,255,255)
+                         if plr then
+                             local playerModel = plr.Character or workspace:FindFirstChild(plr.Name)
+                             if playerModel then
+                                 local hasGun = false
+                                 if playerModel:FindFirstChild("Gun") then
+                                     hasGun = true
                                  else
-                                     highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                     local backpack = plr:FindFirstChildOfClass("Backpack")
+                                     if backpack and backpack:FindFirstChild("Gun") then
+                                         hasGun = true
+                                     end
                                  end
-                             else
-                                 highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                                 if hasGun then
+                                     newColor = Color3.fromRGB(0,191,255)
+                                 else
+                                     local expr = playerModel:FindFirstChild("ExpressionID", true)
+                                     if expr then
+                                         local numVal = tonumber(expr.Value)
+                                         if numVal then
+                                             if numVal == 0 then
+                                                 newColor = Color3.fromRGB(0,255,0)
+                                             elseif numVal == 3 then
+                                                 newColor = Color3.fromRGB(128,0,255)
+                                             else
+                                                 newColor = Color3.fromRGB(255,255,255)
+                                             end
+                                         else
+                                             newColor = Color3.fromRGB(255,255,255)
+                                         end
+                                     else
+                                         newColor = Color3.fromRGB(255,255,255)
+                                     end
+                                 end
                              end
-                         else
-                             highlight.FillColor = Color3.fromRGB(255, 255, 255)
                          end
+                         highlight.FillColor = newColor
+                         highlight.OutlineColor = newColor
                      else
-                         highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                         highlight.FillColor = Color3.fromRGB(255,255,255)
+                         highlight.OutlineColor = Color3.fromRGB(255,255,255)
                      end
                  end
              end
