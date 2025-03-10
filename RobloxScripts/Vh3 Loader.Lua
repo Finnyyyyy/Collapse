@@ -133,6 +133,9 @@ getgenv().aim_settings = {
 }
 local currentAimKey = getgenv().aim_settings.aimKey
 
+-- Ensure a default for box ESP filled toggle
+getgenv().boxESPFilled = getgenv().boxESPFilled or false
+
 -- Create FOV Circle drawing
 local Circle = Drawing.new("Circle")
 Circle.Visible = false
@@ -145,57 +148,62 @@ Circle.NumSides = 64
 ---------------------------------------------------
 -- Aiming Functionality                          --
 ---------------------------------------------------
+-- REPLACED AIM ASSIST CODE (Working version from your older script)
 local function AimLock()
     local mousePos = UserInputService:GetMouseLocation()
-    
-    local targetPart = nil
     if currentTarget and currentTarget.Character then
-        targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-    end
-    
-    if targetPart then
-        local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
-        local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-        local distance = (mousePos - screenPosition).Magnitude
-        
-        if onScreen and distance <= getgenv().aim_settings.fov then
-            local pos = CurrentCamera.CFrame.Position
-            local targetPos = targetPart.Position
-            local desiredLook = (targetPos - pos).Unit
-            CurrentCamera.CFrame = CFrame.new(pos, pos + desiredLook)
-            return
+        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+        if targetPart then
+            local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
+            local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
+            local distance = (mousePos - screenPosition).Magnitude
+            if onScreen and distance <= getgenv().aim_settings.fov then
+                local pos = CurrentCamera.CFrame.Position
+                CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
+                return
+            end
         end
     end
-
     currentTarget = nil
     local lastMagnitude = math.huge
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character then
-            local part = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-            if part then
-                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
+            local targetPart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+            if targetPart then
+                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
                 local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-                local dist = (mousePos - screenPosition).Magnitude
-                if onScreen and dist <= getgenv().aim_settings.fov then
-                    if dist < lastMagnitude then
-                        lastMagnitude = dist
+                local distance = (mousePos - screenPosition).Magnitude
+                if onScreen and distance <= getgenv().aim_settings.fov then
+                    if distance < lastMagnitude then
+                        lastMagnitude = distance
                         currentTarget = v
                     end
                 end
             end
         end
     end
-    
     if currentTarget and currentTarget.Character then
-        local part = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-        if part then
+        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+        if targetPart then
             local pos = CurrentCamera.CFrame.Position
-            local targetPos = part.Position
-            local desiredLook = (targetPos - pos).Unit
-            CurrentCamera.CFrame = CFrame.new(pos, pos + desiredLook)
+            CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
         end
     end
 end
+
+RunService.RenderStepped:Connect(function()
+    if getgenv().aim_settings.enabled and Aiming then
+        AimLock()
+    end
+    Circle.Position = UserInputService:GetMouseLocation()
+    Circle.Radius = getgenv().aim_settings.fov
+    Circle.Visible = getgenv().aim_settings.fovcircle
+    -- Update the FOV circle properties from settings in real time:
+    Circle.Thickness = getgenv().aim_settings.fovThickness
+    Circle.Color = getgenv().aim_settings.fovCircleColor
+    Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
+    Circle.Filled = getgenv().aim_settings.fovCircleFilled
+end)
 
 ---------------------------------------------------
 -- Standard ESP Rendering (Box, Tracers, etc.)    --
@@ -299,7 +307,7 @@ do
                             Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line")
                         }
                     end
-                    local cl = 10  -- corner length
+                    local cl = 15  -- increased corner length for better visibility
                     local x = Position.X
                     local y = Position.Y
                     local w = Size.X
@@ -715,14 +723,21 @@ do
         if self.Visible then 
             self:RemoveLines()
             self:UpdateStructure()
-            local c; c = RS.Heartbeat:Connect(function()
-                if not self.Visible then
+            self._connection = RS.Heartbeat:Connect(function()
+                if not getgenv().skeletonESPEnabled then
                     self:SetVisible(false)
-                    c:Disconnect()
+                    if self._connection then self._connection:Disconnect() end
                     return
                 end
                 self:Update()
             end)
+        else
+            self:SetVisible(false)
+            self:RemoveLines()
+            if self._connection then
+                self._connection:Disconnect()
+                self._connection = nil
+            end
         end
     end
 
@@ -922,7 +937,6 @@ aimFOV:Slider({
 ---------------------------------------------------
 local visualsLeft = tabs.Visuals:Section({ Side = "Left" })
 local visualsRight = tabs.Visuals:Section({ Side = "Right" })
-
 -- Main ESP toggles (order: Box ESP, Tracers, Skeleton ESP, Healthbar, Tool ESP, Distance ESP, Chams)
 visualsLeft:Toggle({
 	Name = "Box ESP",
@@ -932,7 +946,6 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Box ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "BoxESPToggle")
-
 visualsLeft:Toggle({
 	Name = "Tracers",
 	Default = false,
@@ -941,7 +954,6 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Tracers", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "TracersToggle")
-
 visualsLeft:Toggle({
 	Name = "Skeleton ESP",
 	Default = false,
@@ -955,7 +967,6 @@ visualsLeft:Toggle({
          Window:Notify({ Title = "Skeleton ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "SkeletonESPToggle")
-
 visualsLeft:Toggle({
 	Name = "Healthbar",
 	Default = false,
@@ -965,7 +976,6 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Healthbar", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "HealthbarToggle")
-
 visualsLeft:Toggle({
 	Name = "Tool ESP",
 	Default = false,
@@ -974,7 +984,6 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Tool ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "ToolESPToggle")
-
 visualsLeft:Toggle({
 	Name = "Distance ESP",
 	Default = false,
@@ -983,7 +992,6 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Distance ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "DistanceESPToggle")
-
 visualsLeft:Toggle({
     Name = "Chams",
     Default = false,
@@ -997,10 +1005,8 @@ visualsLeft:Toggle({
          Window:Notify({ Title = "Chams", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "ChamsToggle")
-
 -- New ESP Customization Section (placed below main toggles)
 local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
-
 espCustom:Dropdown({
     Name = "Tracer Origin",
     Multi = false,
@@ -1012,7 +1018,6 @@ espCustom:Dropdown({
         currentTracerPosition = Value
     end,
 }, "TracerOriginDropdown")
-
 espCustom:Slider({
     Name = "Tracer Thickness",
     Default = ESP.Tracers.Thickness,
@@ -1024,7 +1029,6 @@ espCustom:Slider({
         ESP.Tracers.Thickness = Value
     end,
 }, "TracerThicknessSlider")
-
 espCustom:Dropdown({
     Name = "Box ESP Type",
     Multi = false,
@@ -1036,7 +1040,6 @@ espCustom:Dropdown({
         getgenv().boxESPType = Value
     end,
 }, "BoxESPTypeDropdown")
-
 espCustom:Toggle({
     Name = "Box ESP Filled",
     Default = false,
@@ -1044,7 +1047,6 @@ espCustom:Toggle({
         getgenv().boxESPFilled = Value
     end,
 }, "BoxESPFilledToggle")
-
 espCustom:Toggle({
     Name = "Chams Fill",
     Default = false,
@@ -1059,7 +1061,6 @@ espCustom:Toggle({
          end
     end,
 }, "ChamsFillToggle")
-
 -- Color pickers (order: Box, Tracers, Skeleton, HealthBar, Tool, Distance, Chams)
 visualsRight:Colorpicker({
     Name = "Box ESP Color",
@@ -1069,7 +1070,6 @@ visualsRight:Colorpicker({
         ESP.Box.Color = color
     end,
 }, "BoxESPColor")
-
 visualsRight:Colorpicker({
     Name = "Tracers Color",
     Default = ESP.Tracers.Color,
@@ -1078,7 +1078,6 @@ visualsRight:Colorpicker({
         ESP.Tracers.Color = color
     end,
 }, "TracersColor")
-
 visualsRight:Colorpicker({
     Name = "Skeleton ESP Color",
     Default = getgenv().skeletonESPColor or Color3.fromRGB(255,255,255),
@@ -1090,7 +1089,6 @@ visualsRight:Colorpicker({
          end
     end,
 }, "SkeletonESPColor")
-
 visualsRight:Colorpicker({
     Name = "HealthBar ESP Color",
     Default = ESP.HealthBar.Color,
@@ -1099,7 +1097,6 @@ visualsRight:Colorpicker({
         ESP.HealthBar.Color = color
     end,
 }, "HealthBarESPColor")
-
 visualsRight:Colorpicker({
     Name = "Tool ESP Color",
     Default = ESP.Tool.Color,
@@ -1108,7 +1105,6 @@ visualsRight:Colorpicker({
         ESP.Tool.Color = color
     end,
 }, "ToolESPColor")
-
 visualsRight:Colorpicker({
     Name = "Distance ESP Color",
     Default = ESP.Distance.Color,
@@ -1117,7 +1113,6 @@ visualsRight:Colorpicker({
         ESP.Distance.Color = color
     end,
 }, "DistanceESPColor")
-
 visualsRight:Colorpicker({
     Name = "Chams Color",
     Default = Color3.fromRGB(255,255,255),
