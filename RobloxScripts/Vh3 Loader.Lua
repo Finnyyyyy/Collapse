@@ -59,11 +59,10 @@ local tabGroups = {
 	Other = Window:TabGroup()
 }
 
--- Create Tabs in the desired order: Aim Assist, Visuals, Player, then Settings.
+-- Create Tabs
 local tabs = {
 	AimAssist = tabGroups.Aim:Tab({ Name = "Aim Assist", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
-	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }), -- using an eye-like icon
 	Settings = tabGroups.Other:Tab({ Name = "Settings", Image = "rbxassetid://110807522910450" })
 }
 
@@ -74,17 +73,20 @@ tabs.Settings:InsertConfigSection("Left")
 --------------------------------------------
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local CurrentCamera = game:GetService("Workspace").CurrentCamera
+local CurrentCamera = workspace.CurrentCamera
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Folder for Item ESP
+local itemPointsFolder = workspace:WaitForChild("GameStuff"):WaitForChild("Map"):WaitForChild("Data"):WaitForChild("GamePoints"):WaitForChild("ItemPoints")
 
 -- Current Tracer Position and Aim Variables
 local currentTracerPosition = "Bottom"  -- default tracer position
 local Aiming = false
 local currentTarget = nil
 
--- ESP Table (for visuals only)
+-- ESP Table (for original ESPs)
 local ESP = {
     Enabled = true,
     Box = {
@@ -118,19 +120,7 @@ local ESP = {
     }
 }
 
---------------------------------------------------
--- Global ESP Distance Check Settings (for ESP) --
---------------------------------------------------
-if getgenv().distanceCheckEnabled == nil then
-    getgenv().distanceCheckEnabled = false
-end
-if getgenv().distanceCheckValue == nil then
-    getgenv().distanceCheckValue = 500
-end
-
---------------------------------------------------
--- Aim Settings and FOV Circle Setup              --
---------------------------------------------------
+-- Aim Settings (global) with extra customization defaults
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
@@ -139,19 +129,19 @@ getgenv().aim_settings = {
     aimKey = Enum.KeyCode.E,
     
     -- FOV circle customizations:
-    method = "Camera",           -- "Camera" (default) or "Mouse"
-    fovThickness = 1,            -- thickness of the FOV circle
+    method = "Camera",           -- Dropdown: "Camera" (default) or "Mouse"
+    fovThickness = 1,            -- Slider 1 to 5 (thickness of the FOV circle)
     fovCircleColor = Color3.fromRGB(255,255,255),
-    fovCircleFilled = false,     -- whether the circle is filled
-    fovCircleTransparency = 1,   -- transparency (0.1 to 1)
+    fovCircleFilled = false,     -- Whether the circle is filled
+    fovCircleTransparency = 1,   -- Slider 0.1 to 1, applies to the entire circle
     
     -- Smoothing and Prediction settings:
-    enableSmoothness = false,    -- when enabled, makes lock-on less snappy
-    smoothnessX = 1,             -- affects interpolation factor
-    smoothnessY = 1,             -- affects interpolation factor
-    enablePredictions = false,   -- offsets the target position
-    predictionOffsetX = 0,       -- x offset in studs
-    predictionOffsetY = 0        -- y offset in studs
+    enableSmoothness = false,    -- When enabled, makes lock-on less snappy
+    smoothnessX = 1,             -- Slider 1 to 10 (affects interpolation factor)
+    smoothnessY = 1,             -- Slider 1 to 10 (we average these for simplicity)
+    enablePredictions = false,   -- When enabled, offsets the target position
+    predictionOffsetX = 0,       -- Slider -10 to 10 (in studs; x offset)
+    predictionOffsetY = 0        -- Slider -10 to 10 (in studs; y offset)
 }
 local currentAimKey = getgenv().aim_settings.aimKey
 
@@ -183,6 +173,7 @@ local function AimLock()
         if onScreen and distance <= getgenv().aim_settings.fov then
             local pos = CurrentCamera.CFrame.Position
             local targetPos = targetPart.Position
+            -- Apply prediction offset if enabled
             if getgenv().aim_settings.enablePredictions then
                 targetPos = targetPos + Vector3.new(getgenv().aim_settings.predictionOffsetX, getgenv().aim_settings.predictionOffsetY, 0)
             end
@@ -243,7 +234,6 @@ end
 ------------------
 -- ESP Functions --
 ------------------
--- (This Functions table is used solely by the ESP)
 local Functions = {}
 do 
     function Functions:IsAlive(Player)
@@ -341,20 +331,6 @@ do
 
             local HumanoidRootPart = Player.Character.HumanoidRootPart
             if not HumanoidRootPart then return HideESP() end
-
-            -- For ESP only: if distance check is enabled and the player is beyond the limit, hide drawings.
-            if getgenv().distanceCheckEnabled and Functions:GetDistance(Player) > getgenv().distanceCheckValue then
-                BoxOutline.Visible = false
-                Box.Visible = false
-                TracerOutline.Visible = false
-                Tracer.Visible = false
-                HealthBarOutline.Visible = false
-                HealthBar.Visible = false
-                ToolText.Visible = false
-                DistanceText.Visible = false
-                HealthText.Visible = false
-                return
-            end
 
             local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
             if not OnScreen then return HideESP() end
@@ -499,7 +475,7 @@ end)
 --------------------------
 -- GUI: Aim Assist Tab --
 --------------------------
--- Left Column: Basic Controls then Smooth & Prediction settings
+-- Left Column: Basic Controls and then below it, Smooth & Prediction settings
 local aimBasic = tabs.AimAssist:Section({ Side = "Left" })
 aimBasic:Toggle({
 	Name = "Aim Assist",
@@ -561,7 +537,7 @@ aimBasic:Dropdown({
 	end,
 }, "AimTargetDropdown")
 
--- Below Basic Controls: Smoothness & Prediction
+-- Below Basic Controls: Smoothness & Prediction (in a separate section below on the left)
 local aimSmooth = tabs.AimAssist:Section({ Side = "Left", VerticalOrder = true })
 aimSmooth:Toggle({
 	Name = "Enable Smoothness",
@@ -746,145 +722,614 @@ visualsLeft:Toggle({
 	end,
 }, "DistanceESPToggle")
 
--- Checks Section (for ESP only – distance filtering)
-local visualsChecks = tabs.Visuals:Section({ Side = "Left", Title = "Checks" })
-visualsChecks:Toggle({
-    Name = "Distance Check",
-    Default = false,
-    Callback = function(Value)
-        getgenv().distanceCheckEnabled = Value
-        Window:Notify({ Title = "Distance Check", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
-    end,
-}, "VisualsDistanceCheckToggle")
-visualsChecks:Slider({
-    Name = "Distance Limit",
-    Default = 500,
-    Minimum = 100,
-    Maximum = 500,
-    DisplayMethod = "Value",
-    Precision = 0,
-    Callback = function(Value)
-        getgenv().distanceCheckValue = Value
-        Window:Notify({ Title = "Distance Limit", Description = "Distance limit set to: " .. tostring(Value), Lifetime = 5 })
-    end,
-}, "VisualsDistanceLimitSlider")
+--[[ 
+    ============================
+    New ESPs Begin Here:
+    ============================
+--]]
 
-visualsRight:Colorpicker({
-	Name = "Box ESP Color",
-	Default = ESP.Box.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Box.Color = color
-	end,
-}, "BoxESPColor")
+-------------------------------------
+-- Global variables for new ESPs --
+-------------------------------------
+getgenv().itemESPEnabled = false
+getgenv().skeletonESPEnabled = false
+getgenv().chamsEnabled = false
+getgenv().armChamsEnabled = false
 
-visualsRight:Colorpicker({
-	Name = "Tool ESP Color",
-	Default = ESP.Tool.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Tool.Color = color
-	end,
-}, "ToolESPColor")
+getgenv().skeletonESPColor = Color3.fromRGB(255,255,255)
+getgenv().chamsColor = Color3.fromRGB(255,255,255)
+getgenv().armChamsColor = Color3.fromRGB(255,255,255)
 
-visualsRight:Colorpicker({
-	Name = "Distance ESP Color",
-	Default = ESP.Distance.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Distance.Color = color
-	end,
-}, "DistanceESPColor")
+local itemESPConnection = nil
+local itemESPObjects = {}
 
-visualsRight:Colorpicker({
-	Name = "Tracers Color",
-	Default = ESP.Tracers.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Tracers.Color = color
-	end,
-}, "TracersColor")
+local skeletons = {}
+local skeletonAddedConnection = nil
 
-visualsRight:Colorpicker({
-	Name = "HealthBar ESP Color",
-	Default = ESP.HealthBar.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.HealthBar.Color = color
-	end,
-}, "HealthBarESPColor")
+local chamConnections = {}
+local chamsFolder = nil
 
-----------------------------
--- GUI: Player Tab (Other)  --
-----------------------------
-local playerSection = tabs.Player:Section({ Side = "Left" })
+local armChamsConnections = {}
+local armChamsPlayerAddedConnection = nil
 
--- Default values
-local defaultWalkSpeed = 16
-local defaultJumpPower = 50
+-----------------------
+-- ITEM ESP Functions
+-----------------------
+local function updateItemESP()
+    if not getgenv().itemESPEnabled then
+        for _, data in pairs(itemESPObjects) do
+            if data.box then data.box:Remove() end
+            if data.text then data.text:Remove() end
+        end
+        itemESPObjects = {}
+        return
+    end
 
-playerSection:Toggle({
-    Name = "Speed",
-    Default = false,
-    Callback = function(Value)
-        getgenv().speedEnabled = Value
-        Window:Notify({ Title = "Speed", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
-    end,
-}, "SpeedToggle")
-playerSection:Slider({
-    Name = "Speed Value",
-    Default = 16,
-    Minimum = 16,
-    Maximum = 500, -- increased max speed to 500
-    DisplayMethod = "Value",
-    Precision = 0,
-    Callback = function(Value)
-        getgenv().speedValue = Value
-        Window:Notify({ Title = "Speed Value", Description = "Speed set to: " .. tostring(Value), Lifetime = 5 })
-    end,
-}, "SpeedSlider")
-
-local jumpSection = tabs.Player:Section({ Side = "Left", Title = "Jump" })
-jumpSection:Toggle({
-    Name = "Jump Height",
-    Default = false,
-    Callback = function(Value)
-        getgenv().jumpEnabled = Value
-        Window:Notify({ Title = "Jump Height", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
-    end,
-}, "JumpToggle")
-jumpSection:Slider({
-    Name = "Jump Height Value",
-    Default = 50,
-    Minimum = 50,
-    Maximum = 250, -- increased max jump height to 250
-    DisplayMethod = "Value",
-    Precision = 0,
-    Callback = function(Value)
-        getgenv().jumpValue = Value
-        Window:Notify({ Title = "Jump Height", Description = "Jump Height set to: " .. tostring(Value), Lifetime = 5 })
-    end,
-}, "JumpSlider")
-
--- Continuously update player speed and jump height if toggled
-RunService.RenderStepped:Connect(function()
-    local character = LocalPlayer.Character
-    if character then
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            if getgenv().speedEnabled then
-                humanoid.WalkSpeed = getgenv().speedValue or defaultWalkSpeed
+    for _, item in ipairs(itemPointsFolder:GetChildren()) do
+        if item:IsA("BasePart") then
+            if item:FindFirstChild("Used") then
+                if itemESPObjects[item] then
+                    itemESPObjects[item].box:Remove()
+                    itemESPObjects[item].text:Remove()
+                    itemESPObjects[item] = nil
+                end
             else
-                humanoid.WalkSpeed = defaultWalkSpeed
-            end
-            if getgenv().jumpEnabled then
-                humanoid.JumpPower = getgenv().jumpValue or defaultJumpPower
-            else
-                humanoid.JumpPower = defaultJumpPower
+                if not itemESPObjects[item] then
+                    local box = Drawing.new("Square")
+                    box.Color = Color3.new(1,1,1)
+                    box.Thickness = 1
+                    box.Transparency = 1
+                    box.Filled = false
+                    box.Visible = true
+
+                    local text = Drawing.new("Text")
+                    text.Color = Color3.new(1,1,1)
+                    text.Size = 12
+                    text.Center = true
+                    text.Outline = true
+                    text.Visible = true
+
+                    itemESPObjects[item] = {box = box, text = text}
+                end
+
+                local pos, onScreen = CurrentCamera:WorldToViewportPoint(item.Position)
+                if onScreen then
+                    -- Compute bounding box from the part's corners
+                    local cf = item.CFrame
+                    local size = item.Size
+                    local corners = {}
+                    for dx = -0.5, 0.5, 1 do
+                        for dy = -0.5, 0.5, 1 do
+                            for dz = -0.5, 0.5, 1 do
+                                local offset = Vector3.new(dx * size.X, dy * size.Y, dz * size.Z)
+                                local worldCorner = cf:PointToWorldSpace(offset)
+                                local cornerPos, visible = CurrentCamera:WorldToViewportPoint(worldCorner)
+                                if visible then
+                                    table.insert(corners, Vector2.new(cornerPos.X, cornerPos.Y))
+                                end
+                            end
+                        end
+                    end
+                    if #corners > 0 then
+                        local minX, minY = math.huge, math.huge
+                        local maxX, maxY = -math.huge, -math.huge
+                        for _, corner in ipairs(corners) do
+                            if corner.X < minX then minX = corner.X end
+                            if corner.Y < minY then minY = corner.Y end
+                            if corner.X > maxX then maxX = corner.X end
+                            if corner.Y > maxY then maxY = corner.Y end
+                        end
+                        itemESPObjects[item].box.Position = Vector2.new(minX, minY)
+                        itemESPObjects[item].box.Size = Vector2.new(maxX - minX, maxY - minY)
+                        itemESPObjects[item].box.Visible = true
+
+                        local textPos = Vector2.new((minX + maxX)/2, minY - 15)
+                        itemESPObjects[item].text.Position = textPos
+                        itemESPObjects[item].text.Text = item.Name
+                        itemESPObjects[item].text.Visible = true
+                    else
+                        itemESPObjects[item].box.Visible = false
+                        itemESPObjects[item].text.Visible = false
+                    end
+                else
+                    itemESPObjects[item].box.Visible = false
+                    itemESPObjects[item].text.Visible = false
+                end
             end
         end
     end
-end)
+
+    -- Clean up items that no longer exist
+    for item, data in pairs(itemESPObjects) do
+        if not item.Parent then
+            data.box:Remove()
+            data.text:Remove()
+            itemESPObjects[item] = nil
+        end
+    end
+end
+
+---------------------------
+-- SKELETON ESP Functions --
+---------------------------
+-- Skeleton Library (modified to default to white)
+local SkeletonLibrary = {}
+SkeletonLibrary.__index = SkeletonLibrary
+
+function SkeletonLibrary:NewLine(info)
+	local l = Drawing.new("Line")
+	l.Visible = info.Visible or true
+	l.Color = info.Color or Color3.new(1,1,1)
+	l.Transparency = info.Transparency or 1
+	l.Thickness = info.Thickness or 1
+	return l
+end
+
+function SkeletonLibrary:Smoothen(v)
+	return Vector2.new(math.round(v.X), math.round(v.Y))
+end
+
+local Skeleton = {
+	Removed = false,
+	Player = nil,
+	Visible = false,
+	Lines = {},
+	Color = Color3.new(1,1,1),
+	Alpha = 1,
+	Thickness = 1,
+	DoSubsteps = true,
+}
+Skeleton.__index = Skeleton
+
+function Skeleton:UpdateStructure()
+	if not self.Player.Character then return end
+
+	self:RemoveLines()
+
+	for _, part in next, self.Player.Character:GetChildren() do		
+		if not part:IsA("BasePart") then continue end
+
+		for _, link in next, part:GetChildren() do			
+			if not link:IsA("Motor6D") then continue end
+			
+			table.insert(self.Lines, {
+				SkeletonLibrary:NewLine({Visible = self.Visible, Color = self.Color, Transparency = self.Alpha, Thickness = self.Thickness}),
+				SkeletonLibrary:NewLine({Visible = self.Visible, Color = self.Color, Transparency = self.Alpha, Thickness = self.Thickness}),
+				part.Name,
+				link.Name
+			})
+		end
+	end
+end
+
+function Skeleton:SetVisible(State)
+	for _, l in pairs(self.Lines) do
+		l[1].Visible = State
+		l[2].Visible = State
+	end
+end
+
+function Skeleton:SetColor(Color)
+	self.Color = Color
+	for _, l in pairs(self.Lines) do
+		l[1].Color = Color
+		l[2].Color = Color
+	end
+end
+
+function Skeleton:SetAlpha(Alpha)
+	self.Alpha = Alpha
+	for _, l in pairs(self.Lines) do
+		l[1].Transparency = Alpha
+		l[2].Transparency = Alpha
+	end
+end
+
+function Skeleton:SetThickness(Thickness)
+	self.Thickness = Thickness
+	for _, l in pairs(self.Lines) do
+		l[1].Thickness = Thickness
+		l[2].Thickness = Thickness
+	end
+end
+
+function Skeleton:SetDoSubsteps(State)
+	self.DoSubsteps = State
+end
+
+function Skeleton:Update()
+	if self.Removed then return end
+
+	local Character = self.Player.Character
+	if not Character then
+		self:SetVisible(false)
+		if not self.Player.Parent then
+			self:Remove()
+		end
+		return
+	end
+
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+	if not Humanoid then
+		self:SetVisible(false)
+		return
+	end
+
+	self:SetColor(self.Color)
+	self:SetAlpha(self.Alpha)
+	self:SetThickness(self.Thickness)
+
+	local update = false
+	for _, l in pairs(self.Lines) do
+		local part = Character:FindFirstChild(l[3])
+		if not part then
+			l[1].Visible = false
+			l[2].Visible = false
+			update = true
+			continue
+		end
+
+		local link = part:FindFirstChild(l[4])
+		if not (link and link.Part0 and link.Part1) then
+			l[1].Visible = false
+			l[2].Visible = false
+			update = true
+			continue
+		end
+
+		local part0 = link.Part0
+		local part1 = link.Part1
+		
+		if self.DoSubsteps and link.C0 and link.C1 then
+			local c0 = link.C0
+			local c1 = link.C1
+
+			local part0p, v1 = CurrentCamera:WorldToViewportPoint(part0.CFrame.p)
+			local part0cp, v2 = CurrentCamera:WorldToViewportPoint((part0.CFrame * c0).p)
+			
+			if v1 and v2 then
+				l[1].From = Vector2.new(part0p.x, part0p.y)
+				l[1].To = Vector2.new(part0cp.x, part0cp.y)
+				l[1].Visible = true
+			else 
+				l[1].Visible = false
+			end
+			
+			local part1p, v3 = CurrentCamera:WorldToViewportPoint(part1.CFrame.p)
+			local part1cp, v4 = CurrentCamera:WorldToViewportPoint((part1.CFrame * c1).p)
+		
+			if v3 and v4 then
+				l[2].From = Vector2.new(part1p.x, part1p.y)
+				l[2].To = Vector2.new(part1cp.x, part1cp.y)
+				l[2].Visible = true
+			else 
+				l[2].Visible = false
+			end
+		else					
+			local part0p, v1 = CurrentCamera:WorldToViewportPoint(part0.CFrame.p)
+			local part1p, v2 = CurrentCamera:WorldToViewportPoint(part1.CFrame.p)
+			
+			if v1 and v2 then
+				l[1].From = Vector2.new(part0p.x, part0p.y)
+				l[1].To = Vector2.new(part1p.x, part1p.y)
+				l[1].Visible = true
+			else 
+				l[1].Visible = false
+			end
+			
+			l[2].Visible = false
+		end
+	end
+	
+	if update or #self.Lines == 0 then
+		self:UpdateStructure()
+	end
+end
+
+function Skeleton:Toggle()
+	self.Visible = not self.Visible
+
+	if self.Visible then 
+		self:RemoveLines()
+		self:UpdateStructure()
+		local c
+		c = RunService.Heartbeat:Connect(function()
+			if not self.Visible then
+				self:SetVisible(false)
+				c:Disconnect()
+				return
+			end
+			self:Update()
+		end)
+	end
+end
+
+function Skeleton:RemoveLines()
+	for _, l in pairs(self.Lines) do
+		l[1]:Remove()
+		l[2]:Remove()
+	end
+	self.Lines = {}
+end
+
+function Skeleton:Remove()
+	self.Removed = true
+	self:RemoveLines()
+end
+
+function SkeletonLibrary:NewSkeleton(Player, Visible, Color, Alpha, Thickness, DoSubsteps)
+	if not Player then error("Missing Player argument (#1)") end
+	local s = setmetatable({}, Skeleton)
+	s.Player = Player
+	s.Bind = Player.UserId
+	if DoSubsteps ~= nil then
+		s.DoSubsteps = DoSubsteps
+	end
+	if Color then s:SetColor(Color) end
+	if Alpha then s:SetAlpha(Alpha) end
+	if Thickness then s:SetThickness(Thickness) end
+	if Visible then s:Toggle() end
+	return s
+end
+
+local function startSkeletonESP()
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local sk = SkeletonLibrary:NewSkeleton(player, true, getgenv().skeletonESPColor, 1, 1, true)
+			table.insert(skeletons, sk)
+		end
+	end
+	skeletonAddedConnection = Players.PlayerAdded:Connect(function(player)
+		if player ~= LocalPlayer then
+			local sk = SkeletonLibrary:NewSkeleton(player, true, getgenv().skeletonESPColor, 1, 1, true)
+			table.insert(skeletons, sk)
+		end
+	end)
+end
+
+local function stopSkeletonESP()
+	if skeletonAddedConnection then skeletonAddedConnection:Disconnect() end
+	for _, sk in ipairs(skeletons) do
+		sk:Remove()
+	end
+	skeletons = {}
+end
+
+---------------------------
+-- CHAMS (Highlight) ESP --
+---------------------------
+local function startChams()
+	chamsFolder = Instance.new("Folder")
+	chamsFolder.Parent = game:GetService("CoreGui")
+	chamsFolder.Name = "Highlight_Storage"
+	
+	local function highlightPlayer(plr)
+		if plr == LocalPlayer then return end
+		local highlight = Instance.new("Highlight")
+		highlight.Name = plr.Name
+		highlight.FillColor = getgenv().chamsColor or Color3.new(1,1,1)
+		highlight.DepthMode = "AlwaysOnTop"
+		highlight.FillTransparency = 0.5
+		highlight.OutlineColor = getgenv().chamsColor or Color3.new(1,1,1)
+		highlight.OutlineTransparency = 0
+		highlight.Parent = chamsFolder
+		
+		if plr.Character then
+			highlight.Adornee = plr.Character
+		end
+		
+		local conn = plr.CharacterAdded:Connect(function(char)
+			highlight.Adornee = char
+		end)
+		chamConnections[plr] = {conn = conn, highlight = highlight}
+	end
+	
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			highlightPlayer(plr)
+		end
+	end
+	
+	Players.PlayerAdded:Connect(function(plr)
+		if plr ~= LocalPlayer then
+			highlightPlayer(plr)
+		end
+	end)
+	
+	Players.PlayerRemoving:Connect(function(plr)
+		if chamConnections[plr] then
+			chamConnections[plr].highlight:Destroy()
+			chamConnections[plr].conn:Disconnect()
+			chamConnections[plr] = nil
+		end
+	end)
+end
+
+local function stopChams()
+	if chamsFolder then
+		chamsFolder:Destroy()
+		chamsFolder = nil
+	end
+	for _, data in pairs(chamConnections) do
+		data.conn:Disconnect()
+		if data.highlight then data.highlight:Destroy() end
+	end
+	chamConnections = {}
+end
+
+----------------------------
+-- ARM CHAMS Functions --
+----------------------------
+local function applyArmChams(character, chamsColor, transparency, reflectance)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	local targetParts = {
+		"LeftArm", "RightArm",
+		"LeftHand", "RightHand",
+		"LeftUpperArm", "LeftLowerArm",
+		"RightUpperArm", "RightLowerArm"
+	}
+	for _, partName in pairs(targetParts) do
+		local part = character:FindFirstChild(partName)
+		if part and not part:GetAttribute("ArmChamsModified") then
+			part.Material = Enum.Material.ForceField
+			part.Color = chamsColor
+			part.Transparency = transparency
+			part.Reflectance = reflectance
+			part:SetAttribute("ArmChamsModified", true)
+			part:GetPropertyChangedSignal("Material"):Connect(function()
+				if part.Material ~= Enum.Material.ForceField then
+					part.Material = Enum.Material.ForceField
+				end
+			end)
+		end
+	end
+end
+
+local function startArmChams(chamsColor)
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			if plr.Character then
+				applyArmChams(plr.Character, chamsColor, 0.3, 0.15)
+			end
+			armChamsConnections[plr] = plr.CharacterAdded:Connect(function(character)
+				applyArmChams(character, chamsColor, 0.3, 0.15)
+			end)
+		end
+	end
+	armChamsPlayerAddedConnection = Players.PlayerAdded:Connect(function(plr)
+		if plr ~= LocalPlayer then
+			armChamsConnections[plr] = plr.CharacterAdded:Connect(function(character)
+				applyArmChams(character, chamsColor, 0.3, 0.15)
+			end)
+		end
+	end)
+end
+
+local function stopArmChams()
+	if armChamsPlayerAddedConnection then armChamsPlayerAddedConnection:Disconnect() end
+	for plr, conn in pairs(armChamsConnections) do
+		conn:Disconnect()
+	end
+	armChamsConnections = {}
+	-- Note: Resetting materials is not handled here.
+end
+
+-------------------------------
+-- New ESP Toggles (Visuals) --
+-------------------------------
+-- ITEM ESP Toggle
+visualsLeft:Toggle({
+	Name = "Item ESP",
+	Default = false,
+	Callback = function(Value)
+		getgenv().itemESPEnabled = Value
+		if Value then
+			itemESPConnection = RunService.RenderStepped:Connect(updateItemESP)
+			Window:Notify({ Title = "Item ESP", Description = "Enabled", Lifetime = 5 })
+		else
+			if itemESPConnection then
+				itemESPConnection:Disconnect()
+				itemESPConnection = nil
+			end
+			-- Cleanup drawings
+			updateItemESP()
+			Window:Notify({ Title = "Item ESP", Description = "Disabled", Lifetime = 5 })
+		end
+	end,
+}, "ItemESPToggle")
+
+-- Skeleton ESP Toggle
+visualsLeft:Toggle({
+	Name = "Skeleton ESP",
+	Default = false,
+	Callback = function(Value)
+		getgenv().skeletonESPEnabled = Value
+		if Value then
+			startSkeletonESP()
+			Window:Notify({ Title = "Skeleton ESP", Description = "Enabled", Lifetime = 5 })
+		else
+			stopSkeletonESP()
+			Window:Notify({ Title = "Skeleton ESP", Description = "Disabled", Lifetime = 5 })
+		end
+	end,
+}, "SkeletonESPToggle")
+
+-- Chams Toggle
+visualsLeft:Toggle({
+	Name = "Chams",
+	Default = false,
+	Callback = function(Value)
+		getgenv().chamsEnabled = Value
+		if Value then
+			startChams()
+			Window:Notify({ Title = "Chams", Description = "Enabled", Lifetime = 5 })
+		else
+			stopChams()
+			Window:Notify({ Title = "Chams", Description = "Disabled", Lifetime = 5 })
+		end
+	end,
+}, "ChamsToggle")
+
+-- Arm Chams Toggle
+visualsLeft:Toggle({
+	Name = "Arm Chams",
+	Default = false,
+	Callback = function(Value)
+		getgenv().armChamsEnabled = Value
+		if Value then
+			startArmChams(getgenv().armChamsColor)
+			Window:Notify({ Title = "Arm Chams", Description = "Enabled", Lifetime = 5 })
+		else
+			stopArmChams()
+			Window:Notify({ Title = "Arm Chams", Description = "Disabled", Lifetime = 5 })
+		end
+	end,
+}, "ArmChamsToggle")
+
+-----------------------------------------
+-- New ESP Colorpickers (Visuals Right)--
+-----------------------------------------
+-- Skeleton ESP Color
+visualsRight:Colorpicker({
+	Name = "Skeleton ESP Color",
+	Default = getgenv().skeletonESPColor,
+	Alpha = 0,
+	Callback = function(color, alpha)
+		getgenv().skeletonESPColor = color
+		for _, sk in ipairs(skeletons) do
+			sk:SetColor(color)
+		end
+	end,
+}, "SkeletonESPColorPicker")
+
+-- Chams Color
+visualsRight:Colorpicker({
+	Name = "Chams Color",
+	Default = getgenv().chamsColor,
+	Alpha = 0,
+	Callback = function(color, alpha)
+		getgenv().chamsColor = color
+		-- Update all active highlights
+		if chamsFolder then
+			for _, highlight in ipairs(chamsFolder:GetChildren()) do
+				highlight.FillColor = color
+				highlight.OutlineColor = color
+			end
+		end
+	end,
+}, "ChamsColorPicker")
+
+-- Arm Chams Color
+visualsRight:Colorpicker({
+	Name = "Arm Chams Color",
+	Default = getgenv().armChamsColor,
+	Alpha = 0,
+	Callback = function(color, alpha)
+		getgenv().armChamsColor = color
+		-- Note: New characters will use the updated color; existing ones are not updated automatically.
+	end,
+}, "ArmChamsColorPicker")
 
 ---------------------
 -- Finalize GUI  --
