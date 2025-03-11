@@ -1,7 +1,7 @@
--- Load MacLib from the demo (new GUI)
+---------------------------------------------------
+-- Load MacLib and create the main GUI window  --
+---------------------------------------------------
 local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
-
--- Create the main window using MacLib (GUI size set to 800x500) with keybind set to RightShift
 local Window = MacLib:Window({
 	Title = "Collapse | Vh3",
 	Subtitle = "| Made by Finny <3",
@@ -9,7 +9,7 @@ local Window = MacLib:Window({
 	DragStyle = 2,
 	DisabledWindowControls = {},
 	ShowUserInfo = true,
-	Keybind = Enum.KeyCode.RightShift, -- changed keybind to RightShift
+	Keybind = Enum.KeyCode.RightShift,
 	AcrylicBlur = false,
 })
 
@@ -52,26 +52,25 @@ local globalSettings = {
 	})
 }
 
--- Create Tab Groups
+---------------------------------------------------
+-- Create Tab Groups and Tabs                    --
+---------------------------------------------------
 local tabGroups = {
 	Aim = Window:TabGroup(),
 	World = Window:TabGroup(),
 	Other = Window:TabGroup()
 }
-
--- Create Tabs in the desired order: Aim Assist, Visuals, Player, then Settings.
 local tabs = {
 	AimAssist = tabGroups.Aim:Tab({ Name = "Aim Assist", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
-	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }), -- using an eye-like icon
+	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }),
 	Settings = tabGroups.Other:Tab({ Name = "Settings", Image = "rbxassetid://110807522910450" })
 }
-
 tabs.Settings:InsertConfigSection("Left")
 
---------------------------------------------
--- Existing Game Services and Variables  --
---------------------------------------------
+---------------------------------------------------
+-- Game Services and Global Variables          --
+---------------------------------------------------
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CurrentCamera = game:GetService("Workspace").CurrentCamera
@@ -79,12 +78,11 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Current Tracer Position and Aim Variables
-local currentTracerPosition = "Bottom"  -- default tracer position
+local currentTracerPosition = "Bottom"  -- default tracer origin
 local Aiming = false
 local currentTarget = nil
 
--- ESP Table (for visuals only)
+-- ESP table (for visuals only)
 local ESP = {
     Enabled = true,
     Box = {
@@ -115,47 +113,36 @@ local ESP = {
         Outlines = true,
         ShowNumber = true,
         NumberColor = Color3.fromRGB(255, 255, 255)
+    },
+    Name = { -- Toggleable Name ESP
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+        Size = 12,
+        Font = 2,
+        Outline = true,
     }
 }
 
---------------------------------------------------
--- Global ESP Distance Check Settings (for ESP) --
---------------------------------------------------
-if getgenv().distanceCheckEnabled == nil then
-    getgenv().distanceCheckEnabled = false
-end
-if getgenv().distanceCheckValue == nil then
-    getgenv().distanceCheckValue = 500
-end
-
---------------------------------------------------
--- Aim Settings and FOV Circle Setup              --
---------------------------------------------------
+---------------------------------------------------
+-- Aim Settings and FOV Circle Setup             --
+---------------------------------------------------
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
-    hitbox = "Head",  -- default target is head
+    hitbox = "Head",  -- default target; options: "Head", "HumanoidRootPart", "Random", "Nearest"
     fovcircle = false,
     aimKey = Enum.KeyCode.E,
-    
-    -- FOV circle customizations:
-    method = "Camera",           -- "Camera" (default) or "Mouse"
-    fovThickness = 1,            -- thickness of the FOV circle
+    method = "Camera",  -- "Camera" or "Mouse"
+    fovThickness = 1,
     fovCircleColor = Color3.fromRGB(255,255,255),
-    fovCircleFilled = false,     -- whether the circle is filled
-    fovCircleTransparency = 1,   -- transparency (0.1 to 1)
-    
-    -- Smoothing and Prediction settings:
-    enableSmoothness = false,    -- when enabled, makes lock-on less snappy
-    smoothnessX = 1,             -- affects interpolation factor
-    smoothnessY = 1,             -- affects interpolation factor
-    enablePredictions = false,   -- offsets the target position
-    predictionOffsetX = 0,       -- x offset in studs
-    predictionOffsetY = 0        -- y offset in studs
+    fovCircleFilled = false,
+    fovCircleTransparency = 1
 }
 local currentAimKey = getgenv().aim_settings.aimKey
 
--- Create a FOV Circle drawing
+getgenv().boxESPFilled = getgenv().boxESPFilled or false
+
+-- Create FOV Circle drawing
 local Circle = Drawing.new("Circle")
 Circle.Visible = false
 Circle.Thickness = getgenv().aim_settings.fovThickness
@@ -164,114 +151,134 @@ Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
 Circle.Filled = getgenv().aim_settings.fovCircleFilled
 Circle.NumSides = 64
 
----------------------------
--- Aiming Functionality  --
----------------------------
-local function AimLock()
-    local mousePos = UserInputService:GetMouseLocation()
-    
-    local targetPart = nil
-    if currentTarget and currentTarget.Character then
-        targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-    end
-    
-    if targetPart then
-        local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(targetPart.Position)
-        local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-        local distance = (mousePos - screenPosition).Magnitude
-        
-        if onScreen and distance <= getgenv().aim_settings.fov then
-            local pos = CurrentCamera.CFrame.Position
-            local targetPos = targetPart.Position
-            if getgenv().aim_settings.enablePredictions then
-                targetPos = targetPos + Vector3.new(getgenv().aim_settings.predictionOffsetX, getgenv().aim_settings.predictionOffsetY, 0)
-            end
-            local desiredLook = (targetPos - pos).Unit
-            if getgenv().aim_settings.enableSmoothness then
-                local smoothFactor = 1 / ((getgenv().aim_settings.smoothnessX + getgenv().aim_settings.smoothnessY) / 2)
-                local currentLook = CurrentCamera.CFrame.LookVector
-                local newLook = currentLook:Lerp(desiredLook, smoothFactor)
-                CurrentCamera.CFrame = CFrame.new(pos, pos + newLook)
-            else
-                CurrentCamera.CFrame = CFrame.new(pos, pos + desiredLook)
-            end
-            return
+-- Global variable for random aim target part
+local randomPart = nil
+
+---------------------------------------------------
+-- Helper Functions for Aim Targeting            --
+---------------------------------------------------
+local function GetRandomPartFromCharacter(character)
+    local partsList = {"Head", "HumanoidRootPart", "Right Leg", "Left Leg", "Right Arm", "Left Arm"}
+    local available = {}
+    for _, partName in ipairs(partsList) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            table.insert(available, part)
         end
     end
+    if #available > 0 then
+        return available[math.random(1, #available)]
+    else
+        return character:FindFirstChild("Head")
+    end
+end
 
-    currentTarget = nil
-    local lastMagnitude = math.huge
-    
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character then
-            local part = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-            if part then
-                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
-                local screenPosition = Vector2.new(screenPos.X, screenPos.Y)
-                local dist = (mousePos - screenPosition).Magnitude
-                if onScreen and dist <= getgenv().aim_settings.fov then
-                    if dist < lastMagnitude then
-                        lastMagnitude = dist
-                        currentTarget = v
-                    end
+local function GetNearestPartFromCharacter(character, mousePos)
+    local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
+    local bestPart = nil
+    local bestDistance = math.huge
+    for _, partName in ipairs(partsList) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                if dist < bestDistance then
+                    bestDistance = dist
+                    bestPart = part
                 end
             end
         end
     end
-    
-    if currentTarget and currentTarget.Character then
-        local part = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-        if part then
-            local pos = CurrentCamera.CFrame.Position
-            local targetPos = part.Position
-            if getgenv().aim_settings.enablePredictions then
-                targetPos = targetPos + Vector3.new(getgenv().aim_settings.predictionOffsetX, getgenv().aim_settings.predictionOffsetY, 0)
+    return bestPart or character:FindFirstChild("Head")
+end
+
+---------------------------------------------------
+-- Aiming Functionality                          --
+---------------------------------------------------
+local function AimLock()
+    local mousePos = UserInputService:GetMouseLocation()
+    local candidateTarget = nil
+    local targetPart = nil
+    local bestDistance = math.huge
+
+    if getgenv().aim_settings.hitbox == "Nearest" then
+        local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character then
+                for _, partName in ipairs(partsList) do
+                    local part = v.Character:FindFirstChild(partName)
+                    if part then
+                        local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if distance <= getgenv().aim_settings.fov and distance < bestDistance then
+                                bestDistance = distance
+                                candidateTarget = v
+                                targetPart = part
+                            end
+                        end
+                    end
+                end
             end
-            local desiredLook = (targetPos - pos).Unit
-            if getgenv().aim_settings.enableSmoothness then
-                local smoothFactor = 1 / ((getgenv().aim_settings.smoothnessX + getgenv().aim_settings.smoothnessY) / 2)
-                local currentLook = CurrentCamera.CFrame.LookVector
-                local newLook = currentLook:Lerp(desiredLook, smoothFactor)
-                CurrentCamera.CFrame = CFrame.new(pos, pos + newLook)
+        end
+    else
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character then
+                local candidatePart = nil
+                if getgenv().aim_settings.hitbox == "Random" then
+                    candidatePart = v.Character:FindFirstChild("HumanoidRootPart")
+                else
+                    candidatePart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+                end
+                if candidatePart then
+                    local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(candidatePart.Position)
+                    if onScreen then
+                        local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if distance <= getgenv().aim_settings.fov and distance < bestDistance then
+                            bestDistance = distance
+                            candidateTarget = v
+                        end
+                    end
+                end
+            end
+        end
+
+        if candidateTarget then
+            if getgenv().aim_settings.hitbox == "Random" then
+                if not randomPart then
+                    randomPart = GetRandomPartFromCharacter(candidateTarget.Character)
+                end
+                targetPart = randomPart
             else
-                CurrentCamera.CFrame = CFrame.new(pos, pos + desiredLook)
+                targetPart = candidateTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
             end
         end
     end
-end
 
-------------------
--- ESP Functions --
-------------------
--- (This Functions table is used solely by the ESP)
-local Functions = {}
-do 
-    function Functions:IsAlive(Player)
-        return Player and Player.Character and Player.Character:FindFirstChild("Head") and 
-               Player.Character:FindFirstChild("Humanoid") and 
-               Player.Character.Humanoid.Health > 0
-    end
-    
-    function Functions:GetEquippedTool(Player)
-        if Player and Player.Character then
-            local Tool = Player.Character:FindFirstChildOfClass("Tool")
-            if Tool then return Tool.Name end
-        end
-        return "None"
-    end
-    
-    function Functions:GetDistance(Player)
-        if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and 
-           LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            return math.floor((Player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
-        end
-        return 0
+    currentTarget = candidateTarget
+    if currentTarget and currentTarget.Character and targetPart then
+        local pos = CurrentCamera.CFrame.Position
+        CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
     end
 end
 
---------------------
--- ESP Rendering  --
---------------------
+RunService.RenderStepped:Connect(function()
+    if getgenv().aim_settings.enabled and Aiming then
+        AimLock()
+    end
+    Circle.Position = UserInputService:GetMouseLocation()
+    Circle.Radius = getgenv().aim_settings.fov
+    Circle.Visible = getgenv().aim_settings.fovcircle
+    Circle.Thickness = getgenv().aim_settings.fovThickness
+    Circle.Color = getgenv().aim_settings.fovCircleColor
+    Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
+    Circle.Filled = getgenv().aim_settings.fovCircleFilled
+end)
+
+---------------------------------------------------
+-- Standard ESP Rendering (Box, Tracers, etc.)    --
+---------------------------------------------------
 do
     local function AddESP(Player)
         local BoxOutline = Drawing.new("Square")
@@ -283,7 +290,16 @@ do
         local ToolText = Drawing.new("Text")
         local DistanceText = Drawing.new("Text")
         local HealthText = Drawing.new("Text")
+        local NameESPText = Drawing.new("Text")
+        NameESPText.Size = ESP.Name.Size
+        NameESPText.Center = true
+        NameESPText.Outline = ESP.Name.Outline
+        NameESPText.Font = ESP.Name.Font
+        NameESPText.Color = ESP.Name.Color
+        NameESPText.Text = Player.Name
+        NameESPText.Visible = ESP.Name.Enabled
         local Connection
+        local Corners
 
         Box.Filled = false
         HealthBarOutline.Filled = false
@@ -310,6 +326,11 @@ do
         DistanceText.Color = ESP.Distance.Color
 
         local function HideESP()
+            if Corners then
+                for i, line in ipairs(Corners) do
+                    line.Visible = false
+                end
+            end
             BoxOutline.Visible = false
             Box.Visible = false
             TracerOutline.Visible = false
@@ -319,9 +340,15 @@ do
             ToolText.Visible = false
             DistanceText.Visible = false
             HealthText.Visible = false
+            NameESPText.Visible = false
         end
 
         local function DestroyESP()
+            if Corners then
+                for i, line in ipairs(Corners) do
+                    line:Remove()
+                end
+            end
             BoxOutline:Remove()
             Box:Remove()
             TracerOutline:Remove()
@@ -331,30 +358,19 @@ do
             ToolText:Remove()
             DistanceText:Remove()
             HealthText:Remove()
+            NameESPText:Remove()
             if Connection then Connection:Disconnect() end
         end
 
         Connection = RunService.RenderStepped:Connect(function()
             if not ESP.Enabled then return HideESP() end
             if not Player or not Player.Parent then return DestroyESP() end
-            if not Functions:IsAlive(Player) then return HideESP() end
-
-            local HumanoidRootPart = Player.Character.HumanoidRootPart
-            if not HumanoidRootPart then return HideESP() end
-
-            -- For ESP only: if distance check is enabled and the player is beyond the limit, hide drawings.
-            if getgenv().distanceCheckEnabled and Functions:GetDistance(Player) > getgenv().distanceCheckValue then
-                BoxOutline.Visible = false
-                Box.Visible = false
-                TracerOutline.Visible = false
-                Tracer.Visible = false
-                HealthBarOutline.Visible = false
-                HealthBar.Visible = false
-                ToolText.Visible = false
-                DistanceText.Visible = false
-                HealthText.Visible = false
-                return
+            if not (Player.Character and Player.Character:FindFirstChild("Head") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0) then
+                return HideESP()
             end
+
+            local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+            if not HumanoidRootPart then return HideESP() end
 
             local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
             if not OnScreen then return HideESP() end
@@ -364,25 +380,79 @@ do
             local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
 
             if ESP.Box.Enabled then
-                BoxOutline.Color = ESP.Box.Color
-                Box.Color = ESP.Box.Color
-                BoxOutline.Visible = ESP.Box.Outlines
-                BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
-                BoxOutline.Position = Position
-                BoxOutline.Size = Size
+                if getgenv().boxESPType == "Corners" then
+                    if not Corners then
+                        Corners = {
+                            Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"),
+                            Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line")
+                        }
+                    end
+                    local cl = 15
+                    local x = Position.X
+                    local y = Position.Y
+                    local w = Size.X
+                    local h = Size.Y
+                    Corners[1].From = Vector2.new(x, y)
+                    Corners[1].To = Vector2.new(x + cl, y)
+                    Corners[2].From = Vector2.new(x, y)
+                    Corners[2].To = Vector2.new(x, y + cl)
+                    Corners[3].From = Vector2.new(x + w - cl, y)
+                    Corners[3].To = Vector2.new(x + w, y)
+                    Corners[4].From = Vector2.new(x + w, y)
+                    Corners[4].To = Vector2.new(x + w, y + cl)
+                    Corners[5].From = Vector2.new(x, y + h)
+                    Corners[5].To = Vector2.new(x + cl, y + h)
+                    Corners[6].From = Vector2.new(x, y + h - cl)
+                    Corners[6].To = Vector2.new(x, y + h)
+                    Corners[7].From = Vector2.new(x + w - cl, y + h)
+                    Corners[7].To = Vector2.new(x + w, y + h)
+                    Corners[8].From = Vector2.new(x + w, y + h - cl)
+                    Corners[8].To = Vector2.new(x + w, y + h)
+                    for i, line in ipairs(Corners) do
+                        line.Color = ESP.Box.Color
+                        line.Thickness = ESP.Box.Thickness
+                        line.Transparency = 0
+                        line.Visible = true
+                    end
+                    Box.Visible = false
+                    BoxOutline.Visible = false
+                else
+                    BoxOutline.Color = ESP.Box.Color
+                    Box.Color = ESP.Box.Color
+                    BoxOutline.Visible = ESP.Box.Outlines
+                    BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
+                    BoxOutline.Position = Position
+                    BoxOutline.Size = Size
 
-                Box.Visible = true
-                Box.Position = Position
-                Box.Size = Size
-                Box.Thickness = ESP.Box.Thickness
+                    Box.Visible = true
+                    Box.Position = Position
+                    Box.Size = Size
+                    Box.Thickness = ESP.Box.Thickness
+                    if getgenv().boxESPFilled then
+                        Box.Filled = true
+                        Box.FillTransparency = 0.8
+                    else
+                        Box.Filled = false
+                    end
+                    if Corners then
+                        for i, line in ipairs(Corners) do
+                            line.Visible = false
+                        end
+                    end
+                end
             else
                 Box.Visible = false
                 BoxOutline.Visible = false
+                if Corners then
+                    for i, line in ipairs(Corners) do
+                        line.Visible = false
+                    end
+                end
             end
 
             if ESP.Tool.Enabled then
                 ToolText.Visible = true
-                ToolText.Text = Functions:GetEquippedTool(Player)
+                ToolText.Text = (Player.Character and Player.Character:FindFirstChildOfClass("Tool") and Player.Character:FindFirstChildOfClass("Tool").Name) or "None"
                 ToolText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y + Size.Y + 2)
                 ToolText.Color = ESP.Tool.Color
             else
@@ -391,8 +461,12 @@ do
 
             if ESP.Distance.Enabled then
                 DistanceText.Visible = true
-                DistanceText.Text = tostring(Functions:GetDistance(Player)) .. " studs"
-                DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 15)
+                local dist = 0
+                if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    dist = math.floor((Player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+                end
+                DistanceText.Text = tostring(dist) .. "studs"
+                DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 35)
                 DistanceText.Color = ESP.Distance.Color
             else
                 DistanceText.Visible = false
@@ -449,42 +523,366 @@ do
                 HealthBar.Visible = false
                 HealthText.Visible = false
             end
+
+            NameESPText.Visible = ESP.Name.Enabled
+            if ESP.Name.Enabled then
+                NameESPText.Text = Player.Name
+                NameESPText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 20)
+            end
         end)
     end
 
     for i, v in pairs(Players:GetPlayers()) do 
         if v ~= LocalPlayer then AddESP(v) end
     end
-
     Players.PlayerAdded:Connect(function(v)
         AddESP(v)
     end)
 end
 
----------------------------
--- FOV Circle & Aim Loop  --
----------------------------
-RunService.RenderStepped:Connect(function()
-    if getgenv().aim_settings.enabled and Aiming then
-        AimLock()
-    end
-    
-    Circle.Position = UserInputService:GetMouseLocation()
-    Circle.Radius = getgenv().aim_settings.fov
-    Circle.Thickness = getgenv().aim_settings.fovThickness
-    Circle.Color = getgenv().aim_settings.fovCircleColor
-    Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
-    Circle.Filled = getgenv().aim_settings.fovCircleFilled
-    Circle.Visible = getgenv().aim_settings.fovcircle
-end)
+---------------------------------------------------
+-- Chams Functions (Highlight-based ESP)         --
+---------------------------------------------------
+-- Removed previous team check logic.
+-- A new global color (getgenv().chamsColor) is used via a color picker.
+local chamsStorage = nil
+local chamsConnections = {}
+local chamsUpdateLoop = nil
 
---------------------------
--- Input Event Listeners --
---------------------------
+local function UpdateChamsColors()
+    while chamsStorage and chamsStorage.Parent do
+        for _, highlight in pairs(chamsStorage:GetChildren()) do
+            if highlight:IsA("Highlight") then
+                local newColor = getgenv().chamsColor or Color3.fromRGB(255,255,255)
+                highlight.FillColor = newColor
+                highlight.OutlineColor = newColor
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function EnableChams()
+    local CoreGui = game:GetService("CoreGui")
+    chamsStorage = Instance.new("Folder")
+    chamsStorage.Parent = CoreGui
+    chamsStorage.Name = "Highlight_Storage"
+
+    local function createHighlight(plr)
+        local highlight = Instance.new("Highlight")
+        highlight.Name = plr.Name
+        highlight.DepthMode = "AlwaysOnTop"
+        highlight.FillTransparency = (getgenv().chamsFillEnabled and 0.8 or 1)
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineTransparency = 0
+        highlight.Parent = chamsStorage
+
+        if plr.Character then
+            highlight.Adornee = plr.Character
+        end
+
+        chamsConnections[plr] = plr.CharacterAdded:Connect(function(char)
+            highlight.Adornee = char
+        end)
+    end
+
+    for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+        if plr ~= game:GetService("Players").LocalPlayer then
+            createHighlight(plr)
+        end
+    end
+
+    game:GetService("Players").PlayerAdded:Connect(function(plr)
+        if plr ~= game:GetService("Players").LocalPlayer then
+            createHighlight(plr)
+        end
+    end)
+
+    if not chamsUpdateLoop then
+        chamsUpdateLoop = task.spawn(UpdateChamsColors)
+    end
+end
+
+local function DisableChams()
+    if chamsStorage then
+        chamsStorage:Destroy()
+        chamsStorage = nil
+    end
+    for plr, conn in pairs(chamsConnections) do
+        if conn then
+            conn:Disconnect()
+        end
+    end
+    chamsConnections = {}
+    if chamsUpdateLoop then
+        chamsUpdateLoop = nil
+    end
+end
+
+---------------------------------------------------
+-- Skeleton ESP Library and Functions            --
+---------------------------------------------------
+local SkeletonLibrary = {}
+do
+    local WAIT = task.wait
+    local TBINSERT = table.insert
+    local V2 = Vector2.new
+    local ROUND = math.round
+
+    local RS = RunService
+    local Camera = workspace.CurrentCamera
+    local To2D = Camera.WorldToViewportPoint
+    local LocalPlayer = Players.LocalPlayer
+
+    function SkeletonLibrary:NewLine(info)
+        local l = Drawing.new("Line")
+        l.Visible = info.Visible or true
+        l.Color = info.Color or Color3.fromRGB(0,255,0)
+        l.Transparency = info.Transparency or 1
+        l.Thickness = info.Thickness or 1
+        return l
+    end
+
+    function SkeletonLibrary:Smoothen(v)
+        return V2(ROUND(v.X), ROUND(v.Y))
+    end
+
+    local Skeleton = {
+        Removed = false;
+        Player = nil;
+        Visible = false;
+        Lines = {};
+        Color = Color3.fromRGB(0,255,0);
+        Alpha = 1;
+        Thickness = 1;
+        DoSubsteps = true;
+    }
+    Skeleton.__index = Skeleton;
+
+    function Skeleton:UpdateStructure()
+        if not self.Player.Character then return end
+        self:RemoveLines()
+        for _, part in next, self.Player.Character:GetChildren() do		
+            if not part:IsA("BasePart") then continue end
+            for _, link in next, part:GetChildren() do			
+                if not link:IsA("Motor6D") then continue end
+                TBINSERT(self.Lines, {
+                    SkeletonLibrary:NewLine({
+                        Visible = self.Visible;
+                        Color = self.Color;
+                        Transparency = self.Alpha;
+                        Thickness = self.Thickness,
+                    }),
+                    SkeletonLibrary:NewLine({
+                        Visible = self.Visible;
+                        Color = self.Color;
+                        Transparency = self.Alpha;
+                        Thickness = self.Thickness,
+                    }),
+                    part.Name,
+                    link.Name
+                })
+            end
+        end
+    end
+
+    function Skeleton:SetVisible(State)
+        for _, l in pairs(self.Lines) do
+            l[1].Visible = State
+            l[2].Visible = State
+        end
+    end
+
+    function Skeleton:SetColor(Color)
+        self.Color = Color
+        for _, l in pairs(self.Lines) do
+            l[1].Color = Color
+            l[2].Color = Color
+        end
+    end
+
+    function Skeleton:SetAlpha(Alpha)
+        self.Alpha = Alpha
+        for _, l in pairs(self.Lines) do
+            l[1].Transparency = Alpha
+            l[2].Transparency = Alpha
+        end
+    end
+
+    function Skeleton:SetThickness(Thickness)
+        self.Thickness = Thickness
+        for _, l in pairs(self.Lines) do
+            l[1].Thickness = Thickness
+            l[2].Thickness = Thickness
+        end
+    end
+
+    function Skeleton:SetDoSubsteps(State)
+        self.DoSubsteps = State
+    end
+
+    function Skeleton:Update()
+        if self.Removed then return end
+        local Character = self.Player.Character
+        if not Character then
+            self:SetVisible(false)
+            if not self.Player.Parent then
+                self:Remove()
+            end
+            return
+        end
+        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+        if not Humanoid then
+            self:SetVisible(false)
+            return
+        end
+        self:SetColor(self.Color)
+        self:SetAlpha(self.Alpha)
+        self:SetThickness(self.Thickness)
+        local update = false
+        for _, l in pairs(self.Lines) do
+            local part = Character:FindFirstChild(l[3])
+            if not part then
+                l[1].Visible = false
+                l[2].Visible = false
+                update = true
+                continue
+            end
+            local link = part:FindFirstChild(l[4])
+            if not (link and link.Part0 and link.Part1) then
+                l[1].Visible = false
+                l[2].Visible = false
+                update = true
+                continue
+            end
+            local part0 = link.Part0
+            local part1 = link.Part1
+            if self.DoSubsteps and link.C0 and link.C1 then
+                local c0 = link.C0
+                local c1 = link.C1
+                local part0p, v1 = To2D(Camera, part0.CFrame.p)
+                local part0cp, v2 = To2D(Camera, (part0.CFrame * c0).p)
+                if v1 and v2 then
+                    l[1].From = Vector2.new(part0p.x, part0p.y)
+                    l[1].To = Vector2.new(part0cp.x, part0cp.y)
+                    l[1].Visible = true
+                else 
+                    l[1].Visible = false
+                end
+                local part1p, v3 = To2D(Camera, part1.CFrame.p)
+                local part1cp, v4 = To2D(Camera, (part1.CFrame * c1).p)
+                if v3 and v4 then
+                    l[2].From = Vector2.new(part1p.x, part1p.y)
+                    l[2].To = Vector2.new(part1cp.x, part1cp.y)
+                    l[2].Visible = true
+                else 
+                    l[2].Visible = false
+                end
+            else					
+                local part0p, v1 = To2D(Camera, part0.CFrame.p)
+                local part1p, v2 = To2D(Camera, part1.CFrame.p)
+                if v1 and v2 then
+                    l[1].From = Vector2.new(part0p.x, part0p.y)
+                    l[1].To = Vector2.new(part1p.x, part1p.y)
+                    l[1].Visible = true
+                else 
+                    l[1].Visible = false
+                end
+                l[2].Visible = false
+            end
+        end
+        if update or #self.Lines == 0 then
+            self:UpdateStructure()
+        end
+    end
+
+    function Skeleton:Toggle()
+        self.Visible = not self.Visible
+        if self.Visible then 
+            self:RemoveLines()
+            self:UpdateStructure()
+            self._connection = RS.Heartbeat:Connect(function()
+                if not getgenv().skeletonESPEnabled then
+                    self:SetVisible(false)
+                    if self._connection then self._connection:Disconnect() end
+                    return
+                end
+                self:Update()
+            end)
+        else
+            self:SetVisible(false)
+            self:RemoveLines()
+            if self._connection then
+                self._connection:Disconnect()
+                self._connection = nil
+            end
+        end
+    end
+
+    function Skeleton:RemoveLines()
+        for _, l in pairs(self.Lines) do
+            l[1]:Remove()
+            l[2]:Remove()
+        end
+        self.Lines = {}
+    end
+
+    function Skeleton:Remove()
+        self.Removed = true
+        self:RemoveLines()
+    end
+
+    function SkeletonLibrary:NewSkeleton(Player, Visible, Color, Alpha, Thickness, DoSubsteps)
+        if not Player then error("Missing Player argument (#1)") end
+        local s = setmetatable({}, Skeleton)
+        s.Player = Player
+        s.Bind = Player.UserId
+        if DoSubsteps ~= nil then s.DoSubsteps = DoSubsteps end
+        if Color then s:SetColor(Color) end
+        if Alpha then s:SetAlpha(Alpha) end
+        if Thickness then s:SetThickness(Thickness) end
+        if Visible then s:Toggle() end
+        return s
+    end
+end
+
+local skeletonESPEnabled = false
+local Skeletons = {}
+
+local function EnableSkeletonESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local sk = SkeletonLibrary:NewSkeleton(plr, true, getgenv().skeletonESPColor or Color3.fromRGB(255,255,255), 1, 1, true)
+            Skeletons[plr] = sk
+        end
+    end
+    Players.PlayerAdded:Connect(function(plr)
+        if plr ~= LocalPlayer then
+            local sk = SkeletonLibrary:NewSkeleton(plr, true, getgenv().skeletonESPColor or Color3.fromRGB(255,255,255), 1, 1, true)
+            Skeletons[plr] = sk
+        end
+    end)
+end
+
+local function DisableSkeletonESP()
+    for plr, sk in pairs(Skeletons) do
+        if sk and sk.Remove then
+            sk:Remove()
+        end
+    end
+    Skeletons = {}
+end
+
+---------------------------------------------------
+-- Input Event Listeners                         --
+---------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = true
+		if getgenv().aim_settings.hitbox == "Random" then
+		    randomPart = nil
+		end
 	end
 end)
 
@@ -493,13 +891,13 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if (input.KeyCode and input.KeyCode == currentAimKey) or (input.UserInputType and input.UserInputType == currentAimKey) then
 		Aiming = false
 		currentTarget = nil
+		randomPart = nil
 	end
 end)
 
---------------------------
--- GUI: Aim Assist Tab --
---------------------------
--- Left Column: Basic Controls then Smooth & Prediction settings
+---------------------------------------------------
+-- GUI: Aim Assist Tab                           --
+---------------------------------------------------
 local aimBasic = tabs.AimAssist:Section({ Side = "Left" })
 aimBasic:Toggle({
 	Name = "Aim Assist",
@@ -554,80 +952,13 @@ aimBasic:Dropdown({
 	Required = true,
 	Search = true,
 	Default = "Head",
-	Options = {"Head", "HumanoidRootPart"},
+	Options = {"Head", "HumanoidRootPart", "Random", "Nearest"},
 	Callback = function(Value)
 		getgenv().aim_settings.hitbox = Value
 		Window:Notify({ Title = "Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
 	end,
 }, "AimTargetDropdown")
 
--- Below Basic Controls: Smoothness & Prediction
-local aimSmooth = tabs.AimAssist:Section({ Side = "Left", VerticalOrder = true })
-aimSmooth:Toggle({
-	Name = "Enable Smoothness",
-	Default = false,
-	Callback = function(Value)
-		getgenv().aim_settings.enableSmoothness = Value
-	end,
-}, "SmoothnessToggle")
-
-aimSmooth:Slider({
-	Name = "Smoothness X",
-	Default = getgenv().aim_settings.smoothnessX,
-	Minimum = 1,
-	Maximum = 10,
-	DisplayMethod = "Value",
-	Precision = 0,
-	Callback = function(Value)
-		getgenv().aim_settings.smoothnessX = Value
-	end,
-}, "SmoothnessXSlider")
-
-aimSmooth:Slider({
-	Name = "Smoothness Y",
-	Default = getgenv().aim_settings.smoothnessY,
-	Minimum = 1,
-	Maximum = 10,
-	DisplayMethod = "Value",
-	Precision = 0,
-	Callback = function(Value)
-		getgenv().aim_settings.smoothnessY = Value
-	end,
-}, "SmoothnessYSlider")
-
-aimSmooth:Toggle({
-	Name = "Enable Predictions",
-	Default = false,
-	Callback = function(Value)
-		getgenv().aim_settings.enablePredictions = Value
-	end,
-}, "PredictionsToggle")
-
-aimSmooth:Slider({
-	Name = "Prediction Offset X",
-	Default = getgenv().aim_settings.predictionOffsetX,
-	Minimum = -10,
-	Maximum = 10,
-	DisplayMethod = "Value",
-	Precision = 0,
-	Callback = function(Value)
-		getgenv().aim_settings.predictionOffsetX = Value
-	end,
-}, "PredictionOffsetXSlider")
-
-aimSmooth:Slider({
-	Name = "Prediction Offset Y",
-	Default = getgenv().aim_settings.predictionOffsetY,
-	Minimum = -10,
-	Maximum = 10,
-	DisplayMethod = "Value",
-	Precision = 0,
-	Callback = function(Value)
-		getgenv().aim_settings.predictionOffsetY = Value
-	end,
-}, "PredictionOffsetYSlider")
-
--- Right Column: FOV Circle Customizations
 local aimFOV = tabs.AimAssist:Section({ Side = "Right" })
 aimFOV:Dropdown({
 	Name = "Aim Assist Method",
@@ -682,9 +1013,9 @@ aimFOV:Slider({
 	end,
 }, "FOVCircleTransparencySlider")
 
-----------------------------
--- GUI: Visuals Tab --
-----------------------------
+---------------------------------------------------
+-- GUI: Visuals Tab                              --
+---------------------------------------------------
 local visualsLeft = tabs.Visuals:Section({ Side = "Left" })
 local visualsRight = tabs.Visuals:Section({ Side = "Right" })
 
@@ -706,17 +1037,19 @@ visualsLeft:Toggle({
 	end,
 }, "TracersToggle")
 
-visualsLeft:Dropdown({
-	Name = "Tracer Position",
-	Multi = false,
-	Required = true,
-	Search = true,
-	Default = "Bottom",
-	Options = {"Bottom", "Middle", "Top", "Mouse"},
+visualsLeft:Toggle({
+	Name = "Skeleton ESP",
+	Default = false,
 	Callback = function(Value)
-		currentTracerPosition = Value
+         getgenv().skeletonESPEnabled = Value
+         if Value then
+              EnableSkeletonESP()
+         else
+              DisableSkeletonESP()
+         end
+         Window:Notify({ Title = "Skeleton ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
-}, "TracerPositionDropdown")
+}, "SkeletonESPToggle")
 
 visualsLeft:Toggle({
 	Name = "Healthbar",
@@ -746,80 +1079,172 @@ visualsLeft:Toggle({
 	end,
 }, "DistanceESPToggle")
 
--- Checks Section (for ESP only – distance filtering)
-local visualsChecks = tabs.Visuals:Section({ Side = "Left", Title = "Checks" })
-visualsChecks:Toggle({
-    Name = "Distance Check",
+visualsLeft:Toggle({
+    Name = "Chams",
     Default = false,
     Callback = function(Value)
-        getgenv().distanceCheckEnabled = Value
-        Window:Notify({ Title = "Distance Check", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+         getgenv().chamsEnabled = Value
+         if Value then
+              EnableChams()
+         else
+              DisableChams()
+         end
+         Window:Notify({ Title = "Chams", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
-}, "VisualsDistanceCheckToggle")
-visualsChecks:Slider({
-    Name = "Distance Limit",
-    Default = 500,
-    Minimum = 100,
-    Maximum = 500,
+}, "ChamsToggle")
+
+visualsLeft:Toggle({
+    Name = "Name ESP",
+    Default = false,
+    Callback = function(Value)
+         ESP.Name.Enabled = Value
+         Window:Notify({ Title = "Name ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "NameESPToggle")
+
+local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
+
+espCustom:Dropdown({
+    Name = "Tracer Origin",
+    Multi = false,
+    Required = true,
+    Search = true,
+    Default = "Bottom",
+    Options = {"Bottom", "Middle", "Top", "Mouse"},
+    Callback = function(Value)
+        currentTracerPosition = Value
+    end,
+}, "TracerOriginDropdown")
+
+espCustom:Slider({
+    Name = "Tracer Thickness",
+    Default = ESP.Tracers.Thickness,
+    Minimum = 1,
+    Maximum = 5,
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
-        getgenv().distanceCheckValue = Value
-        Window:Notify({ Title = "Distance Limit", Description = "Distance limit set to: " .. tostring(Value), Lifetime = 5 })
+        ESP.Tracers.Thickness = Value
     end,
-}, "VisualsDistanceLimitSlider")
+}, "TracerThicknessSlider")
+
+espCustom:Dropdown({
+    Name = "Box ESP Type",
+    Multi = false,
+    Required = true,
+    Search = true,
+    Default = "2D",
+    Options = {"2D", "3D", "Corners"},
+    Callback = function(Value)
+        getgenv().boxESPType = Value
+    end,
+}, "BoxESPTypeDropdown")
+
+espCustom:Toggle({
+    Name = "Box ESP Filled",
+    Default = false,
+    Callback = function(Value)
+        getgenv().boxESPFilled = Value
+    end,
+}, "BoxESPFilledToggle")
+
+espCustom:Toggle({
+    Name = "Chams Fill",
+    Default = false,
+    Callback = function(Value)
+         getgenv().chamsFillEnabled = Value
+         if chamsStorage then
+             for _, highlight in pairs(chamsStorage:GetChildren()) do
+                 if highlight:IsA("Highlight") then
+                     highlight.FillTransparency = (Value and 0.8 or 1)
+                 end
+             end
+         end
+    end,
+}, "ChamsFillToggle")
 
 visualsRight:Colorpicker({
-	Name = "Box ESP Color",
-	Default = ESP.Box.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Box.Color = color
-	end,
+    Name = "Box ESP Color",
+    Default = ESP.Box.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+        ESP.Box.Color = color
+    end,
 }, "BoxESPColor")
 
 visualsRight:Colorpicker({
-	Name = "Tool ESP Color",
-	Default = ESP.Tool.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Tool.Color = color
-	end,
-}, "ToolESPColor")
-
-visualsRight:Colorpicker({
-	Name = "Distance ESP Color",
-	Default = ESP.Distance.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Distance.Color = color
-	end,
-}, "DistanceESPColor")
-
-visualsRight:Colorpicker({
-	Name = "Tracers Color",
-	Default = ESP.Tracers.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.Tracers.Color = color
-	end,
+    Name = "Tracers Color",
+    Default = ESP.Tracers.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+        ESP.Tracers.Color = color
+    end,
 }, "TracersColor")
 
 visualsRight:Colorpicker({
-	Name = "HealthBar ESP Color",
-	Default = ESP.HealthBar.Color,
-	Alpha = 0,
-	Callback = function(color, alpha)
-		ESP.HealthBar.Color = color
-	end,
+    Name = "Skeleton ESP Color",
+    Default = getgenv().skeletonESPColor or Color3.fromRGB(255,255,255),
+    Alpha = 0,
+    Callback = function(color, alpha)
+         getgenv().skeletonESPColor = color
+         for plr, sk in pairs(Skeletons) do
+             if sk then sk:SetColor(color) end
+         end
+    end,
+}, "SkeletonESPColor")
+
+visualsRight:Colorpicker({
+    Name = "HealthBar ESP Color",
+    Default = ESP.HealthBar.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+        ESP.HealthBar.Color = color
+    end,
 }, "HealthBarESPColor")
 
-----------------------------
--- GUI: Player Tab (Other)  --
-----------------------------
+visualsRight:Colorpicker({
+    Name = "Tool ESP Color",
+    Default = ESP.Tool.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+        ESP.Tool.Color = color
+    end,
+}, "ToolESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Distance ESP Color",
+    Default = ESP.Distance.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+        ESP.Distance.Color = color
+    end,
+}, "DistanceESPColor")
+
+-- New Colorpicker for Name ESP
+visualsRight:Colorpicker({
+    Name = "Name ESP Color",
+    Default = ESP.Name.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Name.Color = color
+    end,
+}, "NameESPColor")
+
+-- New Colorpicker for Chams Color (replaces the old team check toggle)
+visualsRight:Colorpicker({
+    Name = "Chams Color",
+    Default = Color3.fromRGB(255,255,255),
+    Alpha = 0,
+    Callback = function(color, alpha)
+         getgenv().chamsColor = color
+    end,
+}, "ChamsColor")
+
+---------------------------------------------------
+-- GUI: Player Tab (Other)                        --
+---------------------------------------------------
 local playerSection = tabs.Player:Section({ Side = "Left" })
 
--- Default values
 local defaultWalkSpeed = 16
 local defaultJumpPower = 50
 
@@ -831,11 +1256,12 @@ playerSection:Toggle({
         Window:Notify({ Title = "Speed", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "SpeedToggle")
+
 playerSection:Slider({
     Name = "Speed Value",
     Default = 16,
     Minimum = 16,
-    Maximum = 500, -- increased max speed to 500
+    Maximum = 500,
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
@@ -853,11 +1279,12 @@ jumpSection:Toggle({
         Window:Notify({ Title = "Jump Height", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "JumpToggle")
+
 jumpSection:Slider({
     Name = "Jump Height Value",
     Default = 50,
     Minimum = 50,
-    Maximum = 250, -- increased max jump height to 250
+    Maximum = 250,
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
@@ -866,7 +1293,6 @@ jumpSection:Slider({
     end,
 }, "JumpSlider")
 
--- Continuously update player speed and jump height if toggled
 RunService.RenderStepped:Connect(function()
     local character = LocalPlayer.Character
     if character then
@@ -886,9 +1312,9 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
----------------------
--- Finalize GUI  --
----------------------
+---------------------------------------------------
+-- Finalize GUI                                  --
+---------------------------------------------------
 tabs.AimAssist:Select()
 
 Window:Notify({
