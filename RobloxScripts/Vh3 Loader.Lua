@@ -466,7 +466,7 @@ do
                     dist = math.floor((Player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
                 end
                 DistanceText.Text = tostring(dist) .. " studs"
-                DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 15)
+                DistanceText.Position = Vector2.new(Position.X + (Size.X / 2), Position.Y - 35)
                 DistanceText.Color = ESP.Distance.Color
             else
                 DistanceText.Visible = false
