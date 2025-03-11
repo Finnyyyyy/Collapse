@@ -345,13 +345,18 @@ end
 ---------------------------------------------------
 -- Universal Silent Aim Hooks (No Extra GUI)     --
 ---------------------------------------------------
-local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+assert(hookmetamethod, "hookmetamethod is not available!")
+assert(newcclosure, "newcclosure is not available!")
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
     local args = {...}
     local method = getnamecallmethod()
-    if getgenv().silentAim_settings.enabled and not checkcaller() then
+    
+    if getgenv().silentAim_settings and getgenv().silentAim_settings.enabled and not checkcaller() then
         local targetPlayer = getClosestPlayer()
         if targetPlayer and targetPlayer.Character then
-            local targetPart = nil
+            local targetPart
             if getgenv().silentAim_settings.aimTarget == "Head" then
                 targetPart = targetPlayer.Character:FindFirstChild("Head")
             else
@@ -386,8 +391,13 @@ local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
             end
         end
     end
+    
     return oldNamecall(...)
 end))
+
+
+
+
 
 local oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, index)
     if self == LocalPlayer:GetMouse() and getgenv().silentAim_settings.enabled and getgenv().silentAim_settings.silentAimMethod == "Mouse.Hit/Target" and not checkcaller() then
@@ -1558,12 +1568,3 @@ Window:Notify({
 	Description = "Script loaded successfully! - Made by Finny <3",
 	Lifetime = 5
 })
-
-
-in my roblox game it says its attempting to call a nill value on line 348
-which is the 
-local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
-
-also for some reason in my vs debugger it says continue cant be used as a statement, im not sure if thats normal or not
-
-im on an exploit environment.
