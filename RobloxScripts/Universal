@@ -3,7 +3,7 @@
 ---------------------------------------------------
 local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
 local Window = MacLib:Window({
-	Title = "Collapse | Vh3",
+	Title = "Collapse | universal",
 	Subtitle = "| Made by Finny <3",
 	Size = UDim2.fromOffset(800, 500),
 	DragStyle = 2,
@@ -61,12 +61,29 @@ local tabGroups = {
 	Other = Window:TabGroup()
 }
 local tabs = {
-	AimAssist = tabGroups.Aim:Tab({ Name = "Aim Assist", Image = "rbxassetid://99275039709063" }),
+	-- Renamed AimAssist tab to Main
+	Main = tabGroups.Aim:Tab({ Name = "Main", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
 	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }),
 	Settings = tabGroups.Other:Tab({ Name = "Settings", Image = "rbxassetid://110807522910450" })
 }
 tabs.Settings:InsertConfigSection("Left")
+
+---------------------------------------------------
+-- Pre-Initialize Silent Aim Settings            --
+---------------------------------------------------
+getgenv().silentaim_settings = {
+    fov = 150,
+    hitbox = "Head",   -- default target part is Head
+    fovcircle = false, -- default now disabled
+}
+getgenv().silentaim_enabled = false
+getgenv().silentaim_method = "Raycasting"  -- default method
+
+---------------------------------------------------
+-- Global Sticky Aim Setting for Aim Assist      --
+---------------------------------------------------
+getgenv().stickyAim_enabled = false
 
 ---------------------------------------------------
 -- Game Services and Global Variables          --
@@ -142,14 +159,23 @@ local currentAimKey = getgenv().aim_settings.aimKey
 
 getgenv().boxESPFilled = getgenv().boxESPFilled or false
 
--- Create FOV Circle drawing
-local Circle = Drawing.new("Circle")
-Circle.Visible = false
-Circle.Thickness = getgenv().aim_settings.fovThickness
-Circle.Color = getgenv().aim_settings.fovCircleColor
-Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
-Circle.Filled = getgenv().aim_settings.fovCircleFilled
-Circle.NumSides = 64
+-- Create FOV Circle drawing for Aim Assist
+local aimAssistCircle = Drawing.new("Circle")
+aimAssistCircle.Visible = false
+aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
+aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
+aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
+aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
+aimAssistCircle.NumSides = 64
+
+-- Create independent FOV Circle drawing for Silent Aim
+local silentAimCircle = Drawing.new("Circle")
+silentAimCircle.Visible = false
+silentAimCircle.Thickness = 1
+silentAimCircle.Color = Color3.fromRGB(255, 255, 255)
+silentAimCircle.Transparency = 1
+silentAimCircle.Filled = false
+silentAimCircle.NumSides = 64
 
 -- Global variable for random aim target part
 local randomPart = nil
@@ -193,11 +219,43 @@ local function GetNearestPartFromCharacter(character, mousePos)
     return bestPart or character:FindFirstChild("Head")
 end
 
+-- Helper function for Silent Aim: find the closest target within FOV.
+local function GetClosestSilentTarget(fov)
+    local MousePos = UserInputService:GetMouseLocation()
+    local bestDistance = fov or math.huge
+    local target = nil
+    for _, v in pairs(Players:GetPlayers()) do
+         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().silentaim_settings.hitbox) then
+             local part = v.Character[getgenv().silentaim_settings.hitbox]
+             local screenPos, onScreen = CurrentCamera:WorldToScreenPoint(part.Position)
+             if onScreen then
+                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - MousePos).Magnitude
+                 if dist < bestDistance then
+                     bestDistance = dist
+                     target = v
+                 end
+             end
+         end
+    end
+    return target
+end
+
 ---------------------------------------------------
 -- Aiming Functionality                          --
 ---------------------------------------------------
 local function AimLock()
     local mousePos = UserInputService:GetMouseLocation()
+    
+    -- If Sticky Aim is enabled and we already have a valid target, continue locking onto it.
+    if getgenv().stickyAim_enabled and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox) then
+        local pos = CurrentCamera.CFrame.Position
+        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+        if targetPart then
+            CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
+            return
+        end
+    end
+
     local candidateTarget = nil
     local targetPart = nil
     local bestDistance = math.huge
@@ -264,16 +322,55 @@ local function AimLock()
 end
 
 RunService.RenderStepped:Connect(function()
+    -- Update aim assist FOV circle
+    aimAssistCircle.Position = UserInputService:GetMouseLocation()
+    aimAssistCircle.Radius = getgenv().aim_settings.fov
+    aimAssistCircle.Visible = getgenv().aim_settings.fovcircle
+    aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
+    aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
+    aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
+    aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
+
     if getgenv().aim_settings.enabled and Aiming then
         AimLock()
     end
-    Circle.Position = UserInputService:GetMouseLocation()
-    Circle.Radius = getgenv().aim_settings.fov
-    Circle.Visible = getgenv().aim_settings.fovcircle
-    Circle.Thickness = getgenv().aim_settings.fovThickness
-    Circle.Color = getgenv().aim_settings.fovCircleColor
-    Circle.Transparency = getgenv().aim_settings.fovCircleTransparency
-    Circle.Filled = getgenv().aim_settings.fovCircleFilled
+
+    -- Update silent aim FOV circle independently
+    silentAimCircle.Position = UserInputService:GetMouseLocation()
+    silentAimCircle.Radius = getgenv().silentaim_settings.fov
+    silentAimCircle.Visible = getgenv().silentaim_settings.fovcircle
+end)
+
+---------------------------------------------------
+-- Silent Aim Hook (Using __namecall)            --
+---------------------------------------------------
+local oldSilentAim
+oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
+    local args = {...}
+    local methodName = getnamecallmethod()
+    if not checkcaller() and getgenv().silentaim_enabled then
+        local target = GetClosestSilentTarget(getgenv().silentaim_settings.fov)
+        if target and target.Character then
+            local targetPart = target.Character[getgenv().silentaim_settings.hitbox]
+            if targetPart then
+                local origin = args[1].Origin
+                local newRay
+                if getgenv().silentaim_method == "Raycasting" then
+                    newRay = Ray.new(origin, (targetPart.Position - origin))
+                elseif getgenv().silentaim_method == "FindPartOnRayWithIgnoreList" and methodName == "FindPartOnRayWithIgnoreList" then
+                    newRay = Ray.new(origin, (targetPart.Position - origin))
+                elseif getgenv().silentaim_method == "FindPartOnRayWithWhitelist" and methodName == "FindPartOnRayWithWhitelist" then
+                    newRay = Ray.new(origin, (targetPart.Position - origin))
+                elseif getgenv().silentaim_method == "Mouse.Hit/Target" then
+                    newRay = Ray.new(origin, (LocalPlayer:GetMouse().Hit.p - origin))
+                end
+                if newRay then
+                    args[1] = newRay
+                end
+            end
+        end
+    end
+    return oldSilentAim(self, unpack(args))
 end)
 
 ---------------------------------------------------
@@ -543,8 +640,6 @@ end
 ---------------------------------------------------
 -- Chams Functions (Highlight-based ESP)         --
 ---------------------------------------------------
--- Removed previous team check logic.
--- A new global color (getgenv().chamsColor) is used via a color picker.
 local chamsStorage = nil
 local chamsConnections = {}
 local chamsUpdateLoop = nil
@@ -896,9 +991,10 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 ---------------------------------------------------
--- GUI: Aim Assist Tab                           --
+-- GUI: Main Tab (previously Aim Assist)         --
 ---------------------------------------------------
-local aimBasic = tabs.AimAssist:Section({ Side = "Left" })
+-- Aim Assist Options (Left Side)
+local aimBasic = tabs.Main:Section({ Side = "Left" })
 aimBasic:Toggle({
 	Name = "Aim Assist",
 	Default = false,
@@ -946,20 +1042,8 @@ aimBasic:Slider({
 	end,
 }, "FOVSizeSlider")
 
-aimBasic:Dropdown({
-	Name = "Aim Target",
-	Multi = false,
-	Required = true,
-	Search = true,
-	Default = "Head",
-	Options = {"Head", "HumanoidRootPart", "Random", "Nearest"},
-	Callback = function(Value)
-		getgenv().aim_settings.hitbox = Value
-		Window:Notify({ Title = "Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
-	end,
-}, "AimTargetDropdown")
-
-local aimFOV = tabs.AimAssist:Section({ Side = "Right" })
+-- Aim Assist Customizations (Right Side)
+local aimFOV = tabs.Main:Section({ Side = "Right" })
 aimFOV:Dropdown({
 	Name = "Aim Assist Method",
 	Multi = false,
@@ -971,6 +1055,14 @@ aimFOV:Dropdown({
 		getgenv().aim_settings.method = Value
 	end,
 }, "AimMethodDropdown")
+
+aimFOV:Toggle({
+    Name = "Sticky Aim",
+    Default = false,
+    Callback = function(Value)
+         getgenv().stickyAim_enabled = Value
+    end,
+}, "StickyAimToggle")
 
 aimFOV:Slider({
 	Name = "FOV Thickness",
@@ -1002,7 +1094,7 @@ aimFOV:Toggle({
 }, "FOVCircleFilledToggle")
 
 aimFOV:Slider({
-	Name = "Fov Transparency",
+	Name = "FOV Transparency",
 	Default = getgenv().aim_settings.fovCircleTransparency,
 	Minimum = 0.1,
 	Maximum = 1,
@@ -1012,6 +1104,65 @@ aimFOV:Slider({
 		getgenv().aim_settings.fovCircleTransparency = Value
 	end,
 }, "FOVCircleTransparencySlider")
+
+-- Silent Aim Options (Below Aim Assist Options)
+local silentAimSection = tabs.Main:Section({ Side = "Left", Title = "Silent Aim", VerticalOrder = true })
+
+silentAimSection:Toggle({
+    Name = "Enable Silent Aim",
+    Default = false,
+    Callback = function(Value)
+         getgenv().silentaim_enabled = Value
+         Window:Notify({ Title = "Silent Aim", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "SilentAimToggle")
+
+silentAimSection:Toggle({
+    Name = "FOV Circle",
+    Default = getgenv().silentaim_settings.fovcircle,
+    Callback = function(Value)
+         getgenv().silentaim_settings.fovcircle = Value
+         Window:Notify({ Title = "Silent Aim FOV Circle", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+    end,
+}, "SilentAimFOVToggle")
+
+silentAimSection:Slider({
+    Name = "FOV Size",
+    Default = getgenv().silentaim_settings.fov,
+    Minimum = 20,
+    Maximum = 800,
+    DisplayMethod = "Value",
+    Precision = 0,
+    Callback = function(Value)
+         getgenv().silentaim_settings.fov = Value
+         Window:Notify({ Title = "Silent Aim FOV Size", Description = "Silent Aim FOV size set to: " .. tostring(Value), Lifetime = 5 })
+    end,
+}, "SilentAimFOVSizeSlider")
+
+silentAimSection:Dropdown({
+    Name = "Silent Aim Method",
+    Multi = false,
+    Required = true,
+    Search = true,
+    Default = "Raycasting",
+    Options = {"Raycasting", "FindPartOnRayWithIgnoreList", "FindPartOnRayWithWhitelist", "Mouse.Hit/Target"},
+    Callback = function(Value)
+         getgenv().silentaim_method = Value
+    end,
+}, "SilentAimMethodDropdown")
+
+silentAimSection:Dropdown({
+    Name = "Silent Aim Target",
+    Multi = false,
+    Required = true,
+    Search = true,
+    Default = "Head",
+    Options = {"Head", "Body"},
+    Callback = function(Value)
+         getgenv().silentaim_settings.hitbox = Value
+         Window:Notify({ Title = "Silent Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
+    end,
+}, "SilentAimTargetDropdown")
 
 ---------------------------------------------------
 -- GUI: Visuals Tab                              --
@@ -1093,14 +1244,72 @@ visualsLeft:Toggle({
     end,
 }, "ChamsToggle")
 
-visualsLeft:Toggle({
-    Name = "Name ESP",
-    Default = false,
-    Callback = function(Value)
-         ESP.Name.Enabled = Value
-         Window:Notify({ Title = "Name ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+-- Visuals Right: Color Pickers in desired order:
+visualsRight:Colorpicker({
+    Name = "Box ESP Color",
+    Default = ESP.Box.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Box.Color = color
     end,
-}, "NameESPToggle")
+}, "BoxESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Tracers Color",
+    Default = ESP.Tracers.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Tracers.Color = color
+    end,
+}, "TracersColor")
+
+visualsRight:Colorpicker({
+    Name = "Skeleton ESP Color",
+    Default = getgenv().skeletonESPColor or Color3.fromRGB(255,255,255),
+    Alpha = 0,
+    Callback = function(color, alpha)
+         getgenv().skeletonESPColor = color
+         for plr, sk in pairs(Skeletons) do
+             if sk then sk:SetColor(color) end
+         end
+    end,
+}, "SkeletonESPColor")
+
+visualsRight:Colorpicker({
+    Name = "HealthBar ESP Color",
+    Default = ESP.HealthBar.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.HealthBar.Color = color
+    end,
+}, "HealthBarESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Tool ESP Color",
+    Default = ESP.Tool.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Tool.Color = color
+    end,
+}, "ToolESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Distance ESP Color",
+    Default = ESP.Distance.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Distance.Color = color
+    end,
+}, "DistanceESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Chams Color",
+    Default = Color3.fromRGB(255,255,255),
+    Alpha = 0,
+    Callback = function(color, alpha)
+         getgenv().chamsColor = color
+    end,
+}, "ChamsColor")
 
 local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
 
@@ -1124,7 +1333,7 @@ espCustom:Slider({
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
-        ESP.Tracers.Thickness = Value
+         ESP.Tracers.Thickness = Value
     end,
 }, "TracerThicknessSlider")
 
@@ -1136,7 +1345,7 @@ espCustom:Dropdown({
     Default = "2D",
     Options = {"2D", "3D", "Corners"},
     Callback = function(Value)
-        getgenv().boxESPType = Value
+         getgenv().boxESPType = Value
     end,
 }, "BoxESPTypeDropdown")
 
@@ -1144,7 +1353,7 @@ espCustom:Toggle({
     Name = "Box ESP Filled",
     Default = false,
     Callback = function(Value)
-        getgenv().boxESPFilled = Value
+         getgenv().boxESPFilled = Value
     end,
 }, "BoxESPFilledToggle")
 
@@ -1163,83 +1372,6 @@ espCustom:Toggle({
     end,
 }, "ChamsFillToggle")
 
-visualsRight:Colorpicker({
-    Name = "Box ESP Color",
-    Default = ESP.Box.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-        ESP.Box.Color = color
-    end,
-}, "BoxESPColor")
-
-visualsRight:Colorpicker({
-    Name = "Tracers Color",
-    Default = ESP.Tracers.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-        ESP.Tracers.Color = color
-    end,
-}, "TracersColor")
-
-visualsRight:Colorpicker({
-    Name = "Skeleton ESP Color",
-    Default = getgenv().skeletonESPColor or Color3.fromRGB(255,255,255),
-    Alpha = 0,
-    Callback = function(color, alpha)
-         getgenv().skeletonESPColor = color
-         for plr, sk in pairs(Skeletons) do
-             if sk then sk:SetColor(color) end
-         end
-    end,
-}, "SkeletonESPColor")
-
-visualsRight:Colorpicker({
-    Name = "HealthBar ESP Color",
-    Default = ESP.HealthBar.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-        ESP.HealthBar.Color = color
-    end,
-}, "HealthBarESPColor")
-
-visualsRight:Colorpicker({
-    Name = "Tool ESP Color",
-    Default = ESP.Tool.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-        ESP.Tool.Color = color
-    end,
-}, "ToolESPColor")
-
-visualsRight:Colorpicker({
-    Name = "Distance ESP Color",
-    Default = ESP.Distance.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-        ESP.Distance.Color = color
-    end,
-}, "DistanceESPColor")
-
--- New Colorpicker for Name ESP
-visualsRight:Colorpicker({
-    Name = "Name ESP Color",
-    Default = ESP.Name.Color,
-    Alpha = 0,
-    Callback = function(color, alpha)
-         ESP.Name.Color = color
-    end,
-}, "NameESPColor")
-
--- New Colorpicker for Chams Color (replaces the old team check toggle)
-visualsRight:Colorpicker({
-    Name = "Chams Color",
-    Default = Color3.fromRGB(255,255,255),
-    Alpha = 0,
-    Callback = function(color, alpha)
-         getgenv().chamsColor = color
-    end,
-}, "ChamsColor")
-
 ---------------------------------------------------
 -- GUI: Player Tab (Other)                        --
 ---------------------------------------------------
@@ -1252,8 +1384,8 @@ playerSection:Toggle({
     Name = "Speed",
     Default = false,
     Callback = function(Value)
-        getgenv().speedEnabled = Value
-        Window:Notify({ Title = "Speed", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+         getgenv().speedEnabled = Value
+         Window:Notify({ Title = "Speed", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "SpeedToggle")
 
@@ -1265,8 +1397,8 @@ playerSection:Slider({
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
-        getgenv().speedValue = Value
-        Window:Notify({ Title = "Speed Value", Description = "Speed set to: " .. tostring(Value), Lifetime = 5 })
+         getgenv().speedValue = Value
+         Window:Notify({ Title = "Speed Value", Description = "Speed set to: " .. tostring(Value), Lifetime = 5 })
     end,
 }, "SpeedSlider")
 
@@ -1275,8 +1407,8 @@ jumpSection:Toggle({
     Name = "Jump Height",
     Default = false,
     Callback = function(Value)
-        getgenv().jumpEnabled = Value
-        Window:Notify({ Title = "Jump Height", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+         getgenv().jumpEnabled = Value
+         Window:Notify({ Title = "Jump Height", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "JumpToggle")
 
@@ -1288,37 +1420,37 @@ jumpSection:Slider({
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
-        getgenv().jumpValue = Value
-        Window:Notify({ Title = "Jump Height", Description = "Jump Height set to: " .. tostring(Value), Lifetime = 5 })
+         getgenv().jumpValue = Value
+         Window:Notify({ Title = "Jump Height", Description = "Jump Height set to: " .. tostring(Value), Lifetime = 5 })
     end,
 }, "JumpSlider")
 
 RunService.RenderStepped:Connect(function()
     local character = LocalPlayer.Character
     if character then
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            if getgenv().speedEnabled then
-                humanoid.WalkSpeed = getgenv().speedValue or defaultWalkSpeed
-            else
-                humanoid.WalkSpeed = defaultWalkSpeed
-            end
-            if getgenv().jumpEnabled then
-                humanoid.JumpPower = getgenv().jumpValue or defaultJumpPower
-            else
-                humanoid.JumpPower = defaultJumpPower
-            end
-        end
+         local humanoid = character:FindFirstChild("Humanoid")
+         if humanoid then
+              if getgenv().speedEnabled then
+                   humanoid.WalkSpeed = getgenv().speedValue or defaultWalkSpeed
+              else
+                   humanoid.WalkSpeed = defaultWalkSpeed
+              end
+              if getgenv().jumpEnabled then
+                   humanoid.JumpPower = getgenv().jumpValue or defaultJumpPower
+              else
+                   humanoid.JumpPower = defaultJumpPower
+              end
+         end
     end
 end)
 
 ---------------------------------------------------
 -- Finalize GUI                                  --
 ---------------------------------------------------
-tabs.AimAssist:Select()
+tabs.Main:Select()
 
 Window:Notify({
-	Title = "Collapse:Vampire Hunters 3",
+	Title = "Collapse:universal",
 	Description = "Script loaded successfully! - Made by Finny <3",
 	Lifetime = 5
 })
