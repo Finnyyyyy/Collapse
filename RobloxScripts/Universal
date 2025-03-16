@@ -86,7 +86,7 @@ getgenv().silentaim_method = "Raycasting"  -- default method
 getgenv().stickyAim_enabled = false
 
 ---------------------------------------------------
--- Game Services and Global Variables          --
+-- Game Services and Global Variables            --
 ---------------------------------------------------
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -99,7 +99,16 @@ local currentTracerPosition = "Bottom"  -- default tracer origin
 local Aiming = false
 local currentTarget = nil
 
--- ESP table (for visuals only)
+---------------------------------------------------
+-- Cached Silent Aim Target (for performance)    --
+---------------------------------------------------
+local cachedSilentTarget = nil
+local targetUpdateInterval = 0.1  -- update target every 0.1 seconds
+local targetUpdateAccumulator = 0
+
+---------------------------------------------------
+-- ESP table (for visuals only)                  --
+---------------------------------------------------
 local ESP = {
     Enabled = true,
     Box = {
@@ -246,7 +255,6 @@ end
 local function AimLock()
     local mousePos = UserInputService:GetMouseLocation()
     
-    -- If Sticky Aim is enabled and we already have a valid target, continue locking onto it.
     if getgenv().stickyAim_enabled and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox) then
         local pos = CurrentCamera.CFrame.Position
         local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
@@ -321,8 +329,14 @@ local function AimLock()
     end
 end
 
-RunService.RenderStepped:Connect(function()
-    -- Update aim assist FOV circle
+---------------------------------------------------
+-- RenderStepped Updates for Aim, ESP, & Silent Aim --
+---------------------------------------------------
+local lastESPUpdate = 0
+local ESPUpdateRate = 0.05 -- update ESP elements every 0.05 sec
+
+RunService.RenderStepped:Connect(function(delta)
+    -- Update aim assist FOV circle (runs every frame)
     aimAssistCircle.Position = UserInputService:GetMouseLocation()
     aimAssistCircle.Radius = getgenv().aim_settings.fov
     aimAssistCircle.Visible = getgenv().aim_settings.fovcircle
@@ -339,38 +353,53 @@ RunService.RenderStepped:Connect(function()
     silentAimCircle.Position = UserInputService:GetMouseLocation()
     silentAimCircle.Radius = getgenv().silentaim_settings.fov
     silentAimCircle.Visible = getgenv().silentaim_settings.fovcircle
+
+    -- Throttle ESP updates (if any heavy custom updates are added)
+    lastESPUpdate = lastESPUpdate + delta
+    if lastESPUpdate >= ESPUpdateRate then
+        lastESPUpdate = 0
+        -- Place any ESP global update code here if needed.
+    end
+
+    -- Update cached silent aim target every targetUpdateInterval seconds.
+    if getgenv().silentaim_enabled then
+        targetUpdateAccumulator = targetUpdateAccumulator + delta
+        if targetUpdateAccumulator >= targetUpdateInterval then
+            cachedSilentTarget = GetClosestSilentTarget(getgenv().silentaim_settings.fov)
+            targetUpdateAccumulator = 0
+        end
+    else
+        cachedSilentTarget = nil
+    end
 end)
 
 ---------------------------------------------------
--- Silent Aim Hook (Using __namecall)            --
+-- Optimized Silent Aim Hook                     --
 ---------------------------------------------------
 local oldSilentAim
 oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
     local args = {...}
     local methodName = getnamecallmethod()
-    if not checkcaller() and getgenv().silentaim_enabled then
-        local target = GetClosestSilentTarget(getgenv().silentaim_settings.fov)
-        if target and target.Character then
-            local targetPart = target.Character[getgenv().silentaim_settings.hitbox]
-            if targetPart then
-                local origin = args[1].Origin
-                local newRay
-                if getgenv().silentaim_method == "Raycasting" then
-                    newRay = Ray.new(origin, (targetPart.Position - origin))
-                elseif getgenv().silentaim_method == "FindPartOnRayWithIgnoreList" and methodName == "FindPartOnRayWithIgnoreList" then
-                    newRay = Ray.new(origin, (targetPart.Position - origin))
-                elseif getgenv().silentaim_method == "FindPartOnRayWithWhitelist" and methodName == "FindPartOnRayWithWhitelist" then
-                    newRay = Ray.new(origin, (targetPart.Position - origin))
-                elseif getgenv().silentaim_method == "Mouse.Hit/Target" then
-                    newRay = Ray.new(origin, (LocalPlayer:GetMouse().Hit.p - origin))
-                end
-                if newRay then
-                    args[1] = newRay
-                end
+    if not checkcaller() and getgenv().silentaim_enabled and cachedSilentTarget and cachedSilentTarget.Character then
+        local targetPart = cachedSilentTarget.Character[getgenv().silentaim_settings.hitbox]
+        if targetPart then
+            local origin = args[1].Origin
+            local newRay
+            if getgenv().silentaim_method == "Raycasting" then
+                newRay = Ray.new(origin, (targetPart.Position - origin))
+            elseif getgenv().silentaim_method == "FindPartOnRayWithIgnoreList" and methodName == "FindPartOnRayWithIgnoreList" then
+                newRay = Ray.new(origin, (targetPart.Position - origin))
+            elseif getgenv().silentaim_method == "FindPartOnRayWithWhitelist" and methodName == "FindPartOnRayWithWhitelist" then
+                newRay = Ray.new(origin, (targetPart.Position - origin))
+            elseif getgenv().silentaim_method == "Mouse.Hit/Target" then
+                newRay = Ray.new(origin, (LocalPlayer:GetMouse().Hit.p - origin))
+            end
+            if newRay then
+                args[1] = newRay
             end
         end
     end
-    return oldSilentAim(self, unpack(args))
+    return oldSilentAim(self, table.unpack(args))
 end)
 
 ---------------------------------------------------
@@ -459,7 +488,12 @@ do
             if Connection then Connection:Disconnect() end
         end
 
-        Connection = RunService.RenderStepped:Connect(function()
+        local updateAccumulator = 0
+        Connection = RunService.RenderStepped:Connect(function(delta)
+            updateAccumulator = updateAccumulator + delta
+            if updateAccumulator < ESPUpdateRate then return end
+            updateAccumulator = 0
+
             if not ESP.Enabled then return HideESP() end
             if not Player or not Player.Parent then return DestroyESP() end
             if not (Player.Character and Player.Character:FindFirstChild("Head") and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.Health > 0) then
