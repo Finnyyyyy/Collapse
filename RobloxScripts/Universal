@@ -61,7 +61,7 @@ local tabGroups = {
 	Other = Window:TabGroup()
 }
 local tabs = {
-	-- Renamed AimAssist tab to Main
+	-- Main (formerly AimAssist)
 	Main = tabGroups.Aim:Tab({ Name = "Main", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
 	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }),
@@ -70,15 +70,140 @@ local tabs = {
 tabs.Settings:InsertConfigSection("Left")
 
 ---------------------------------------------------
--- Pre-Initialize Silent Aim Settings            --
+-- UNIVERSAL SILENT AIM (Replacement Section)    --
 ---------------------------------------------------
-getgenv().silentaim_settings = {
-    fov = 150,
-    hitbox = "Head",   -- default target part is Head
-    fovcircle = false, -- default now disabled
+-- Remove the original silent aim code and replace it with the following:
+if not game:IsLoaded() then 
+	game.Loaded:Wait()
+end
+
+if not syn or not protectgui then
+	getgenv().protectgui = function() end
+end
+
+-- Universal Silent Aim Settings (no file-handling code)
+getgenv().SilentAimSettings = {
+	Enabled = false,                    -- whether silent aim is active
+	TargetPart = "HumanoidRootPart",    -- options: "Head", "HumanoidRootPart"
+	SilentAimMethod = "Raycast",          -- options: "Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"
+	HitChance = 100,                    -- 0 to 100%
+	FOVRadius = 130,
+	FOVVisible = false,
+	ShowSilentAimTarget = false,
+	MouseHitPrediction = false,
+	MouseHitPredictionAmount = 0.165,
+	TeamCheck = false,
+	VisibleCheck = false,
 }
-getgenv().silentaim_enabled = false
-getgenv().silentaim_method = "Raycasting"  -- default method
+
+local Camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+local function getDirection(Origin, Position)
+	return (Position - Origin).Unit * 1000
+end
+
+local function getMousePosition()
+	return UserInputService:GetMouseLocation()
+end
+
+local function IsPlayerVisible(Player)
+	local Character = Player.Character
+	if not Character then return false end
+	local Root = Character:FindFirstChild(getgenv().SilentAimSettings.TargetPart) or Character:FindFirstChild("HumanoidRootPart")
+	if not Root then return false end
+	local ray = Ray.new(Camera.CFrame.Position, (Root.Position - Camera.CFrame.Position).Unit * 1000)
+	local hitPart = workspace:FindPartOnRay(ray, Character)
+	return not hitPart
+end
+
+local function getClosestPlayer()
+	local MousePos = getMousePosition()
+	local BestDistance = getgenv().SilentAimSettings.FOVRadius or 130
+	local BestTarget = nil
+	for _, Player in ipairs(Players:GetPlayers()) do
+		if Player == LocalPlayer then continue end
+		if getgenv().SilentAimSettings.TeamCheck and Player.Team == LocalPlayer.Team then continue end
+		local Character = Player.Character
+		if not Character then continue end
+		if getgenv().SilentAimSettings.VisibleCheck and not IsPlayerVisible(Player) then continue end
+		local Part = Character:FindFirstChild(getgenv().SilentAimSettings.TargetPart) or Character:FindFirstChild("HumanoidRootPart")
+		if Part then
+			local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
+			if OnScreen then
+				local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
+				if Distance < BestDistance then
+					BestDistance = Distance
+					BestTarget = Part
+				end
+			end
+		end
+	end
+	return BestTarget
+end
+
+-- Create FOV circle for Silent Aim
+local silentAimFOVCircle = Drawing.new("Circle")
+silentAimFOVCircle.Visible = getgenv().SilentAimSettings.FOVVisible
+silentAimFOVCircle.Thickness = 1
+silentAimFOVCircle.Radius = getgenv().SilentAimSettings.FOVRadius
+silentAimFOVCircle.NumSides = 100
+silentAimFOVCircle.Filled = false
+silentAimFOVCircle.Transparency = 1
+silentAimFOVCircle.Color = Color3.fromRGB(54,57,241)
+
+-- Hook for Silent Aim (Non Mouse.Hit/Target)
+local oldSilentAim
+oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
+	local args = {...}
+	local method = getnamecallmethod()
+	if not checkcaller() and getgenv().SilentAimSettings.Enabled then
+		if (method == "FindPartOnRayWithIgnoreList" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithIgnoreList") or
+		   (method == "FindPartOnRayWithWhitelist" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithWhitelist") or
+		   ((method == "FindPartOnRay" or method == "findPartOnRay") and getgenv().SilentAimSettings.SilentAimMethod:lower() == method:lower()) or
+		   (method == "Raycast" and getgenv().SilentAimSettings.SilentAimMethod == "Raycast")
+		then
+			local ray = args[2]
+			local HitPart = getClosestPlayer()
+			if HitPart and (math.random(0, 100) <= getgenv().SilentAimSettings.HitChance) then
+				local Origin = ray.Origin
+				local Direction = getDirection(Origin, HitPart.Position)
+				args[2] = Ray.new(Origin, Direction)
+				return oldSilentAim(self, unpack(args))
+			end
+		end
+	end
+	return oldSilentAim(self, ...)
+end)
+
+-- Additional __index hook for Mouse.Hit/Target Silent Aim
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", function(self, Index)
+	if self == Mouse and not checkcaller() and getgenv().SilentAimSettings.Enabled and getgenv().SilentAimSettings.SilentAimMethod == "Mouse.Hit/Target" then
+		local HitPart = getClosestPlayer()
+		if HitPart then
+			if Index == "Target" then
+				return HitPart
+			elseif Index == "Hit" then
+				return HitPart.CFrame
+			elseif Index == "UnitRay" then
+				return Ray.new(self.Origin, (HitPart.Position - self.Origin).Unit)
+			end
+		end
+	end
+	return oldIndex(self, Index)
+end)
+
+-- Update Silent Aim FOV circle each frame
+RunService.RenderStepped:Connect(function(delta)
+	silentAimFOVCircle.Position = getMousePosition()
+	silentAimFOVCircle.Radius = getgenv().SilentAimSettings.FOVRadius
+	silentAimFOVCircle.Visible = getgenv().SilentAimSettings.FOVVisible
+end)
 
 ---------------------------------------------------
 -- Global Sticky Aim Setting for Aim Assist      --
@@ -98,13 +223,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local currentTracerPosition = "Bottom"  -- default tracer origin
 local Aiming = false
 local currentTarget = nil
-
----------------------------------------------------
--- Cached Silent Aim Target (for performance)    --
----------------------------------------------------
-local cachedSilentTarget = nil
-local targetUpdateInterval = 0.1  -- update target every 0.1 seconds
-local targetUpdateAccumulator = 0
 
 ---------------------------------------------------
 -- ESP table (for visuals only)                  --
@@ -155,7 +273,7 @@ local ESP = {
 getgenv().aim_settings = {
     enabled = false,
     fov = 150,
-    hitbox = "Head",  -- default target; options: "Head", "HumanoidRootPart", "Random", "Nearest"
+    hitbox = "Head",  -- options: "Head", "HumanoidRootPart", "Random", "Nearest"
     fovcircle = false,
     aimKey = Enum.KeyCode.E,
     method = "Camera",  -- "Camera" or "Mouse"
@@ -177,7 +295,7 @@ aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
 aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
 aimAssistCircle.NumSides = 64
 
--- Create independent FOV Circle drawing for Silent Aim
+-- Create independent FOV Circle drawing for Silent Aim (if desired)
 local silentAimCircle = Drawing.new("Circle")
 silentAimCircle.Visible = false
 silentAimCircle.Thickness = 1
@@ -333,10 +451,9 @@ end
 -- RenderStepped Updates for Aim, ESP, & Silent Aim --
 ---------------------------------------------------
 local lastESPUpdate = 0
-local ESPUpdateRate = 0.05 -- update ESP elements every 0.05 sec
+local ESPUpdateRate = 0.05
 
 RunService.RenderStepped:Connect(function(delta)
-    -- Update aim assist FOV circle (runs every frame)
     aimAssistCircle.Position = UserInputService:GetMouseLocation()
     aimAssistCircle.Radius = getgenv().aim_settings.fov
     aimAssistCircle.Visible = getgenv().aim_settings.fovcircle
@@ -349,19 +466,16 @@ RunService.RenderStepped:Connect(function(delta)
         AimLock()
     end
 
-    -- Update silent aim FOV circle independently
     silentAimCircle.Position = UserInputService:GetMouseLocation()
     silentAimCircle.Radius = getgenv().silentaim_settings.fov
     silentAimCircle.Visible = getgenv().silentaim_settings.fovcircle
 
-    -- Throttle ESP updates (if any heavy custom updates are added)
     lastESPUpdate = lastESPUpdate + delta
     if lastESPUpdate >= ESPUpdateRate then
         lastESPUpdate = 0
-        -- Place any ESP global update code here if needed.
     end
 
-    -- Update cached silent aim target every targetUpdateInterval seconds.
+    -- Cached target update (from original silent aim code)
     if getgenv().silentaim_enabled then
         targetUpdateAccumulator = targetUpdateAccumulator + delta
         if targetUpdateAccumulator >= targetUpdateInterval then
@@ -1025,9 +1139,8 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 ---------------------------------------------------
--- GUI: Main Tab (previously Aim Assist)         --
+-- GUI: Main Tab (Aim Assist)                     --
 ---------------------------------------------------
--- Aim Assist Options (Left Side)
 local aimBasic = tabs.Main:Section({ Side = "Left" })
 aimBasic:Toggle({
 	Name = "Aim Assist",
@@ -1139,64 +1252,79 @@ aimFOV:Slider({
 	end,
 }, "FOVCircleTransparencySlider")
 
--- Silent Aim Options (Below Aim Assist Options)
-local silentAimSection = tabs.Main:Section({ Side = "Left", Title = "Silent Aim", VerticalOrder = true })
+---------------------------------------------------
+-- GUI: Silent Aim Tab (Silent Aim Settings)       --
+---------------------------------------------------
+local silentAimGUI = tabs.Main:Section({ Side = "Left", Title = "Silent Aim Settings", VerticalOrder = true })
 
-silentAimSection:Toggle({
+silentAimGUI:Toggle({
     Name = "Enable Silent Aim",
     Default = false,
     Callback = function(Value)
-         getgenv().silentaim_enabled = Value
-         Window:Notify({ Title = "Silent Aim", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+        getgenv().SilentAimSettings.Enabled = Value
+        Window:Notify({ Title = "Silent Aim", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
     end,
 }, "SilentAimToggle")
 
-silentAimSection:Toggle({
+silentAimGUI:Toggle({
     Name = "FOV Circle",
-    Default = getgenv().silentaim_settings.fovcircle,
+    Default = getgenv().SilentAimSettings.FOVVisible,
     Callback = function(Value)
-         getgenv().silentaim_settings.fovcircle = Value
-         Window:Notify({ Title = "Silent Aim FOV Circle", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+        getgenv().SilentAimSettings.FOVVisible = Value
+        Window:Notify({ Title = "Silent Aim FOV Circle", Description = (Value and "Shown" or "Hidden"), Lifetime = 5 })
     end,
 }, "SilentAimFOVToggle")
 
-silentAimSection:Slider({
+silentAimGUI:Slider({
     Name = "FOV Size",
-    Default = getgenv().silentaim_settings.fov,
+    Default = getgenv().SilentAimSettings.FOVRadius,
     Minimum = 20,
     Maximum = 800,
     DisplayMethod = "Value",
     Precision = 0,
     Callback = function(Value)
-         getgenv().silentaim_settings.fov = Value
-         Window:Notify({ Title = "Silent Aim FOV Size", Description = "Silent Aim FOV size set to: " .. tostring(Value), Lifetime = 5 })
+        getgenv().SilentAimSettings.FOVRadius = Value
+        Window:Notify({ Title = "Silent Aim FOV Size", Description = "FOV size set to: " .. tostring(Value), Lifetime = 5 })
     end,
 }, "SilentAimFOVSizeSlider")
 
-silentAimSection:Dropdown({
+silentAimGUI:Dropdown({
     Name = "Silent Aim Method",
     Multi = false,
     Required = true,
     Search = true,
-    Default = "Raycasting",
-    Options = {"Raycasting", "FindPartOnRayWithIgnoreList", "FindPartOnRayWithWhitelist", "Mouse.Hit/Target"},
+    Default = "Raycast",
+    Options = {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"},
     Callback = function(Value)
-         getgenv().silentaim_method = Value
+        getgenv().SilentAimSettings.SilentAimMethod = Value
     end,
 }, "SilentAimMethodDropdown")
 
-silentAimSection:Dropdown({
-    Name = "Silent Aim Target",
+silentAimGUI:Dropdown({
+    Name = "Target Part",
     Multi = false,
     Required = true,
     Search = true,
-    Default = "Head",
-    Options = {"Head", "Body"},
+    Default = "HumanoidRootPart",
+    Options = {"Head", "HumanoidRootPart"},
     Callback = function(Value)
-         getgenv().silentaim_settings.hitbox = Value
-         Window:Notify({ Title = "Silent Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
+        getgenv().SilentAimSettings.TargetPart = Value
+        Window:Notify({ Title = "Silent Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
     end,
 }, "SilentAimTargetDropdown")
+
+silentAimGUI:Slider({
+    Name = "Hit Chance",
+    Default = 100,
+    Minimum = 0,
+    Maximum = 100,
+    DisplayMethod = "Value",
+    Precision = 0,
+    Callback = function(Value)
+        getgenv().SilentAimSettings.HitChance = Value
+        Window:Notify({ Title = "Hit Chance", Description = "Hit chance set to: " .. tostring(Value) .. "%", Lifetime = 5 })
+    end,
+}, "HitChanceSlider")
 
 ---------------------------------------------------
 -- GUI: Visuals Tab                              --
@@ -1278,7 +1406,6 @@ visualsLeft:Toggle({
     end,
 }, "ChamsToggle")
 
--- Visuals Right: Color Pickers in desired order:
 visualsRight:Colorpicker({
     Name = "Box ESP Color",
     Default = ESP.Box.Color,
