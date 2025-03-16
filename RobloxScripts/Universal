@@ -155,51 +155,71 @@ silentAimFOVCircle.NumSides = 100
 silentAimFOVCircle.Filled = false
 silentAimFOVCircle.Transparency = 1
 silentAimFOVCircle.Color = Color3.fromRGB(54,57,241)
+-- Universal Silent Aim with performance optimization
+
+
+local targetUpdateInterval = 0.05  -- Update target 20 times per second instead of every frame
+local targetUpdateAccumulator = 0
+local cachedSilentTarget = nil
 
 -- Hook for Silent Aim (Non Mouse.Hit/Target)
 local oldSilentAim
 oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
-	local args = {...}
-	local method = getnamecallmethod()
-	if not checkcaller() and getgenv().SilentAimSettings.Enabled then
-		if (method == "FindPartOnRayWithIgnoreList" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithIgnoreList") or
-		   (method == "FindPartOnRayWithWhitelist" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithWhitelist") or
-		   ((method == "FindPartOnRay" or method == "findPartOnRay") and getgenv().SilentAimSettings.SilentAimMethod:lower() == method:lower()) or
-		   (method == "Raycast" and getgenv().SilentAimSettings.SilentAimMethod == "Raycast")
-		then
-			local ray = args[2]
-			local HitPart = getClosestPlayer()
-			if HitPart and (math.random(0, 100) <= getgenv().SilentAimSettings.HitChance) then
-				local Origin = ray.Origin
-				local Direction = getDirection(Origin, HitPart.Position)
-				args[2] = Ray.new(Origin, Direction)
-				return oldSilentAim(self, unpack(args))
-			end
-		end
-	end
-	return oldSilentAim(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    -- Use cached target instead of finding target on every call
+    if not checkcaller() and getgenv().SilentAimSettings.Enabled and cachedSilentTarget and math.random(1, 100) <= getgenv().SilentAimSettings.HitChance then
+        if (method == "FindPartOnRayWithIgnoreList" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithIgnoreList") or
+           (method == "FindPartOnRayWithWhitelist" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithWhitelist") or
+           ((method == "FindPartOnRay" or method == "findPartOnRay") and getgenv().SilentAimSettings.SilentAimMethod:lower() == method:lower()) or
+           (method == "Raycast" and getgenv().SilentAimSettings.SilentAimMethod == "Raycast")
+        then
+            if #args >= 1 then
+                local rayArg = args[1]
+                if typeof(rayArg) == "Ray" then
+                    local Origin = rayArg.Origin
+                    local Direction = getDirection(Origin, cachedSilentTarget.Position)
+                    args[1] = Ray.new(Origin, Direction)
+                end
+            end
+        end
+    end
+    
+    return oldSilentAim(self, unpack(args))
 end)
 
 -- Additional __index hook for Mouse.Hit/Target Silent Aim
 local oldIndex
 oldIndex = hookmetamethod(game, "__index", function(self, Index)
-	if self == Mouse and not checkcaller() and getgenv().SilentAimSettings.Enabled and getgenv().SilentAimSettings.SilentAimMethod == "Mouse.Hit/Target" then
-		local HitPart = getClosestPlayer()
-		if HitPart then
-			if Index == "Target" then
-				return HitPart
-			elseif Index == "Hit" then
-				return HitPart.CFrame
-			elseif Index == "UnitRay" then
-				return Ray.new(self.Origin, (HitPart.Position - self.Origin).Unit)
-			end
-		end
-	end
-	return oldIndex(self, Index)
+    if self == Mouse and not checkcaller() and getgenv().SilentAimSettings.Enabled and 
+       getgenv().SilentAimSettings.SilentAimMethod == "Mouse.Hit/Target" and cachedSilentTarget then
+        if Index == "Target" then
+            return cachedSilentTarget
+        elseif Index == "Hit" then
+            return CFrame.new(cachedSilentTarget.Position)
+        elseif Index == "UnitRay" then
+            return Ray.new(Mouse.Origin, (cachedSilentTarget.Position - Mouse.Origin).Unit)
+        end
+    end
+    
+    return oldIndex(self, Index)
 end)
 
 -- Update Silent Aim FOV circle each frame
 RunService.RenderStepped:Connect(function(delta)
+
+    if getgenv().SilentAimSettings.Enabled then
+        targetUpdateAccumulator = targetUpdateAccumulator + delta
+        if targetUpdateAccumulator >= targetUpdateInterval then
+            cachedSilentTarget = getClosestPlayer()
+            targetUpdateAccumulator = 0
+        end
+    else
+        cachedSilentTarget = nil
+    end
+
+
 	silentAimFOVCircle.Position = getMousePosition()
 	silentAimFOVCircle.Radius = getgenv().SilentAimSettings.FOVRadius
 	silentAimFOVCircle.Visible = getgenv().SilentAimSettings.FOVVisible
