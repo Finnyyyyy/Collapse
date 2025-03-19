@@ -471,7 +471,7 @@ end
 -- RenderStepped Updates for Aim, ESP, & Silent Aim --
 ---------------------------------------------------
 local lastESPUpdate = 0
-local ESPUpdateRate = 0.05
+local ESPUpdateRate = 0.01
 
 RunService.RenderStepped:Connect(function(delta)
     aimAssistCircle.Position = UserInputService:GetMouseLocation()
