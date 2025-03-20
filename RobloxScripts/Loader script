@@ -1,0 +1,197 @@
+-- Place this LocalScript in StarterPlayerScripts
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+
+-- Create the ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "LoaderGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Main frame (black background, draggable, partially transparent, with rounded corners)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "LoaderFrame"
+mainFrame.Size = UDim2.new(0, 400, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+-- Draggable implementation
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+	                                 startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		update(dragInput)
+	end
+end)
+
+-- Progress bar setup with gradient and rounded corners
+local progressBarBackground = Instance.new("Frame")
+progressBarBackground.Name = "ProgressBarBackground"
+progressBarBackground.Size = UDim2.new(0.9, 0, 0, 25)
+progressBarBackground.Position = UDim2.new(0.05, 0, 0.1, 0)
+progressBarBackground.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+progressBarBackground.BackgroundTransparency = 0.3
+progressBarBackground.Parent = mainFrame
+
+local pbCorner = Instance.new("UICorner")
+pbCorner.CornerRadius = UDim.new(0, 5)
+pbCorner.Parent = progressBarBackground
+
+local progressBarFill = Instance.new("Frame")
+progressBarFill.Name = "ProgressBarFill"
+progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+progressBarFill.Parent = progressBarBackground
+
+local pbFillCorner = Instance.new("UICorner")
+pbFillCorner.CornerRadius = UDim.new(0, 5)
+pbFillCorner.Parent = progressBarFill
+
+-- Add a subtle gradient to the progress bar fill
+local pbGradient = Instance.new("UIGradient")
+pbGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 180)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(128, 0, 128))
+	}
+pbGradient.Parent = progressBarFill
+
+-- Debug output using a ScrollingFrame (with transparency and rounded corners)
+local debugFrame = Instance.new("ScrollingFrame")
+debugFrame.Name = "DebugFrame"
+debugFrame.Size = UDim2.new(0.9, 0, 0.65, 0)
+debugFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+debugFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+debugFrame.BackgroundTransparency = 0.2
+debugFrame.BorderSizePixel = 0
+debugFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+debugFrame.Parent = mainFrame
+
+local debugCorner = Instance.new("UICorner")
+debugCorner.CornerRadius = UDim.new(0, 8)
+debugCorner.Parent = debugFrame
+
+local DEBUG_LABEL_HEIGHT = 20
+local debugCount = 0
+
+local function addDebug(message)
+	-- Create a label for this debug message.
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 0, DEBUG_LABEL_HEIGHT)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Text = message
+	label.Parent = debugFrame
+	label.Position = UDim2.new(0, 0, 0, debugCount * DEBUG_LABEL_HEIGHT)
+	debugCount = debugCount + 1
+	-- Update canvas size so all messages can be scrolled.
+	debugFrame.CanvasSize = UDim2.new(0, 0, 0, debugCount * DEBUG_LABEL_HEIGHT)
+end
+
+-- This function scans through every descendant of the game.
+-- If the LocalPlayer already has children, it immediately completes.
+-- Otherwise, it displays every folder's name until a folder is found containing the LocalPlayer.
+local function scanGameObjects()
+	local allObjects = game:GetDescendants()
+	local total = #allObjects
+	addDebug("Total objects: " .. total)
+	
+	local startTime = os.clock()
+	
+	-- First, check if the LocalPlayer already has children.
+	if #localPlayer:GetChildren() > 0 then
+		addDebug("LocalPlayer loaded with children: " .. #localPlayer:GetChildren())
+		progressBarFill:TweenSize(UDim2.new(1, 0, 1, 0), "Out", "Linear", 0.1, true)
+		return true
+	end
+	
+	-- If not, scan every object.
+	for i, obj in ipairs(allObjects) do
+		-- Display folder names (for folders only)
+		if obj:IsA("Folder") then
+			addDebug(obj.Name)
+			-- Check if this folder contains a child named after the LocalPlayer.
+			if obj:FindFirstChild(localPlayer.Name) then
+				addDebug("Found " .. localPlayer.Name .. " in " .. obj.Name)
+				local count = #localPlayer:GetChildren()
+				addDebug("LocalPlayer now has children: " .. count)
+				progressBarFill:TweenSize(UDim2.new(1, 0, 1, 0), "Out", "Linear", 0.1, true)
+				return true
+			end
+		end
+		
+		-- Update the progress bar proportionally.
+		local progress = i / total
+		progressBarFill:TweenSize(UDim2.new(progress, 0, 1, 0), "Out", "Linear", 0.005, true)
+		
+		-- Yield every 100 iterations for responsiveness.
+		if i % 100 == 0 then
+			wait()
+		end
+		
+		-- Break out if scanning takes longer than 10 seconds.
+		if os.clock() - startTime > 10 then
+			addDebug("Timeout reached.")
+			break
+		end
+	end
+	return false
+end
+
+-- Main loader routine
+spawn(function()
+	-- First, output the LocalPlayer name.
+	if localPlayer then
+		addDebug("LocalPlayer: " .. localPlayer.Name)
+	else
+		addDebug("LocalPlayer not found!")
+	end
+	
+	-- Scan game objects.
+	local found = scanGameObjects()
+	if not found then
+		addDebug("Finished scanning without finding players in LocalPlayer.")
+	end
+	
+	addDebug("Loader complete.")
+	
+	-- Wait 1 second, then remove the GUI.
+	wait(1)
+	screenGui:Destroy()
+end)
