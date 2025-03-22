@@ -1,6 +1,187 @@
+-----------------------------------------------
+-- Loader Section (Place in StarterPlayerScripts)
+-----------------------------------------------
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+
+-- Create the ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "LoaderGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Main frame (black background, draggable, partially transparent, with rounded corners)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "LoaderFrame"
+mainFrame.Size = UDim2.new(0, 400, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+-- Draggable implementation
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+	local delta = input.Position - dragStart
+	mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+	                                 startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		update(dragInput)
+	end
+end)
+
+-- Progress bar setup with gradient and rounded corners
+local progressBarBackground = Instance.new("Frame")
+progressBarBackground.Name = "ProgressBarBackground"
+progressBarBackground.Size = UDim2.new(0.9, 0, 0, 25)
+progressBarBackground.Position = UDim2.new(0.05, 0, 0.1, 0)
+progressBarBackground.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+progressBarBackground.BackgroundTransparency = 0.3
+progressBarBackground.Parent = mainFrame
+
+local pbCorner = Instance.new("UICorner")
+pbCorner.CornerRadius = UDim.new(0, 5)
+pbCorner.Parent = progressBarBackground
+
+local progressBarFill = Instance.new("Frame")
+progressBarFill.Name = "ProgressBarFill"
+progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+progressBarFill.Parent = progressBarBackground
+
+local pbFillCorner = Instance.new("UICorner")
+pbFillCorner.CornerRadius = UDim.new(0, 5)
+pbFillCorner.Parent = progressBarFill
+
+-- Add a subtle gradient to the progress bar fill
+local pbGradient = Instance.new("UIGradient")
+pbGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 180)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(128, 0, 128))
+	}
+pbGradient.Parent = progressBarFill
+
+-- Debug output using a ScrollingFrame (with transparency and rounded corners)
+local debugFrame = Instance.new("ScrollingFrame")
+debugFrame.Name = "DebugFrame"
+debugFrame.Size = UDim2.new(0.9, 0, 0.65, 0)
+debugFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+debugFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+debugFrame.BackgroundTransparency = 0.2
+debugFrame.BorderSizePixel = 0
+debugFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+debugFrame.Parent = mainFrame
+
+local debugCorner = Instance.new("UICorner")
+debugCorner.CornerRadius = UDim.new(0, 8)
+debugCorner.Parent = debugFrame
+
+local DEBUG_LABEL_HEIGHT = 20
+local debugCount = 0
+local function addDebug(message)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 0, DEBUG_LABEL_HEIGHT)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.Text = message
+	label.Parent = debugFrame
+	label.Position = UDim2.new(0, 0, 0, debugCount * DEBUG_LABEL_HEIGHT)
+	debugCount = debugCount + 1
+	debugFrame.CanvasSize = UDim2.new(0, 0, 0, debugCount * DEBUG_LABEL_HEIGHT)
+	-- Automatically scroll to the bottom
+	debugFrame.CanvasPosition = Vector2.new(0, math.max(0, debugCount * DEBUG_LABEL_HEIGHT - debugFrame.AbsoluteSize.Y))
+end
+
+
+-- Scan all folders for 3 seconds, showing all folder names.
+local function scanGameObjects()
+	local allObjects = game:GetDescendants()
+	local total = #allObjects
+	addDebug("Total objects: " .. total)
+	
+	local startTime = os.clock()
+	local foundPath = nil
+	
+	for i, obj in ipairs(allObjects) do
+		if obj:IsA("Folder") then
+			addDebug(obj.Name)
+			-- Check if this folder contains a child named after the LocalPlayer
+			if not foundPath and obj:FindFirstChild(localPlayer.Name) then
+				foundPath = obj:FindFirstChild(localPlayer.Name)
+				addDebug("Found " .. localPlayer.Name .. " in " .. obj.Name)
+			end
+		end
+		
+		local progress = i / total
+		progressBarFill:TweenSize(UDim2.new(progress, 0, 1, 0), "Out", "Linear", 0.005, true)
+		
+		if i % 100 == 0 then wait() end
+		if os.clock() - startTime > 3 then
+			addDebug("Timeout reached.")
+			break
+		end
+	end
+	
+	if foundPath then
+		getgenv().playerPath = foundPath
+	else
+		getgenv().playerPath = localPlayer
+	end
+end
+
+spawn(function()
+	addDebug("LocalPlayer: " .. localPlayer.Name)
+	scanGameObjects()
+	addDebug("Loader complete.")
+	-- Tween the progress bar to full, if not already full.
+	progressBarFill:TweenSize(UDim2.new(1, 0, 1, 0), "Out", "Linear", 0.1, true)
+	wait(1)
+	screenGui:Destroy()
+end)
+
+
 ---------------------------------------------------
--- Load MacLib and create the main GUI window  --
+-- Wait until loader GUI is destroyed before continuing
 ---------------------------------------------------
+while screenGui.Parent do wait() end
+
+-----------------------------------------------
+-- Main Script Section (MacLib and Features)
+-----------------------------------------------
+
+-- Use the player path found by the loader (fallback to Players.LocalPlayer)
+local playerPath = getgenv().playerPath or Players.LocalPlayer
+
+-- Load MacLib and create the main GUI window
 local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
 local Window = MacLib:Window({
 	Title = "Collapse | universal",
@@ -53,7 +234,7 @@ local globalSettings = {
 }
 
 ---------------------------------------------------
--- Create Tab Groups and Tabs                    --
+-- Create Tab Groups and Tabs
 ---------------------------------------------------
 local tabGroups = {
 	Aim = Window:TabGroup(),
@@ -61,7 +242,6 @@ local tabGroups = {
 	Other = Window:TabGroup()
 }
 local tabs = {
-	-- Main (formerly AimAssist)
 	Main = tabGroups.Aim:Tab({ Name = "Main", Image = "rbxassetid://99275039709063" }),
 	Visuals = tabGroups.World:Tab({ Name = "Visuals", Image = "rbxassetid://104811813262009" }),
 	Player = tabGroups.Other:Tab({ Name = "Player", Image = "rbxassetid://603107593" }),
@@ -70,182 +250,166 @@ local tabs = {
 tabs.Settings:InsertConfigSection("Left")
 
 ---------------------------------------------------
--- UNIVERSAL SILENT AIM (Replacement Section)    --
+-- Aim Assist Section
 ---------------------------------------------------
--- Remove the original silent aim code and replace it with the following:
 if not game:IsLoaded() then 
 	game.Loaded:Wait()
 end
 
-if not syn or not protectgui then
-	getgenv().protectgui = function() end
-end
-
--- Universal Silent Aim Settings (no file-handling code)
-getgenv().SilentAimSettings = {
-	Enabled = false,                    -- whether silent aim is active
-	TargetPart = "HumanoidRootPart",    -- options: "Head", "HumanoidRootPart"
-	SilentAimMethod = "Raycast",          -- options: "Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"
-	HitChance = 100,                    -- 0 to 100%
-	FOVRadius = 130,
-	FOVVisible = false,
-	ShowSilentAimTarget = false,
-	MouseHitPrediction = false,
-	MouseHitPredictionAmount = 0.165,
-	TeamCheck = false,
-	VisibleCheck = false,
-}
-
 local Camera = workspace.CurrentCamera
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
+-- Use the found player path for LocalPlayer throughout.
+local LocalPlayer = playerPath
 local Mouse = LocalPlayer:GetMouse()
 
-local function getDirection(Origin, Position)
-	return (Position - Origin).Unit * 1000
+-- Aim Assist Settings
+getgenv().aim_settings = {
+	enabled = false,
+	fov = 150,
+	hitbox = "Head",  -- options: "Head", "HumanoidRootPart", "Random", "Nearest"
+	fovcircle = false,
+	aimKey = Enum.KeyCode.E,
+	method = "Camera",  -- "Camera" or "Mouse"
+	fovThickness = 1,
+	fovCircleColor = Color3.fromRGB(255,255,255),
+	fovCircleFilled = false,
+	fovCircleTransparency = 1
+}
+local currentAimKey = getgenv().aim_settings.aimKey
+getgenv().stickyAim_enabled = false
+getgenv().boxESPFilled = getgenv().boxESPFilled or false
+
+-- Create FOV Circle drawing for Aim Assist
+local aimAssistCircle = Drawing.new("Circle")
+aimAssistCircle.Visible = false
+aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
+aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
+aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
+aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
+aimAssistCircle.NumSides = 64
+
+local currentTarget = nil
+local Aiming = false
+local randomPart = nil
+
+---------------------------------------------------
+-- Helper Functions for Aim Targeting
+---------------------------------------------------
+local function GetRandomPartFromCharacter(character)
+	local partsList = {"Head", "HumanoidRootPart", "Right Leg", "Left Leg", "Right Arm", "Left Arm"}
+	local available = {}
+	for _, partName in ipairs(partsList) do
+		local part = character:FindFirstChild(partName)
+		if part then
+			table.insert(available, part)
+		end
+	end
+	if #available > 0 then
+		return available[math.random(1, #available)]
+	else
+		return character:FindFirstChild("Head")
+	end
 end
 
-local function getMousePosition()
-	return UserInputService:GetMouseLocation()
-end
-
-local function IsPlayerVisible(Player)
-	local Character = Player.Character
-	if not Character then return false end
-	local Root = Character:FindFirstChild(getgenv().SilentAimSettings.TargetPart) or Character:FindFirstChild("HumanoidRootPart")
-	if not Root then return false end
-	local ray = Ray.new(Camera.CFrame.Position, (Root.Position - Camera.CFrame.Position).Unit * 1000)
-	local hitPart = workspace:FindPartOnRay(ray, Character)
-	return not hitPart
-end
-
-local function getClosestPlayer()
-	local MousePos = getMousePosition()
-	local BestDistance = getgenv().SilentAimSettings.FOVRadius or 130
-	local BestTarget = nil
-	for _, Player in ipairs(Players:GetPlayers()) do
-		if Player == LocalPlayer then continue end
-		if getgenv().SilentAimSettings.TeamCheck and Player.Team == LocalPlayer.Team then continue end
-		local Character = Player.Character
-		if not Character then continue end
-		if getgenv().SilentAimSettings.VisibleCheck and not IsPlayerVisible(Player) then continue end
-		local Part = Character:FindFirstChild(getgenv().SilentAimSettings.TargetPart) or Character:FindFirstChild("HumanoidRootPart")
-		if Part then
-			local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
-			if OnScreen then
-				local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
-				if Distance < BestDistance then
-					BestDistance = Distance
-					BestTarget = Part
+local function GetNearestPartFromCharacter(character, mousePos)
+	local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
+	local bestPart = nil
+	local bestDistance = math.huge
+	for _, partName in ipairs(partsList) do
+		local part = character:FindFirstChild(partName)
+		if part then
+			local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+			if onScreen then
+				local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+				if dist < bestDistance then
+					bestDistance = dist
+					bestPart = part
 				end
 			end
 		end
 	end
-	return BestTarget
+	return bestPart or character:FindFirstChild("Head")
 end
 
--- Create FOV circle for Silent Aim
-local silentAimFOVCircle = Drawing.new("Circle")
-silentAimFOVCircle.Visible = getgenv().SilentAimSettings.FOVVisible
-silentAimFOVCircle.Thickness = 1
-silentAimFOVCircle.Radius = getgenv().SilentAimSettings.FOVRadius
-silentAimFOVCircle.NumSides = 100
-silentAimFOVCircle.Filled = false
-silentAimFOVCircle.Transparency = 1
-silentAimFOVCircle.Color = Color3.fromRGB(54,57,241)
--- Universal Silent Aim with performance optimization
+---------------------------------------------------
+-- Aiming Functionality
+---------------------------------------------------
+local function AimLock()
+	local mousePos = UserInputService:GetMouseLocation()
+	
+	if getgenv().stickyAim_enabled and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox) then
+		local pos = Camera.CFrame.Position
+		local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+		if targetPart then
+			Camera.CFrame = CFrame.new(pos, targetPart.Position)
+			return
+		end
+	end
 
+	local candidateTarget = nil
+	local targetPart = nil
+	local bestDistance = math.huge
+	local mousePos = UserInputService:GetMouseLocation()
 
-local targetUpdateInterval = 0.05  -- Update target 20 times per second instead of every frame
-local targetUpdateAccumulator = 0
-local cachedSilentTarget = nil
+	for _, v in pairs(Players:GetPlayers()) do
+		if v ~= LocalPlayer and v.Character then
+			local candidatePart = nil
+			if getgenv().aim_settings.hitbox == "Random" then
+				candidatePart = v.Character:FindFirstChild("HumanoidRootPart")
+			else
+				candidatePart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+			end
+			if candidatePart then
+				local screenPos, onScreen = Camera:WorldToViewportPoint(candidatePart.Position)
+				if onScreen then
+					local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+					if distance <= getgenv().aim_settings.fov and distance < bestDistance then
+						bestDistance = distance
+						candidateTarget = v
+					end
+				end
+			end
+		end
+	end
 
--- Hook for Silent Aim (Non Mouse.Hit/Target)
-local oldSilentAim
-oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
-    local args = {...}
-    local method = getnamecallmethod()
-    
-    -- Use cached target instead of finding target on every call
-    if not checkcaller() and getgenv().SilentAimSettings.Enabled and cachedSilentTarget and math.random(1, 100) <= getgenv().SilentAimSettings.HitChance then
-        if (method == "FindPartOnRayWithIgnoreList" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithIgnoreList") or
-           (method == "FindPartOnRayWithWhitelist" and getgenv().SilentAimSettings.SilentAimMethod == "FindPartOnRayWithWhitelist") or
-           ((method == "FindPartOnRay" or method == "findPartOnRay") and getgenv().SilentAimSettings.SilentAimMethod:lower() == method:lower()) or
-           (method == "Raycast" and getgenv().SilentAimSettings.SilentAimMethod == "Raycast")
-        then
-            if #args >= 1 then
-                local rayArg = args[1]
-                if typeof(rayArg) == "Ray" then
-                    local Origin = rayArg.Origin
-                    local Direction = getDirection(Origin, cachedSilentTarget.Position)
-                    args[1] = Ray.new(Origin, Direction)
-                end
-            end
-        end
-    end
-    
-    return oldSilentAim(self, unpack(args))
-end)
+	if candidateTarget then
+		if getgenv().aim_settings.hitbox == "Random" then
+			if not randomPart then
+				randomPart = GetRandomPartFromCharacter(candidateTarget.Character)
+			end
+			targetPart = randomPart
+		else
+			targetPart = candidateTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
+		end
+	end
 
--- Additional __index hook for Mouse.Hit/Target Silent Aim
-local oldIndex
-oldIndex = hookmetamethod(game, "__index", function(self, Index)
-    if self == Mouse and not checkcaller() and getgenv().SilentAimSettings.Enabled and 
-       getgenv().SilentAimSettings.SilentAimMethod == "Mouse.Hit/Target" and cachedSilentTarget then
-        if Index == "Target" then
-            return cachedSilentTarget
-        elseif Index == "Hit" then
-            return CFrame.new(cachedSilentTarget.Position)
-        elseif Index == "UnitRay" then
-            return Ray.new(Mouse.Origin, (cachedSilentTarget.Position - Mouse.Origin).Unit)
-        end
-    end
-    
-    return oldIndex(self, Index)
-end)
+	currentTarget = candidateTarget
+	if currentTarget and currentTarget.Character and targetPart then
+		local pos = Camera.CFrame.Position
+		Camera.CFrame = CFrame.new(pos, targetPart.Position)
+	end
+end
 
--- Update Silent Aim FOV circle each frame
+---------------------------------------------------
+-- RenderStepped Updates for Aim and FOV Circle
+---------------------------------------------------
 RunService.RenderStepped:Connect(function(delta)
+	aimAssistCircle.Position = UserInputService:GetMouseLocation()
+	aimAssistCircle.Radius = getgenv().aim_settings.fov
+	aimAssistCircle.Visible = getgenv().aim_settings.fovcircle
+	aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
+	aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
+	aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
+	aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
 
-    if getgenv().SilentAimSettings.Enabled then
-        targetUpdateAccumulator = targetUpdateAccumulator + delta
-        if targetUpdateAccumulator >= targetUpdateInterval then
-            cachedSilentTarget = getClosestPlayer()
-            targetUpdateAccumulator = 0
-        end
-    else
-        cachedSilentTarget = nil
-    end
-
-
-	silentAimFOVCircle.Position = getMousePosition()
-	silentAimFOVCircle.Radius = getgenv().SilentAimSettings.FOVRadius
-	silentAimFOVCircle.Visible = getgenv().SilentAimSettings.FOVVisible
+	if getgenv().aim_settings.enabled and Aiming then
+		AimLock()
+	end
 end)
 
 ---------------------------------------------------
--- Global Sticky Aim Setting for Aim Assist      --
----------------------------------------------------
-getgenv().stickyAim_enabled = false
-
----------------------------------------------------
--- Game Services and Global Variables            --
----------------------------------------------------
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local CurrentCamera = game:GetService("Workspace").CurrentCamera
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local currentTracerPosition = "Bottom"  -- default tracer origin
-local Aiming = false
-local currentTarget = nil
-
----------------------------------------------------
--- ESP table (for visuals only)                  --
+-- Standard ESP Rendering (Box, Tracers, etc.)
 ---------------------------------------------------
 local ESP = {
     Enabled = true,
@@ -278,7 +442,7 @@ local ESP = {
         ShowNumber = true,
         NumberColor = Color3.fromRGB(255, 255, 255)
     },
-    Name = { -- Toggleable Name ESP
+    Name = { -- Name ESP settings
         Enabled = false,
         Color = Color3.fromRGB(255, 255, 255),
         Size = 12,
@@ -287,258 +451,10 @@ local ESP = {
     }
 }
 
----------------------------------------------------
--- Aim Settings and FOV Circle Setup             --
----------------------------------------------------
-getgenv().aim_settings = {
-    enabled = false,
-    fov = 150,
-    hitbox = "Head",  -- options: "Head", "HumanoidRootPart", "Random", "Nearest"
-    fovcircle = false,
-    aimKey = Enum.KeyCode.E,
-    method = "Camera",  -- "Camera" or "Mouse"
-    fovThickness = 1,
-    fovCircleColor = Color3.fromRGB(255,255,255),
-    fovCircleFilled = false,
-    fovCircleTransparency = 1
-}
-local currentAimKey = getgenv().aim_settings.aimKey
-
-getgenv().boxESPFilled = getgenv().boxESPFilled or false
-
--- Create FOV Circle drawing for Aim Assist
-local aimAssistCircle = Drawing.new("Circle")
-aimAssistCircle.Visible = false
-aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
-aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
-aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
-aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
-aimAssistCircle.NumSides = 64
-
--- Create independent FOV Circle drawing for Silent Aim (if desired)
-local silentAimCircle = Drawing.new("Circle")
-silentAimCircle.Visible = false
-silentAimCircle.Thickness = 1
-silentAimCircle.Color = Color3.fromRGB(255, 255, 255)
-silentAimCircle.Transparency = 1
-silentAimCircle.Filled = false
-silentAimCircle.NumSides = 64
-
--- Global variable for random aim target part
-local randomPart = nil
-
----------------------------------------------------
--- Helper Functions for Aim Targeting            --
----------------------------------------------------
-local function GetRandomPartFromCharacter(character)
-    local partsList = {"Head", "HumanoidRootPart", "Right Leg", "Left Leg", "Right Arm", "Left Arm"}
-    local available = {}
-    for _, partName in ipairs(partsList) do
-        local part = character:FindFirstChild(partName)
-        if part then
-            table.insert(available, part)
-        end
-    end
-    if #available > 0 then
-        return available[math.random(1, #available)]
-    else
-        return character:FindFirstChild("Head")
-    end
-end
-
-local function GetNearestPartFromCharacter(character, mousePos)
-    local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
-    local bestPart = nil
-    local bestDistance = math.huge
-    for _, partName in ipairs(partsList) do
-        local part = character:FindFirstChild(partName)
-        if part then
-            local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
-            if onScreen then
-                local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                if dist < bestDistance then
-                    bestDistance = dist
-                    bestPart = part
-                end
-            end
-        end
-    end
-    return bestPart or character:FindFirstChild("Head")
-end
-
--- Helper function for Silent Aim: find the closest target within FOV.
-local function GetClosestSilentTarget(fov)
-    local MousePos = UserInputService:GetMouseLocation()
-    local bestDistance = fov or math.huge
-    local target = nil
-    for _, v in pairs(Players:GetPlayers()) do
-         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(getgenv().silentaim_settings.hitbox) then
-             local part = v.Character[getgenv().silentaim_settings.hitbox]
-             local screenPos, onScreen = CurrentCamera:WorldToScreenPoint(part.Position)
-             if onScreen then
-                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - MousePos).Magnitude
-                 if dist < bestDistance then
-                     bestDistance = dist
-                     target = v
-                 end
-             end
-         end
-    end
-    return target
-end
-
----------------------------------------------------
--- Aiming Functionality                          --
----------------------------------------------------
-local function AimLock()
-    local mousePos = UserInputService:GetMouseLocation()
-    
-    if getgenv().stickyAim_enabled and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox) then
-        local pos = CurrentCamera.CFrame.Position
-        local targetPart = currentTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-        if targetPart then
-            CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
-            return
-        end
-    end
-
-    local candidateTarget = nil
-    local targetPart = nil
-    local bestDistance = math.huge
-
-    if getgenv().aim_settings.hitbox == "Nearest" then
-        local partsList = {"Head", "HumanoidRootPart", "Right Arm", "Left Arm", "Right Leg", "Left Leg"}
-        for _, v in pairs(Players:GetPlayers()) do
-            if v ~= LocalPlayer and v.Character then
-                for _, partName in ipairs(partsList) do
-                    local part = v.Character:FindFirstChild(partName)
-                    if part then
-                        local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(part.Position)
-                        if onScreen then
-                            local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                            if distance <= getgenv().aim_settings.fov and distance < bestDistance then
-                                bestDistance = distance
-                                candidateTarget = v
-                                targetPart = part
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    else
-        for _, v in pairs(Players:GetPlayers()) do
-            if v ~= LocalPlayer and v.Character then
-                local candidatePart = nil
-                if getgenv().aim_settings.hitbox == "Random" then
-                    candidatePart = v.Character:FindFirstChild("HumanoidRootPart")
-                else
-                    candidatePart = v.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-                end
-                if candidatePart then
-                    local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(candidatePart.Position)
-                    if onScreen then
-                        local distance = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                        if distance <= getgenv().aim_settings.fov and distance < bestDistance then
-                            bestDistance = distance
-                            candidateTarget = v
-                        end
-                    end
-                end
-            end
-        end
-
-        if candidateTarget then
-            if getgenv().aim_settings.hitbox == "Random" then
-                if not randomPart then
-                    randomPart = GetRandomPartFromCharacter(candidateTarget.Character)
-                end
-                targetPart = randomPart
-            else
-                targetPart = candidateTarget.Character:FindFirstChild(getgenv().aim_settings.hitbox)
-            end
-        end
-    end
-
-    currentTarget = candidateTarget
-    if currentTarget and currentTarget.Character and targetPart then
-        local pos = CurrentCamera.CFrame.Position
-        CurrentCamera.CFrame = CFrame.new(pos, targetPart.Position)
-    end
-end
-
----------------------------------------------------
--- RenderStepped Updates for Aim, ESP, & Silent Aim --
----------------------------------------------------
+local currentTracerPosition = "Bottom"
+local ESPUpdateRate = 0.02
 local lastESPUpdate = 0
-local ESPUpdateRate = 0.01
 
-RunService.RenderStepped:Connect(function(delta)
-    aimAssistCircle.Position = UserInputService:GetMouseLocation()
-    aimAssistCircle.Radius = getgenv().aim_settings.fov
-    aimAssistCircle.Visible = getgenv().aim_settings.fovcircle
-    aimAssistCircle.Thickness = getgenv().aim_settings.fovThickness
-    aimAssistCircle.Color = getgenv().aim_settings.fovCircleColor
-    aimAssistCircle.Transparency = getgenv().aim_settings.fovCircleTransparency
-    aimAssistCircle.Filled = getgenv().aim_settings.fovCircleFilled
-
-    if getgenv().aim_settings.enabled and Aiming then
-        AimLock()
-    end
-
-    silentAimCircle.Position = UserInputService:GetMouseLocation()
-    silentAimCircle.Radius = getgenv().silentaim_settings.fov
-    silentAimCircle.Visible = getgenv().silentaim_settings.fovcircle
-
-    lastESPUpdate = lastESPUpdate + delta
-    if lastESPUpdate >= ESPUpdateRate then
-        lastESPUpdate = 0
-    end
-
-    -- Cached target update (from original silent aim code)
-    if getgenv().silentaim_enabled then
-        targetUpdateAccumulator = targetUpdateAccumulator + delta
-        if targetUpdateAccumulator >= targetUpdateInterval then
-            cachedSilentTarget = GetClosestSilentTarget(getgenv().silentaim_settings.fov)
-            targetUpdateAccumulator = 0
-        end
-    else
-        cachedSilentTarget = nil
-    end
-end)
-
----------------------------------------------------
--- Optimized Silent Aim Hook                     --
----------------------------------------------------
-local oldSilentAim
-oldSilentAim = hookmetamethod(game, "__namecall", function(self, ...)
-    local args = {...}
-    local methodName = getnamecallmethod()
-    if not checkcaller() and getgenv().silentaim_enabled and cachedSilentTarget and cachedSilentTarget.Character then
-        local targetPart = cachedSilentTarget.Character[getgenv().silentaim_settings.hitbox]
-        if targetPart then
-            local origin = args[1].Origin
-            local newRay
-            if getgenv().silentaim_method == "Raycasting" then
-                newRay = Ray.new(origin, (targetPart.Position - origin))
-            elseif getgenv().silentaim_method == "FindPartOnRayWithIgnoreList" and methodName == "FindPartOnRayWithIgnoreList" then
-                newRay = Ray.new(origin, (targetPart.Position - origin))
-            elseif getgenv().silentaim_method == "FindPartOnRayWithWhitelist" and methodName == "FindPartOnRayWithWhitelist" then
-                newRay = Ray.new(origin, (targetPart.Position - origin))
-            elseif getgenv().silentaim_method == "Mouse.Hit/Target" then
-                newRay = Ray.new(origin, (LocalPlayer:GetMouse().Hit.p - origin))
-            end
-            if newRay then
-                args[1] = newRay
-            end
-        end
-    end
-    return oldSilentAim(self, table.unpack(args))
-end)
-
----------------------------------------------------
--- Standard ESP Rendering (Box, Tracers, etc.)    --
----------------------------------------------------
 do
     local function AddESP(Player)
         local BoxOutline = Drawing.new("Square")
@@ -637,11 +553,11 @@ do
             local HumanoidRootPart = Player.Character:FindFirstChild("HumanoidRootPart")
             if not HumanoidRootPart then return HideESP() end
 
-            local ScreenPosition, OnScreen = CurrentCamera:WorldToViewportPoint(HumanoidRootPart.Position)
+            local ScreenPosition, OnScreen = Camera:WorldToViewportPoint(HumanoidRootPart.Position)
             if not OnScreen then return HideESP() end
 
-            local FrustumHeight = math.tan(math.rad(CurrentCamera.FieldOfView * 0.5)) * 2 * ScreenPosition.Z
-            local Size = CurrentCamera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6)
+            local FrustumHeight = math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2 * ScreenPosition.Z
+            local Size = Camera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6)
             local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
 
             if ESP.Box.Enabled then
@@ -740,11 +656,11 @@ do
             if ESP.Tracers.Enabled then
                 local tracerFrom
                 if currentTracerPosition == "Bottom" then
-                    tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y)
+                    tracerFrom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                 elseif currentTracerPosition == "Middle" then
-                    tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
+                    tracerFrom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                 elseif currentTracerPosition == "Top" then
-                    tracerFrom = Vector2.new(CurrentCamera.ViewportSize.X / 2, 0)
+                    tracerFrom = Vector2.new(Camera.ViewportSize.X / 2, 0)
                 elseif currentTracerPosition == "Mouse" then
                     tracerFrom = UserInputService:GetMouseLocation()
                 end
@@ -806,7 +722,7 @@ do
 end
 
 ---------------------------------------------------
--- Chams Functions (Highlight-based ESP)         --
+-- Chams Functions (Highlight-based ESP)
 ---------------------------------------------------
 local chamsStorage = nil
 local chamsConnections = {}
@@ -883,7 +799,7 @@ local function DisableChams()
 end
 
 ---------------------------------------------------
--- Skeleton ESP Library and Functions            --
+-- Skeleton ESP Library and Functions
 ---------------------------------------------------
 local SkeletonLibrary = {}
 do
@@ -1137,7 +1053,7 @@ local function DisableSkeletonESP()
 end
 
 ---------------------------------------------------
--- Input Event Listeners                         --
+-- Input Event Listeners
 ---------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
@@ -1159,7 +1075,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 ---------------------------------------------------
--- GUI: Main Tab (Aim Assist)                     --
+-- GUI: Main Tab (Aim Assist)
 ---------------------------------------------------
 local aimBasic = tabs.Main:Section({ Side = "Left" })
 aimBasic:Toggle({
@@ -1273,81 +1189,7 @@ aimFOV:Slider({
 }, "FOVCircleTransparencySlider")
 
 ---------------------------------------------------
--- GUI: Silent Aim Tab (Silent Aim Settings)       --
----------------------------------------------------
-local silentAimGUI = tabs.Main:Section({ Side = "Left", Title = "Silent Aim Settings", VerticalOrder = true })
-
-silentAimGUI:Toggle({
-    Name = "Enable Silent Aim",
-    Default = false,
-    Callback = function(Value)
-        getgenv().SilentAimSettings.Enabled = Value
-        Window:Notify({ Title = "Silent Aim", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
-    end,
-}, "SilentAimToggle")
-
-silentAimGUI:Toggle({
-    Name = "FOV Circle",
-    Default = getgenv().SilentAimSettings.FOVVisible,
-    Callback = function(Value)
-        getgenv().SilentAimSettings.FOVVisible = Value
-        Window:Notify({ Title = "Silent Aim FOV Circle", Description = (Value and "Shown" or "Hidden"), Lifetime = 5 })
-    end,
-}, "SilentAimFOVToggle")
-
-silentAimGUI:Slider({
-    Name = "FOV Size",
-    Default = getgenv().SilentAimSettings.FOVRadius,
-    Minimum = 20,
-    Maximum = 800,
-    DisplayMethod = "Value",
-    Precision = 0,
-    Callback = function(Value)
-        getgenv().SilentAimSettings.FOVRadius = Value
-        Window:Notify({ Title = "Silent Aim FOV Size", Description = "FOV size set to: " .. tostring(Value), Lifetime = 5 })
-    end,
-}, "SilentAimFOVSizeSlider")
-
-silentAimGUI:Dropdown({
-    Name = "Silent Aim Method",
-    Multi = false,
-    Required = true,
-    Search = true,
-    Default = "Raycast",
-    Options = {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"},
-    Callback = function(Value)
-        getgenv().SilentAimSettings.SilentAimMethod = Value
-    end,
-}, "SilentAimMethodDropdown")
-
-silentAimGUI:Dropdown({
-    Name = "Target Part",
-    Multi = false,
-    Required = true,
-    Search = true,
-    Default = "HumanoidRootPart",
-    Options = {"Head", "HumanoidRootPart"},
-    Callback = function(Value)
-        getgenv().SilentAimSettings.TargetPart = Value
-        Window:Notify({ Title = "Silent Aim Target", Description = "Target set to: " .. tostring(Value), Lifetime = 5 })
-    end,
-}, "SilentAimTargetDropdown")
-
-silentAimGUI:Slider({
-    Name = "Hit Chance",
-    Default = 100,
-    Minimum = 0,
-    Maximum = 100,
-    DisplayMethod = "Value",
-    Precision = 0,
-    Callback = function(Value)
-        getgenv().SilentAimSettings.HitChance = Value
-        Window:Notify({ Title = "Hit Chance", Description = "Hit chance set to: " .. tostring(Value) .. "%", Lifetime = 5 })
-    end,
-}, "HitChanceSlider")
-
----------------------------------------------------
--- GUI: Visuals Tab                              --
+-- GUI: Visuals Tab
 ---------------------------------------------------
 local visualsLeft = tabs.Visuals:Section({ Side = "Left" })
 local visualsRight = tabs.Visuals:Section({ Side = "Right" })
@@ -1411,6 +1253,15 @@ visualsLeft:Toggle({
 		Window:Notify({ Title = "Distance ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
 	end,
 }, "DistanceESPToggle")
+
+visualsLeft:Toggle({
+	Name = "Name ESP",
+	Default = false,
+	Callback = function(Value)
+		ESP.Name.Enabled = Value
+		Window:Notify({ Title = "Name ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
+	end,
+}, "NameESPToggle")
 
 visualsLeft:Toggle({
     Name = "Chams",
@@ -1492,6 +1343,15 @@ visualsRight:Colorpicker({
     end,
 }, "ChamsColor")
 
+visualsRight:Colorpicker({
+    Name = "Name ESP Color",
+    Default = ESP.Name.Color,
+    Alpha = 0,
+    Callback = function(color, alpha)
+         ESP.Name.Color = color
+    end,
+}, "NameESPColor")
+
 local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
 
 espCustom:Dropdown({
@@ -1554,7 +1414,7 @@ espCustom:Toggle({
 }, "ChamsFillToggle")
 
 ---------------------------------------------------
--- GUI: Player Tab (Other)                        --
+-- GUI: Player Tab (Other)
 ---------------------------------------------------
 local playerSection = tabs.Player:Section({ Side = "Left" })
 
@@ -1626,7 +1486,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ---------------------------------------------------
--- Finalize GUI                                  --
+-- Finalize GUI
 ---------------------------------------------------
 tabs.Main:Select()
 
