@@ -121,7 +121,6 @@ local function addDebug(message)
 	debugFrame.CanvasPosition = Vector2.new(0, math.max(0, debugCount * DEBUG_LABEL_HEIGHT - debugFrame.AbsoluteSize.Y))
 end
 
-
 -- Scan all folders for 3 seconds, showing all folder names.
 local function scanGameObjects()
 	local allObjects = game:GetDescendants()
@@ -167,7 +166,6 @@ spawn(function()
 	wait(1)
 	screenGui:Destroy()
 end)
-
 
 ---------------------------------------------------
 -- Wait until loader GUI is destroyed before continuing
@@ -409,12 +407,12 @@ RunService.RenderStepped:Connect(function(delta)
 end)
 
 ---------------------------------------------------
--- Standard ESP Rendering (Box, Tracers, etc.)
+-- Standard ESP Rendering (Box, Tracers, Healthbar, etc.)
 ---------------------------------------------------
 local ESP = {
     Enabled = true,
     Box = {
-        Enabled = false,
+        Enabled = false,  -- Box ESP only runs when toggled on.
         Color = Color3.fromRGB(255, 255, 255),
         Thickness = 1,
         Outlines = true,
@@ -452,7 +450,7 @@ local ESP = {
 }
 
 local currentTracerPosition = "Bottom"
-local ESPUpdateRate = 0.02
+local ESPUpdateRate = 0.01
 local lastESPUpdate = 0
 
 do
@@ -475,7 +473,6 @@ do
         NameESPText.Text = Player.Name
         NameESPText.Visible = ESP.Name.Enabled
         local Connection
-        local Corners
 
         Box.Filled = false
         HealthBarOutline.Filled = false
@@ -502,11 +499,6 @@ do
         DistanceText.Color = ESP.Distance.Color
 
         local function HideESP()
-            if Corners then
-                for i, line in ipairs(Corners) do
-                    line.Visible = false
-                end
-            end
             BoxOutline.Visible = false
             Box.Visible = false
             TracerOutline.Visible = false
@@ -520,11 +512,6 @@ do
         end
 
         local function DestroyESP()
-            if Corners then
-                for i, line in ipairs(Corners) do
-                    line:Remove()
-                end
-            end
             BoxOutline:Remove()
             Box:Remove()
             TracerOutline:Remove()
@@ -557,78 +544,32 @@ do
             if not OnScreen then return HideESP() end
 
             local FrustumHeight = math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2 * ScreenPosition.Z
+            -- Revert Box ESP size to original: horizontal multiplier = 5, vertical = 6.
             local Size = Camera.ViewportSize.Y / FrustumHeight * Vector2.new(5,6)
             local Position = Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Size / 2
 
             if ESP.Box.Enabled then
-                if getgenv().boxESPType == "Corners" then
-                    if not Corners then
-                        Corners = {
-                            Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"),
-                            Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line"), Drawing.new("Line")
-                        }
-                    end
-                    local cl = 15
-                    local x = Position.X
-                    local y = Position.Y
-                    local w = Size.X
-                    local h = Size.Y
-                    Corners[1].From = Vector2.new(x, y)
-                    Corners[1].To = Vector2.new(x + cl, y)
-                    Corners[2].From = Vector2.new(x, y)
-                    Corners[2].To = Vector2.new(x, y + cl)
-                    Corners[3].From = Vector2.new(x + w - cl, y)
-                    Corners[3].To = Vector2.new(x + w, y)
-                    Corners[4].From = Vector2.new(x + w, y)
-                    Corners[4].To = Vector2.new(x + w, y + cl)
-                    Corners[5].From = Vector2.new(x, y + h)
-                    Corners[5].To = Vector2.new(x + cl, y + h)
-                    Corners[6].From = Vector2.new(x, y + h - cl)
-                    Corners[6].To = Vector2.new(x, y + h)
-                    Corners[7].From = Vector2.new(x + w - cl, y + h)
-                    Corners[7].To = Vector2.new(x + w, y + h)
-                    Corners[8].From = Vector2.new(x + w, y + h - cl)
-                    Corners[8].To = Vector2.new(x + w, y + h)
-                    for i, line in ipairs(Corners) do
-                        line.Color = ESP.Box.Color
-                        line.Thickness = ESP.Box.Thickness
-                        line.Transparency = 0
-                        line.Visible = true
-                    end
-                    Box.Visible = false
-                    BoxOutline.Visible = false
-                else
-                    BoxOutline.Color = ESP.Box.Color
-                    Box.Color = ESP.Box.Color
-                    BoxOutline.Visible = ESP.Box.Outlines
-                    BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
-                    BoxOutline.Position = Position
-                    BoxOutline.Size = Size
+                -- Standard 2D box drawing.
+                BoxOutline.Color = ESP.Box.Color
+                Box.Color = ESP.Box.Color
+                BoxOutline.Visible = ESP.Box.Outlines
+                BoxOutline.Thickness = ESP.Box.Thickness + ESP.Box.OutlineThickness
+                BoxOutline.Position = Position
+                BoxOutline.Size = Size
 
-                    Box.Visible = true
-                    Box.Position = Position
-                    Box.Size = Size
-                    Box.Thickness = ESP.Box.Thickness
-                    if getgenv().boxESPFilled then
-                        Box.Filled = true
-                        Box.FillTransparency = 0.8
-                    else
-                        Box.Filled = false
-                    end
-                    if Corners then
-                        for i, line in ipairs(Corners) do
-                            line.Visible = false
-                        end
-                    end
+                Box.Visible = true
+                Box.Position = Position
+                Box.Size = Size
+                Box.Thickness = ESP.Box.Thickness
+                if getgenv().boxESPFilled then
+                    Box.Filled = true
+                    Box.FillTransparency = 0.2
+                else
+                    Box.Filled = false
                 end
             else
                 Box.Visible = false
                 BoxOutline.Visible = false
-                if Corners then
-                    for i, line in ipairs(Corners) do
-                        line.Visible = false
-                    end
-                end
             end
 
             if ESP.Tool.Enabled then
@@ -684,21 +625,29 @@ do
             if ESP.HealthBar.Enabled then
                 local health = Player.Character.Humanoid.Health
                 local maxHealth = Player.Character.Humanoid.MaxHealth
-                local healthPercent = health / maxHealth
+                local healthPercent = math.clamp(health / maxHealth, 0, 1)
+                -- Health bar's full size matches the box's height,
+                -- but its width is set to half (3 instead of 6).
+                local healthBarWidth = 3
+                local healthBarHeight = Size.Y
+                local healthBarX = Position.X - healthBarWidth - 2
+                local healthBarY = Position.Y
 
                 HealthBarOutline.Visible = ESP.HealthBar.Outlines
-                HealthBarOutline.Position = Vector2.new(Position.X - 6, Position.Y + Size.Y)
-                HealthBarOutline.Size = Vector2.new(3, -Size.Y * healthPercent)
+                HealthBarOutline.Position = Vector2.new(healthBarX, healthBarY)
+                HealthBarOutline.Size = Vector2.new(healthBarWidth, healthBarHeight)
                 HealthBarOutline.Thickness = 1
+                HealthBarOutline.Filled = true
 
                 HealthBar.Visible = true
-                HealthBar.Position = HealthBarOutline.Position
-                HealthBar.Size = HealthBarOutline.Size
+                local filledHeight = healthBarHeight * healthPercent
+                HealthBar.Position = Vector2.new(healthBarX, healthBarY + (healthBarHeight - filledHeight))
+                HealthBar.Size = Vector2.new(healthBarWidth, filledHeight)
                 HealthBar.Color = ESP.HealthBar.Color
 
                 HealthText.Visible = ESP.HealthBar.ShowNumber
                 HealthText.Text = tostring(math.floor(health))
-                HealthText.Position = Vector2.new(Position.X - 4.5, Position.Y + Size.Y - (Size.Y * healthPercent) - 15)
+                HealthText.Position = Vector2.new(healthBarX + healthBarWidth/2, healthBarY - 15)
             else
                 HealthBarOutline.Visible = false
                 HealthBar.Visible = false
@@ -796,260 +745,6 @@ local function DisableChams()
     if chamsUpdateLoop then
         chamsUpdateLoop = nil
     end
-end
-
----------------------------------------------------
--- Skeleton ESP Library and Functions
----------------------------------------------------
-local SkeletonLibrary = {}
-do
-    local WAIT = task.wait
-    local TBINSERT = table.insert
-    local V2 = Vector2.new
-    local ROUND = math.round
-
-    local RS = RunService
-    local Camera = workspace.CurrentCamera
-    local To2D = Camera.WorldToViewportPoint
-    local LocalPlayer = Players.LocalPlayer
-
-    function SkeletonLibrary:NewLine(info)
-        local l = Drawing.new("Line")
-        l.Visible = info.Visible or true
-        l.Color = info.Color or Color3.fromRGB(0,255,0)
-        l.Transparency = info.Transparency or 1
-        l.Thickness = info.Thickness or 1
-        return l
-    end
-
-    function SkeletonLibrary:Smoothen(v)
-        return V2(ROUND(v.X), ROUND(v.Y))
-    end
-
-    local Skeleton = {
-        Removed = false;
-        Player = nil;
-        Visible = false;
-        Lines = {};
-        Color = Color3.fromRGB(0,255,0);
-        Alpha = 1;
-        Thickness = 1;
-        DoSubsteps = true;
-    }
-    Skeleton.__index = Skeleton;
-
-    function Skeleton:UpdateStructure()
-        if not self.Player.Character then return end
-        self:RemoveLines()
-        for _, part in next, self.Player.Character:GetChildren() do		
-            if not part:IsA("BasePart") then continue end
-            for _, link in next, part:GetChildren() do			
-                if not link:IsA("Motor6D") then continue end
-                TBINSERT(self.Lines, {
-                    SkeletonLibrary:NewLine({
-                        Visible = self.Visible;
-                        Color = self.Color;
-                        Transparency = self.Alpha;
-                        Thickness = self.Thickness,
-                    }),
-                    SkeletonLibrary:NewLine({
-                        Visible = self.Visible;
-                        Color = self.Color;
-                        Transparency = self.Alpha;
-                        Thickness = self.Thickness,
-                    }),
-                    part.Name,
-                    link.Name
-                })
-            end
-        end
-    end
-
-    function Skeleton:SetVisible(State)
-        for _, l in pairs(self.Lines) do
-            l[1].Visible = State
-            l[2].Visible = State
-        end
-    end
-
-    function Skeleton:SetColor(Color)
-        self.Color = Color
-        for _, l in pairs(self.Lines) do
-            l[1].Color = Color
-            l[2].Color = Color
-        end
-    end
-
-    function Skeleton:SetAlpha(Alpha)
-        self.Alpha = Alpha
-        for _, l in pairs(self.Lines) do
-            l[1].Transparency = Alpha
-            l[2].Transparency = Alpha
-        end
-    end
-
-    function Skeleton:SetThickness(Thickness)
-        self.Thickness = Thickness
-        for _, l in pairs(self.Lines) do
-            l[1].Thickness = Thickness
-            l[2].Thickness = Thickness
-        end
-    end
-
-    function Skeleton:SetDoSubsteps(State)
-        self.DoSubsteps = State
-    end
-
-    function Skeleton:Update()
-        if self.Removed then return end
-        local Character = self.Player.Character
-        if not Character then
-            self:SetVisible(false)
-            if not self.Player.Parent then
-                self:Remove()
-            end
-            return
-        end
-        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-        if not Humanoid then
-            self:SetVisible(false)
-            return
-        end
-        self:SetColor(self.Color)
-        self:SetAlpha(self.Alpha)
-        self:SetThickness(self.Thickness)
-        local update = false
-        for _, l in pairs(self.Lines) do
-            local part = Character:FindFirstChild(l[3])
-            if not part then
-                l[1].Visible = false
-                l[2].Visible = false
-                update = true
-                continue
-            end
-            local link = part:FindFirstChild(l[4])
-            if not (link and link.Part0 and link.Part1) then
-                l[1].Visible = false
-                l[2].Visible = false
-                update = true
-                continue
-            end
-            local part0 = link.Part0
-            local part1 = link.Part1
-            if self.DoSubsteps and link.C0 and link.C1 then
-                local c0 = link.C0
-                local c1 = link.C1
-                local part0p, v1 = To2D(Camera, part0.CFrame.p)
-                local part0cp, v2 = To2D(Camera, (part0.CFrame * c0).p)
-                if v1 and v2 then
-                    l[1].From = Vector2.new(part0p.x, part0p.y)
-                    l[1].To = Vector2.new(part0cp.x, part0cp.y)
-                    l[1].Visible = true
-                else 
-                    l[1].Visible = false
-                end
-                local part1p, v3 = To2D(Camera, part1.CFrame.p)
-                local part1cp, v4 = To2D(Camera, (part1.CFrame * c1).p)
-                if v3 and v4 then
-                    l[2].From = Vector2.new(part1p.x, part1p.y)
-                    l[2].To = Vector2.new(part1cp.x, part1cp.y)
-                    l[2].Visible = true
-                else 
-                    l[2].Visible = false
-                end
-            else					
-                local part0p, v1 = To2D(Camera, part0.CFrame.p)
-                local part1p, v2 = To2D(Camera, part1.CFrame.p)
-                if v1 and v2 then
-                    l[1].From = Vector2.new(part0p.x, part0p.y)
-                    l[1].To = Vector2.new(part1p.x, part1p.y)
-                    l[1].Visible = true
-                else 
-                    l[1].Visible = false
-                end
-                l[2].Visible = false
-            end
-        end
-        if update or #self.Lines == 0 then
-            self:UpdateStructure()
-        end
-    end
-
-    function Skeleton:Toggle()
-        self.Visible = not self.Visible
-        if self.Visible then 
-            self:RemoveLines()
-            self:UpdateStructure()
-            self._connection = RS.Heartbeat:Connect(function()
-                if not getgenv().skeletonESPEnabled then
-                    self:SetVisible(false)
-                    if self._connection then self._connection:Disconnect() end
-                    return
-                end
-                self:Update()
-            end)
-        else
-            self:SetVisible(false)
-            self:RemoveLines()
-            if self._connection then
-                self._connection:Disconnect()
-                self._connection = nil
-            end
-        end
-    end
-
-    function Skeleton:RemoveLines()
-        for _, l in pairs(self.Lines) do
-            l[1]:Remove()
-            l[2]:Remove()
-        end
-        self.Lines = {}
-    end
-
-    function Skeleton:Remove()
-        self.Removed = true
-        self:RemoveLines()
-    end
-
-    function SkeletonLibrary:NewSkeleton(Player, Visible, Color, Alpha, Thickness, DoSubsteps)
-        if not Player then error("Missing Player argument (#1)") end
-        local s = setmetatable({}, Skeleton)
-        s.Player = Player
-        s.Bind = Player.UserId
-        if DoSubsteps ~= nil then s.DoSubsteps = DoSubsteps end
-        if Color then s:SetColor(Color) end
-        if Alpha then s:SetAlpha(Alpha) end
-        if Thickness then s:SetThickness(Thickness) end
-        if Visible then s:Toggle() end
-        return s
-    end
-end
-
-local skeletonESPEnabled = false
-local Skeletons = {}
-
-local function EnableSkeletonESP()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local sk = SkeletonLibrary:NewSkeleton(plr, true, getgenv().skeletonESPColor or Color3.fromRGB(255,255,255), 1, 1, true)
-            Skeletons[plr] = sk
-        end
-    end
-    Players.PlayerAdded:Connect(function(plr)
-        if plr ~= LocalPlayer then
-            local sk = SkeletonLibrary:NewSkeleton(plr, true, getgenv().skeletonESPColor or Color3.fromRGB(255,255,255), 1, 1, true)
-            Skeletons[plr] = sk
-        end
-    end)
-end
-
-local function DisableSkeletonESP()
-    for plr, sk in pairs(Skeletons) do
-        if sk and sk.Remove then
-            sk:Remove()
-        end
-    end
-    Skeletons = {}
 end
 
 ---------------------------------------------------
@@ -1213,20 +908,6 @@ visualsLeft:Toggle({
 }, "TracersToggle")
 
 visualsLeft:Toggle({
-	Name = "Skeleton ESP",
-	Default = false,
-	Callback = function(Value)
-         getgenv().skeletonESPEnabled = Value
-         if Value then
-              EnableSkeletonESP()
-         else
-              DisableSkeletonESP()
-         end
-         Window:Notify({ Title = "Skeleton ESP", Description = (Value and "Enabled" or "Disabled"), Lifetime = 5 })
-	end,
-}, "SkeletonESPToggle")
-
-visualsLeft:Toggle({
 	Name = "Healthbar",
 	Default = false,
 	Callback = function(Value)
@@ -1296,18 +977,6 @@ visualsRight:Colorpicker({
 }, "TracersColor")
 
 visualsRight:Colorpicker({
-    Name = "Skeleton ESP Color",
-    Default = getgenv().skeletonESPColor or Color3.fromRGB(255,255,255),
-    Alpha = 0,
-    Callback = function(color, alpha)
-         getgenv().skeletonESPColor = color
-         for plr, sk in pairs(Skeletons) do
-             if sk then sk:SetColor(color) end
-         end
-    end,
-}, "SkeletonESPColor")
-
-visualsRight:Colorpicker({
     Name = "HealthBar ESP Color",
     Default = ESP.HealthBar.Color,
     Alpha = 0,
@@ -1334,15 +1003,7 @@ visualsRight:Colorpicker({
     end,
 }, "DistanceESPColor")
 
-visualsRight:Colorpicker({
-    Name = "Chams Color",
-    Default = Color3.fromRGB(255,255,255),
-    Alpha = 0,
-    Callback = function(color, alpha)
-         getgenv().chamsColor = color
-    end,
-}, "ChamsColor")
-
+-- Insert Name ESP Color picker between Distance and Chams.
 visualsRight:Colorpicker({
     Name = "Name ESP Color",
     Default = ESP.Name.Color,
@@ -1351,6 +1012,15 @@ visualsRight:Colorpicker({
          ESP.Name.Color = color
     end,
 }, "NameESPColor")
+
+visualsRight:Colorpicker({
+    Name = "Chams Color",
+    Default = Color3.fromRGB(255,255,255),
+    Alpha = 0,
+    Callback = function(color, alpha)
+         getgenv().chamsColor = color
+    end,
+}, "ChamsColor")
 
 local espCustom = tabs.Visuals:Section({ Side = "Left", Title = "ESP Customization", VerticalOrder = true })
 
