@@ -27,8 +27,27 @@ local Settings = {
     ReactToCammands = true,-- Reserved for future use: alt reacts to host commands in chat
 }
 
--- Bank position settings (for teleporting via command)
-local bankPosition = Vector3.new(-373, 18.75, -346)
+-- Bank part positions (ordered list)
+local bankPositions = {
+    Vector3.new(-384.5, 28.75, -318.5),
+    Vector3.new(-368.5, 28.75, -318.5),
+    Vector3.new(-384.5, 28.75, -308.5),
+    Vector3.new(-368.5, 28.75, -308.5),
+    Vector3.new(-384.5, 28.75, -298.5),
+    Vector3.new(-368.5, 28.75, -298.5),
+    Vector3.new(-384.5, 28.75, -288.5),
+    Vector3.new(-368.5, 28.75, -288.5),
+    Vector3.new(-384.5, 28.75, -278.5),
+    Vector3.new(-368.5, 28.75, -278.5),
+    Vector3.new(-384.5, 28.75, -268.5),
+    Vector3.new(-368.5, 28.75, -268.5),
+    Vector3.new(-384.5, 28.75, -258.5),
+    Vector3.new(-368.5, 28.75, -258.5),
+    Vector3.new(-384.5, 28.75, -248.5),
+    Vector3.new(-368.5, 28.75, -248.5),
+    Vector3.new(-384.5, 28.75, -238.5),
+    Vector3.new(-368.5, 28.75, -238.5)
+}
 
 -- Wait for the LocalPlayer to be available
 local player = game.Players.LocalPlayer
@@ -70,55 +89,103 @@ local function applyFpsSettings(isHost)
     end
 end
 
--- Function to tween the alt account to the bank
-local function tweenToBank(character)
+-- Function to spawn bank parts.
+local function spawnBankParts()
+    local Workspace = game:GetService("Workspace")
+    local bankFolder = Workspace:FindFirstChild("BankParts")
+    if not bankFolder then
+        bankFolder = Instance.new("Folder")
+        bankFolder.Name = "BankParts"
+        bankFolder.Parent = Workspace
+    else
+        -- Clear out any old parts.
+        for _, part in pairs(bankFolder:GetChildren()) do
+            part:Destroy()
+        end
+    end
+
+    local spawnedParts = {}
+    for i, pos in ipairs(bankPositions) do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(1, 1, 1)
+        part.Position = pos
+        part.Anchored = true
+        part.Transparency = 0.1  -- Set the part to be barely visible
+        part.Name = "BankPart_" .. i
+        part.Parent = bankFolder
+        spawnedParts[i] = part
+        print("Spawned BankPart_" .. i .. " at " .. tostring(pos))
+    end
+
+    return spawnedParts
+end
+
+-- Function to get this account's index in the Accounts table.
+local function getAccountIndex()
+    for i, accountId in ipairs(Accounts) do
+        if player.UserId == accountId then
+            print("Account index for UserId " .. player.UserId .. " is " .. i)
+            return i
+        end
+    end
+    print("UserId " .. player.UserId .. " is not found in the Accounts table.")
+    return nil
+end
+
+-- Function to tween the alt account to its designated bank part.
+local function tweenToBankPart(targetPos)
     local TweenService = game:GetService("TweenService")
+    local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
     if not hrp then 
         print("HumanoidRootPart not found!")
         return
     end
-    
-    local currentPos = hrp.Position
-    local distance = (bankPosition - currentPos).Magnitude
+
+    local distance = (targetPos - hrp.Position).Magnitude
     local speed = 50  -- studs per second
     local tweenTime = distance / speed
-    
+
     local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(bankPosition)})
-    
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
     tween:Play()
+    print("Tweening to position " .. tostring(targetPos) .. " (Duration: " .. tweenTime .. " seconds).")
     tween.Completed:Connect(function(status)
         if status == Enum.PlaybackState.Completed then
-            print("Reached Bank position!")
+            print("Reached designated bank position!")
         end
     end)
-    
-    print("Tweening to Bank (Duration: " .. tweenTime .. " seconds).")
 end
 
--- Function to handle host chat commands (only processed on alt accounts)
+-- Function to process host commands.
 local function processHostCommand(msg)
-    -- Check that the message starts with the defined prefix
+    -- Check that the message starts with the defined prefix.
     if msg:sub(1, #Settings.Prefix) ~= Settings.Prefix then
         return
     end
 
-    -- Remove the prefix from the message
+    -- Remove the prefix.
     local command = msg:sub(#Settings.Prefix + 1)
+    print("Command received (without prefix): '" .. command .. "'")
     
-    -- Check for the specific command (case-sensitive as written)
-    if command == "Tp Bank" then
-        local character = player.Character or player.CharacterAdded:Wait()
-        tweenToBank(character)
+    if command == "setup Bank" then
+        print("Processing 'setup Bank' command...")
+        local spawnedParts = spawnBankParts()
+        local accountIndex = getAccountIndex()
+        if accountIndex and spawnedParts[accountIndex] then
+            local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
+            tweenToBankPart(targetPos)
+        else
+            print("No matching bank part for account index " .. tostring(accountIndex) .. ".")
+        end
     end
 end
 
--- Function to set up the host's chat listener (for alt accounts)
+-- Function to set up the host's chat listener (for alt accounts).
 local function setupHostChatListener(hostPlayer)
     if hostPlayer then
         hostPlayer.Chatted:Connect(function(msg)
-            -- Only process commands if the sender is the host
+            -- Only process commands if the sender is the host.
             if hostPlayer.UserId == Host.host then
                 print("Host command received: " .. msg)
                 processHostCommand(msg)
@@ -128,13 +195,13 @@ local function setupHostChatListener(hostPlayer)
     end
 end
 
--- Function to check the player's role and set up chat listener and FPS settings if needed
+-- Function to check the player's role and set up chat listener and FPS settings if needed.
 local function checkPlayerRole()
     local userId = player.UserId
     if userId == Host.host then
         print("You are the host!")
         applyFpsSettings(true)
-        -- Host-specific command execution goes here.
+        -- Host can type commands directly.
     else
         local isAccount = false
         for _, accountId in pairs(Accounts) do
@@ -147,12 +214,10 @@ local function checkPlayerRole()
         if isAccount then
             print("You are an account and will follow the host!")
             applyFpsSettings(false)
-            -- Try to get the host player instance.
             local hostPlayer = game.Players:GetPlayerByUserId(Host.host)
             if hostPlayer then
                 setupHostChatListener(hostPlayer)
             else
-                -- Wait for the host to join if they aren't present yet.
                 game.Players.PlayerAdded:Connect(function(p)
                     if p.UserId == Host.host then
                         setupHostChatListener(p)
