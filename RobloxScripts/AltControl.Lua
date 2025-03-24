@@ -19,13 +19,16 @@ local Accounts = {  -- Alt Account IDs
 
 local Settings = {
     Prefix = "?",         -- Default command prefix ("?", can also be ".", ",", "!" or "/")
-    AltFps = 15,          -- Max FPS for alt accounts
+    AltFps = 60,          -- Max FPS for alt accounts
     HostFps = 60,         -- Max FPS for the host
     CpuSaver = false,     -- Reserved for future use
     CashCounter = false,  -- Reserved for future use (only host can run this)
     antiAfk = true,       -- Enable anti-AFK
     ReactToCammands = true,-- Reserved for future use: alt reacts to host commands in chat
 }
+
+-- Bank position settings (for teleporting via command)
+local bankPosition = Vector3.new(-373, 18.75, -346)
 
 -- Wait for the LocalPlayer to be available
 local player = game.Players.LocalPlayer
@@ -42,16 +45,6 @@ if Settings.antiAfk then
         VirtualUser:ClickButton2(Vector2.new())
         print("Anti-AFK triggered.")
     end)
-end
-
--- Function to set up the host's chat listener
-local function setupHostChatListener(hostPlayer)
-    if hostPlayer then
-        hostPlayer.Chatted:Connect(function(msg)
-            print("Host said: " .. msg)
-        end)
-        print("Chat listener set up for host.")
-    end
 end
 
 -- Function to apply FPS settings
@@ -77,13 +70,71 @@ local function applyFpsSettings(isHost)
     end
 end
 
+-- Function to tween the alt account to the bank
+local function tweenToBank(character)
+    local TweenService = game:GetService("TweenService")
+    local hrp = character:WaitForChild("HumanoidRootPart", 5)
+    if not hrp then 
+        print("HumanoidRootPart not found!")
+        return
+    end
+    
+    local currentPos = hrp.Position
+    local distance = (bankPosition - currentPos).Magnitude
+    local speed = 50  -- studs per second
+    local tweenTime = distance / speed
+    
+    local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(bankPosition)})
+    
+    tween:Play()
+    tween.Completed:Connect(function(status)
+        if status == Enum.PlaybackState.Completed then
+            print("Reached Bank position!")
+        end
+    end)
+    
+    print("Tweening to Bank (Duration: " .. tweenTime .. " seconds).")
+end
+
+-- Function to handle host chat commands (only processed on alt accounts)
+local function processHostCommand(msg)
+    -- Check that the message starts with the defined prefix
+    if msg:sub(1, #Settings.Prefix) ~= Settings.Prefix then
+        return
+    end
+
+    -- Remove the prefix from the message
+    local command = msg:sub(#Settings.Prefix + 1)
+    
+    -- Check for the specific command (case-sensitive as written)
+    if command == "Tp Bank" then
+        local character = player.Character or player.CharacterAdded:Wait()
+        tweenToBank(character)
+    end
+end
+
+-- Function to set up the host's chat listener (for alt accounts)
+local function setupHostChatListener(hostPlayer)
+    if hostPlayer then
+        hostPlayer.Chatted:Connect(function(msg)
+            -- Only process commands if the sender is the host
+            if hostPlayer.UserId == Host.host then
+                print("Host command received: " .. msg)
+                processHostCommand(msg)
+            end
+        end)
+        print("Chat listener set up for host.")
+    end
+end
+
 -- Function to check the player's role and set up chat listener and FPS settings if needed
 local function checkPlayerRole()
     local userId = player.UserId
     if userId == Host.host then
         print("You are the host!")
         applyFpsSettings(true)
-        -- Host-specific code can be added here.
+        -- Host-specific command execution goes here.
     else
         local isAccount = false
         for _, accountId in pairs(Accounts) do
