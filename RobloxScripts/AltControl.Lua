@@ -17,7 +17,7 @@ local Accounts = {  -- Alt Account IDs
 }
 
 local Settings = {
-    Prefix = ".",         -- Default command prefix (can be "?", ".", ",", "!" or "/")
+    Prefix = "?",         -- Default command prefix (example)
     AltFps = 60,          -- Max FPS for alt accounts
     HostFps = 60,         -- Max FPS for the host
     CpuSaver = false,     -- Reserved for future use
@@ -26,7 +26,12 @@ local Settings = {
     ReactToCammands = true,-- Reserved for future use: alt reacts to host commands in chat
 }
 
--- Allowed prefix characters
+-- Global state for commands like CashDrop
+local State = {
+    CashDropActive = false
+}
+
+-- Allowed prefix characters (restored to the original list)
 local allowedPrefixes = {"?", ".", ",", "!", "/"}
 
 -- Bank part positions (ordered list)
@@ -84,6 +89,29 @@ local clubPositions = {
     Vector3.new(-244.5, -2.46, -360.5)
 }
 
+-- UFO part positions (ordered list)
+local ufoPositions = {
+    Vector3.new(29.5, 147.5, -667.5),
+    Vector3.new(39.5, 147.5, -667.5),
+    Vector3.new(49.5, 147.5, -667.5),
+    Vector3.new(59.5, 147.5, -667.5),
+    
+    Vector3.new(29.5, 147.5, -677.5),
+    Vector3.new(39.5, 147.5, -677.5),
+    Vector3.new(49.5, 147.5, -677.5),
+    Vector3.new(59.5, 147.5, -677.5),
+    
+    Vector3.new(29.5, 147.5, -687.5),
+    Vector3.new(39.5, 147.5, -687.5),
+    Vector3.new(49.5, 147.5, -687.5),
+    Vector3.new(59.5, 147.5, -687.5),
+    
+    Vector3.new(29.5, 147.5, -697.5),
+    Vector3.new(39.5, 147.5, -697.5),
+    Vector3.new(49.5, 147.5, -697.5),
+    Vector3.new(59.5, 147.5, -697.5)
+}
+
 -- Wait for the LocalPlayer
 local player = game.Players.LocalPlayer
 while not player do
@@ -129,7 +157,7 @@ local function setCharacterNoclip(character, state)
     end
 end
 
--- Spawn bank parts (very faint, 1x1x1)
+-- Spawn bank parts (1x1x1, increased visibility with lower transparency)
 local function spawnBankParts()
     local Workspace = game:GetService("Workspace")
     local bankFolder = Workspace:FindFirstChild("BankParts")
@@ -142,24 +170,22 @@ local function spawnBankParts()
             part:Destroy()
         end
     end
-
     local spawnedParts = {}
     for i, pos in ipairs(bankPositions) do
         local part = Instance.new("Part")
         part.Size = Vector3.new(1, 1, 1)
         part.Position = pos
         part.Anchored = true
-        part.Transparency = 0.95  -- Very faint
+        part.Transparency = 0.85
         part.Name = "BankPart_" .. i
         part.Parent = bankFolder
         spawnedParts[i] = part
         print("Spawned BankPart_" .. i .. " at " .. tostring(pos))
     end
-
     return spawnedParts
 end
 
--- Spawn club parts (very faint, 1x1x1)
+-- Spawn club parts (1x1x1, increased visibility with lower transparency)
 local function spawnClubParts()
     local Workspace = game:GetService("Workspace")
     local clubFolder = Workspace:FindFirstChild("ClubParts")
@@ -172,20 +198,46 @@ local function spawnClubParts()
             part:Destroy()
         end
     end
-
     local spawnedParts = {}
     for i, pos in ipairs(clubPositions) do
         local part = Instance.new("Part")
         part.Size = Vector3.new(1, 1, 1)
         part.Position = pos
         part.Anchored = true
-        part.Transparency = 0.95  -- Very faint
+        part.Transparency = 0.85
         part.Name = "ClubPart_" .. i
         part.Parent = clubFolder
         spawnedParts[i] = part
         print("Spawned ClubPart_" .. i .. " at " .. tostring(pos))
     end
+    return spawnedParts
+end
 
+-- Spawn ufo parts (1x1x1, increased visibility with lower transparency)
+local function spawnUFOParts()
+    local Workspace = game:GetService("Workspace")
+    local ufoFolder = Workspace:FindFirstChild("UFOParts")
+    if not ufoFolder then
+        ufoFolder = Instance.new("Folder")
+        ufoFolder.Name = "UFOParts"
+        ufoFolder.Parent = Workspace
+    else
+        for _, part in pairs(ufoFolder:GetChildren()) do
+            part:Destroy()
+        end
+    end
+    local spawnedParts = {}
+    for i, pos in ipairs(ufoPositions) do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(1, 1, 1)
+        part.Position = pos
+        part.Anchored = true
+        part.Transparency = 0.85
+        part.Name = "UFOPart_" .. i
+        part.Parent = ufoFolder
+        spawnedParts[i] = part
+        print("Spawned UFOPart_" .. i .. " at " .. tostring(pos))
+    end
     return spawnedParts
 end
 
@@ -201,141 +253,160 @@ local function getAccountIndex()
     return nil
 end
 
--- Tween the alt account to a target position with anti-fling.
-local function tweenToPosition(targetPos)
+------------------------------------------------
+-- New functions for repeated tweening --
+------------------------------------------------
+
+-- Performs a single tween over the given duration (in seconds) to targetPos.
+local function doTween(targetPos, duration)
     local TweenService = game:GetService("TweenService")
-    local RunService = game:GetService("RunService")
     local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
     if not hrp then 
         print("HumanoidRootPart not found!")
         return
     end
-
-    -- Enable noclip while tweening.
-    setCharacterNoclip(character, true)
-
-    local distance = (targetPos - hrp.Position).Magnitude
-    local speed = 50  -- studs per second
-    local tweenTime = distance / speed
-
-    local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
     tween:Play()
-    print("Tweening to position " .. tostring(targetPos) .. " (Duration: " .. tweenTime .. " seconds).")
-
-    -- Anti-fling: Reset velocities only if farther than 3 studs.
-    local antiFlingConn
-    antiFlingConn = RunService.Heartbeat:Connect(function()
-        if hrp and (hrp.Position - targetPos).Magnitude > 3 then
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        else
-            if antiFlingConn then
-                antiFlingConn:Disconnect()
-            end
-        end
-    end)
-
-    tween.Completed:Connect(function(status)
-        if status == Enum.PlaybackState.Completed then
-            print("Reached designated position!")
-            setCharacterNoclip(character, false)
-            if antiFlingConn then
-                antiFlingConn:Disconnect()
-            end
-        end
-    end)
+    tween.Completed:Wait()  -- Wait until the tween finishes
 end
 
--- Check if a character is an allowed prefix.
-local function isAllowedPrefix(ch)
-    for _, prefix in ipairs(allowedPrefixes) do
-        if ch == prefix then
-            return true
-        end
+-- Repeatedly tween to targetPos every 0.5 seconds for a total of 1.5 seconds.
+local function maintainTween(targetPos)
+    local startTime = tick()
+    while tick() - startTime < 1.5 do
+        doTween(targetPos, 0.5)
+        wait(0.1)
     end
-    return false
 end
 
--- Process host commands (now case insensitive).
+-- Executes the setup command: enables noclip, repeatedly tweens, then disables noclip.
+local function executeSetupCommand(targetPos)
+    local character = player.Character or player.CharacterAdded:Wait()
+    setCharacterNoclip(character, true)
+    maintainTween(targetPos)
+    setCharacterNoclip(character, false)
+    print("Setup command completed for target " .. tostring(targetPos))
+end
+
+------------------------------------------------
+-- New function to "lock" the player to a position --
+------------------------------------------------
+local function lockedToPosition(targetPos)
+    local character = player.Character or player.CharacterAdded:Wait()
+    local hrp = character:WaitForChild("HumanoidRootPart", 5)
+    -- Continuously force the HRP's CFrame to the target position while cash drop is active.
+    while State.CashDropActive do
+        hrp.CFrame = CFrame.new(targetPos)
+        wait(0.1)
+    end
+    print("Player " .. player.Name .. " unlocked from locked position " .. tostring(targetPos))
+end
+
+------------------------------------------------
+-- New CashDrop function to drop money repeatedly.
+local function CashDrop()
+    while State.CashDropActive do
+        game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "15000")
+        task.wait(5)
+    end
+end
+
+------------------------------------------------
+-- Process host commands (case insensitive).
 local function processHostCommand(msg)
+    if not msg or #msg < 2 then return end
     local firstChar = msg:sub(1, 1)
-    if not isAllowedPrefix(firstChar) then
+    if not table.find(allowedPrefixes, firstChar) then
         return
     end
-
-    -- Convert command text to lower case for matching.
     local command = msg:sub(2):lower()
-    print("Command received (processed to lower-case): '" .. command .. "'")
+    print("Received host command: '" .. command .. "'")
     
     if command == "setup bank" then
-        print("Processing 'setup Bank' command...")
+        print("Processing 'setup bank' command...")
         local spawnedParts = spawnBankParts()
         local accountIndex = getAccountIndex()
         if accountIndex and spawnedParts[accountIndex] then
             local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
-            tweenToPosition(targetPos)
+            executeSetupCommand(targetPos)
         else
             print("No matching bank part for account index " .. tostring(accountIndex) .. ".")
         end
     elseif command == "setup club" then
-        print("Processing 'setup Club' command...")
+        print("Processing 'setup club' command...")
         local spawnedParts = spawnClubParts()
         local accountIndex = getAccountIndex()
         if accountIndex and spawnedParts[accountIndex] then
             local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
-            tweenToPosition(targetPos)
+            executeSetupCommand(targetPos)
         else
             print("No matching club part for account index " .. tostring(accountIndex) .. ".")
         end
+    elseif command == "setup ufo" then
+        print("Processing 'setup ufo' command...")
+        local spawnedParts = spawnUFOParts()
+        local accountIndex = getAccountIndex()
+        if accountIndex and spawnedParts[accountIndex] then
+            local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
+            executeSetupCommand(targetPos)
+        else
+            print("No matching UFO part for account index " .. tostring(accountIndex) .. ".")
+        end
+    elseif command == "drop" then
+        print("Processing 'drop' command...")
+        State.CashDropActive = true
+        -- Lock the current position as the target to remain locked.
+        local character = player.Character or player.CharacterAdded:Wait()
+        local hrp = character:WaitForChild("HumanoidRootPart", 5)
+        local lockedPos = hrp.Position
+        spawn(function()
+            lockedToPosition(lockedPos)
+        end)
+        spawn(function()
+            CashDrop()
+        end)
+    elseif command == "stop" then
+        print("Processing 'stop' command...")
+        State.CashDropActive = false
     end
 end
 
--- Set up the host's chat listener (for alt accounts).
-local function setupHostChatListener(hostPlayer)
-    if hostPlayer then
-        hostPlayer.Chatted:Connect(function(msg)
-            if hostPlayer.UserId == Host.host then
-                print("Host command received: " .. msg)
-                processHostCommand(msg)
+------------------------------------------------
+-- New chat listener using DefaultChatSystemChatEvents --
+------------------------------------------------
+if player.UserId ~= Host.host then
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local ChatEvents = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents")
+    local success, hostName = pcall(game.Players.GetNameFromUserIdAsync, game.Players, Host.host)
+    if success and hostName then
+        ChatEvents.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+            if messageData and messageData.FromSpeaker and messageData.Message then
+                if messageData.FromSpeaker:lower() == hostName:lower() then
+                    print("Alt (" .. player.Name .. ") received host command: " .. messageData.Message)
+                    processHostCommand(messageData.Message)
+                end
             end
         end)
-        print("Chat listener set up for host.")
+        print("Chat listener set up for alt " .. player.Name)
+    else
+        print("Failed to get host name for chat listening.")
     end
 end
 
--- Check player's role and set up chat listener and FPS settings.
+------------------------------------------------
+-- End of chat listener
+------------------------------------------------
+
+-- For the host account, just apply FPS settings.
 local function checkPlayerRole()
-    local userId = player.UserId
-    if userId == Host.host then
+    if player.UserId == Host.host then
         print("You are the host!")
         applyFpsSettings(true)
     else
-        local isAccount = false
-        for _, accountId in pairs(Accounts) do
-            if userId == accountId then
-                isAccount = true
-                break
-            end
-        end
-
-        if isAccount then
-            print("You are an account and will follow the host!")
-            applyFpsSettings(false)
-            local hostPlayer = game.Players:GetPlayerByUserId(Host.host)
-            if hostPlayer then
-                setupHostChatListener(hostPlayer)
-            else
-                game.Players.PlayerAdded:Connect(function(p)
-                    if p.UserId == Host.host then
-                        setupHostChatListener(p)
-                    end
-                end)
-            end
-        else
-            print("Your ID does not match with the Host or any Accounts.")
-        end
+        print("You are an account and will follow the host!")
+        applyFpsSettings(false)
     end
 end
 
