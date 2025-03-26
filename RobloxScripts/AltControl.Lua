@@ -23,12 +23,13 @@ local Settings = {
     CpuSaver = false,     -- Reserved for future use
     CashCounter = false,  -- Reserved for future use (only host can run this)
     antiAfk = true,       -- Enable anti-AFK
-    ReactToCammands = true,-- Reserved for future use: alt reacts to host commands in chat
+    ReactToCammands = true, -- When true, alts react with chat messages
 }
 
 -- Global state for commands like CashDrop
 local State = {
-    CashDropActive = false
+    CashDropActive = false,
+    CashDropTarget = nil, -- target cash amount (if any) for the drop command
 }
 
 -- Allowed prefix characters (restored to the original list)
@@ -148,14 +149,100 @@ local function applyFpsSettings(isHost)
     end
 end
 
--- Helper: Toggle noclip (disable collisions) for all BaseParts in the character.
-local function setCharacterNoclip(character, state)
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not state
-        end
+------------------------------------------------
+-- Helper function to send chat messages (if ReactToCammands is true)
+local function sendChatMessage(message)
+    if Settings.ReactToCammands then
+        game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
     end
 end
+
+------------------------------------------------
+-- Cash Counter Core Script (Simplified)
+------------------------------------------------
+
+-- Short-form formatter (e.g., 7100 becomes "7.1k", 1500000 becomes "1.5m")
+local function formatShort(n)
+    if n >= 1e6 then
+        return string.format("%.1fm", n/1e6)
+    elseif n >= 1e3 then
+        return string.format("%.1fk", n/1e3)
+    else
+        return tostring(n)
+    end
+end
+
+-- Convert cash text ($1.5k, 3m, etc.) to numerical value safely.
+local function parseCashValue(text)
+    if type(text) ~= "string" then return 0 end
+    text = text:match("^%s*(.-)%s*$") or ""
+    if text == "" then return 0 end
+    text = text:gsub("[$,]", "")
+    local num = tonumber(text)
+    if num then 
+        return num 
+    end
+    local lowered = text:lower()
+    if lowered:find("k") then
+        local numericPart = lowered:gsub("k", "")
+        local val = tonumber(numericPart)
+        return val and (val * 1e3) or 0
+    elseif lowered:find("m") then
+        local numericPart = lowered:gsub("m", "")
+        local val = tonumber(numericPart)
+        return val and (val * 1e6) or 0
+    end
+    return 0
+end
+
+-- Get value from a MoneyDrop object
+local function getMoneyDropValue(moneyDrop)
+    return parseCashValue(
+        moneyDrop:FindFirstChild("BillboardGui")
+        and moneyDrop.BillboardGui:FindFirstChild("TextLabel")
+        and moneyDrop.BillboardGui.TextLabel.Text or "0"
+    )
+end
+
+-- Main cash calculation logic: sums up values from all MoneyDrop parts
+local function updateDroppedCashTotal()
+    local total = 0
+    if workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop") then
+        for _, drop in ipairs(workspace.Ignored.Drop:GetChildren()) do
+            if drop.Name == "MoneyDrop" then
+                total = total + getMoneyDropValue(drop)
+            end
+        end
+    end
+    return total
+end
+
+-- Live updates (runs every 1.5 seconds) only for the host.
+if player.UserId == Host.host then
+    task.spawn(function()
+        while true do
+            local cash = updateDroppedCashTotal()
+            print("Current ground cash:", formatShort(cash))
+            task.wait(1.5)
+        end
+    end)
+end
+
+-- Track collected cash (when money disappears)
+if workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop") then
+    workspace.Ignored.Drop.ChildRemoved:Connect(function(child)
+        if child.Name == "MoneyDrop" then
+            local collected = getMoneyDropValue(child)
+            if player.UserId == Host.host then
+                print("Collected:", formatShort(collected))
+            end
+        end
+    end)
+end
+
+------------------------------------------------
+-- Spawn Functions for parts
+------------------------------------------------
 
 -- Spawn bank parts (1x1x1, increased visibility with lower transparency)
 local function spawnBankParts()
@@ -213,7 +300,7 @@ local function spawnClubParts()
     return spawnedParts
 end
 
--- Spawn ufo parts (1x1x1, increased visibility with lower transparency)
+-- Spawn UFO parts (1x1x1, increased visibility with lower transparency)
 local function spawnUFOParts()
     local Workspace = game:GetService("Workspace")
     local ufoFolder = Workspace:FindFirstChild("UFOParts")
@@ -241,21 +328,18 @@ local function spawnUFOParts()
     return spawnedParts
 end
 
--- Get this account's index in the Accounts table.
-local function getAccountIndex()
-    for i, accountId in ipairs(Accounts) do
-        if player.UserId == accountId then
-            print("Account index for UserId " .. player.UserId .. " is " .. i)
-            return i
+------------------------------------------------
+-- Helper functions for character tweening and noclip
+------------------------------------------------
+
+-- Helper: Toggle noclip (disable collisions) for all BaseParts in the character.
+local function setCharacterNoclip(character, state)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not state
         end
     end
-    print("UserId " .. player.UserId .. " is not found in the Accounts table.")
-    return nil
 end
-
-------------------------------------------------
--- New functions for repeated tweening --
-------------------------------------------------
 
 -- Performs a single tween over the given duration (in seconds) to targetPos.
 local function doTween(targetPos, duration)
@@ -282,11 +366,14 @@ local function maintainTween(targetPos)
 end
 
 -- Executes the setup command: enables noclip, repeatedly tweens, then disables noclip.
-local function executeSetupCommand(targetPos)
+-- Now accepts a destinationName for chat feedback.
+local function executeSetupCommand(targetPos, destinationName)
     local character = player.Character or player.CharacterAdded:Wait()
+    sendChatMessage("Tweening to " .. destinationName)
     setCharacterNoclip(character, true)
     maintainTween(targetPos)
     setCharacterNoclip(character, false)
+    sendChatMessage("Reached destination: " .. destinationName)
     print("Setup command completed for target " .. tostring(targetPos))
 end
 
@@ -306,15 +393,25 @@ end
 
 ------------------------------------------------
 -- New CashDrop function to drop money repeatedly.
+------------------------------------------------
 local function CashDrop()
     while State.CashDropActive do
         game:GetService("ReplicatedStorage").MainEvent:FireServer("DropMoney", "15000")
         task.wait(5)
+        if State.CashDropTarget then
+            local currentCash = updateDroppedCashTotal()
+            if currentCash >= State.CashDropTarget then
+                State.CashDropActive = false
+                sendChatMessage("Drop target reached. Total dropped: " .. formatShort(currentCash))
+                break
+            end
+        end
     end
 end
 
 ------------------------------------------------
 -- Process host commands (case insensitive).
+------------------------------------------------
 local function processHostCommand(msg)
     if not msg or #msg < 2 then return end
     local firstChar = msg:sub(1, 1)
@@ -327,37 +424,70 @@ local function processHostCommand(msg)
     if command == "setup bank" then
         print("Processing 'setup bank' command...")
         local spawnedParts = spawnBankParts()
-        local accountIndex = getAccountIndex()
+        local accountIndex = nil
+        for i, accountId in ipairs(Accounts) do
+            if player.UserId == accountId then
+                accountIndex = i
+                print("Account index for UserId " .. player.UserId .. " is " .. i)
+                break
+            end
+        end
         if accountIndex and spawnedParts[accountIndex] then
             local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
-            executeSetupCommand(targetPos)
+            executeSetupCommand(targetPos, "Bank")
         else
             print("No matching bank part for account index " .. tostring(accountIndex) .. ".")
         end
+
     elseif command == "setup club" then
         print("Processing 'setup club' command...")
         local spawnedParts = spawnClubParts()
-        local accountIndex = getAccountIndex()
+        local accountIndex = nil
+        for i, accountId in ipairs(Accounts) do
+            if player.UserId == accountId then
+                accountIndex = i
+                print("Account index for UserId " .. player.UserId .. " is " .. i)
+                break
+            end
+        end
         if accountIndex and spawnedParts[accountIndex] then
             local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
-            executeSetupCommand(targetPos)
+            executeSetupCommand(targetPos, "Club")
         else
             print("No matching club part for account index " .. tostring(accountIndex) .. ".")
         end
+
     elseif command == "setup ufo" then
         print("Processing 'setup ufo' command...")
         local spawnedParts = spawnUFOParts()
-        local accountIndex = getAccountIndex()
+        local accountIndex = nil
+        for i, accountId in ipairs(Accounts) do
+            if player.UserId == accountId then
+                accountIndex = i
+                print("Account index for UserId " .. player.UserId .. " is " .. i)
+                break
+            end
+        end
         if accountIndex and spawnedParts[accountIndex] then
             local targetPos = spawnedParts[accountIndex].Position + Vector3.new(0, 1.5, 0)
-            executeSetupCommand(targetPos)
+            executeSetupCommand(targetPos, "UFO")
         else
             print("No matching UFO part for account index " .. tostring(accountIndex) .. ".")
         end
-    elseif command == "drop" then
+
+    elseif command:sub(1,4) == "drop" then
         print("Processing 'drop' command...")
+        -- Use pattern to extract the argument after "drop"
+        local arg = command:match("^drop%s+(%S+)$")
+        if arg then
+            local dropTarget = parseCashValue(arg)
+            State.CashDropTarget = dropTarget
+            sendChatMessage("Drop started. Value: " .. arg)
+        else
+            State.CashDropTarget = nil
+            sendChatMessage("Drop started.")
+        end
         State.CashDropActive = true
-        -- Lock the current position as the target to remain locked.
         local character = player.Character or player.CharacterAdded:Wait()
         local hrp = character:WaitForChild("HumanoidRootPart", 5)
         local lockedPos = hrp.Position
@@ -367,9 +497,11 @@ local function processHostCommand(msg)
         spawn(function()
             CashDrop()
         end)
+
     elseif command == "stop" then
         print("Processing 'stop' command...")
         State.CashDropActive = false
+        sendChatMessage("Drop stopped.")
     end
 end
 
