@@ -32,7 +32,8 @@ local Settings = {
 local State = {
     CashDropActive = false,
     CashDropTarget = nil,
-    AirlockActive = false,  -- whether airlock is active
+    AirlockActive = false,
+    AirlockBaseY = nil,
 }
 
 local allowedPrefixes = {"?", ".", ",", "!", "/"}
@@ -134,15 +135,11 @@ local function applyFpsSettings(isHost)
         if Settings.HostFps and setfpscap then
             setfpscap(Settings.HostFps)
             print("Host FPS set to " .. Settings.HostFps)
-        else
-            print("setfpscap function is not available.")
         end
     else
         if Settings.AltFps and setfpscap then
             setfpscap(Settings.AltFps)
             print("Alt FPS set to " .. Settings.AltFps)
-        else
-            print("setfpscap function is not available.")
         end
     end
 end
@@ -180,25 +177,16 @@ local function formatShort(n)
 end
 
 local function parseCashValue(text)
-    if type(text) ~= "string" then return 0 end
-    text = text:match("^%s*(.-)%s*$") or ""
-    if text == "" then return 0 end
-    text = text:gsub("[$,]", "")
-    local num = tonumber(text)
-    if num then
-        return num
+    text = tostring(text):gsub("[$,]", ""):lower()
+    local num = tonumber(text:match("%d+%.?%d*"))
+    if not num then return 0 end
+    
+    if text:find("k") then
+        return num * 1e3
+    elseif text:find("m") then
+        return num * 1e6
     end
-    local lowered = text:lower()
-    if lowered:find("k") then
-        local numericPart = lowered:gsub("k", "")
-        local val = tonumber(numericPart)
-        return val and (val * 1e3) or 0
-    elseif lowered:find("m") then
-        local numericPart = lowered:gsub("m", "")
-        local val = tonumber(numericPart)
-        return val and (val * 1e6) or 0
-    end
-    return 0
+    return num
 end
 
 ------------------------------------------------
@@ -209,11 +197,7 @@ local function updateDroppedCashTotal()
     if workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop") then
         for _, drop in ipairs(workspace.Ignored.Drop:GetChildren()) do
             if drop.Name == "MoneyDrop" then
-                total = total + parseCashValue(
-                    drop:FindFirstChild("BillboardGui") and
-                    drop.BillboardGui:FindFirstChild("TextLabel") and
-                    drop.BillboardGui.TextLabel.Text or "0"
-                )
+                total += parseCashValue(drop.BillboardGui.TextLabel.Text)
             end
         end
     end
@@ -238,20 +222,20 @@ local function executeTween(targetPos, customDuration)
     local TweenService = game:GetService("TweenService")
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
     local distance = (hrp.Position - targetPos).Magnitude
-    local duration = customDuration or (distance / 50)  -- default: speed = 50 studs/sec; for airlock we may supply customDuration
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local duration = customDuration or (distance / 150)  -- Default 150 studs/s
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
     tween:Play()
     tween.Completed:Wait()
 end
 
 ------------------------------------------------
--- Command Functions: Setup, Drop, Airlock, and Unairlock
+-- Command Functions
 ------------------------------------------------
--- Setup commands: Tween to the position of an existing part (or fallback default).
 local function processSetupCommand(setupType)
     local idx = getAccountIndex()
     local folderName, partName, destName, fallbackPos = nil, nil, nil, nil
+    
     if setupType == "bank" then
         folderName = "BankParts"
         partName = "BankPart_" .. idx
@@ -268,27 +252,23 @@ local function processSetupCommand(setupType)
         destName = "UFO"
         fallbackPos = ufoPositions[idx] or ufoPositions[1]
     end
-    local part = nil
-    if workspace:FindFirstChild(folderName) then
-        part = workspace[folderName]:FindFirstChild(partName)
-    end
+    
+    local part = workspace:FindFirstChild(folderName) and workspace[folderName]:FindFirstChild(partName)
     local basePos = part and part.Position or fallbackPos
     local targetPos = basePos + Vector3.new(0, 1.5, 0)
-    sendChatMessage("Tweening to " .. destName)
+    
+    sendChatMessage("Moving to " .. destName)
     executeTween(targetPos)
-    sendChatMessage("Reached destination: " .. destName)
-    print("Setup command completed for " .. destName .. " at " .. tostring(targetPos))
+    sendChatMessage("Arrived at " .. destName)
 end
 
--- Drop commands remain unchanged.
 local function lockedToPosition(targetPos)
     local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
     while State.CashDropActive do
         hrp.CFrame = CFrame.new(targetPos)
-        wait(0.1)
+        task.wait()
     end
-    print("Player " .. player.Name .. " unlocked from locked position " .. tostring(targetPos))
 end
 
 local function CashDrop()
@@ -299,57 +279,70 @@ local function CashDrop()
             local currentCash = updateDroppedCashTotal()
             if currentCash >= State.CashDropTarget then
                 State.CashDropActive = false
-                sendChatMessage("Drop target reached. Total dropped: " .. formatShort(currentCash))
-                break
+                sendChatMessage("Target reached: " .. formatShort(currentCash))
             end
         end
     end
 end
 
--- Airlock command:
--- When ?airlock <offset> is issued, tween upward by that offset (using speed = 100 studs/sec)
--- Once reached, anchor the HumanoidRootPart to lock the position.
 local function startAirlock(offset)
-    offset = tonumber(offset) or parseCashValue(offset)
-    if not offset then
-        print("Invalid airlock offset")
-        return
+    -- Clean previous state
+    if State.AirlockActive then
+        State.AirlockActive = false
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.Anchored = false
+        end
     end
-    offset = math.min(offset, 20)
+
+    offset = tonumber(offset) or parseCashValue(offset)
+    if not offset then return end
+    offset = math.clamp(offset, -20, 20)
+
     local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
-    local currentPos = hrp.Position
-    local targetPos = Vector3.new(currentPos.X, currentPos.Y + offset, currentPos.Z)
-    sendChatMessage("Airlock tweening to Y " .. targetPos.Y)
-    -- Tween using speed 100 studs/sec (duration = offset/100)
-    executeTween(targetPos, offset/100)
-    sendChatMessage("Airlock engaged at Y " .. targetPos.Y)
-    hrp.Anchored = true  -- Lock position without continuous teleporting
+    
+    -- Store base Y if first activation
+    if not State.AirlockBaseY then
+        State.AirlockBaseY = hrp.Position.Y
+    end
+
+    local targetPos = Vector3.new(
+        hrp.Position.X,
+        State.AirlockBaseY + offset,
+        hrp.Position.Z
+    )
+
     State.AirlockActive = true
-    State.AirlockTarget = targetPos
+    sendChatMessage("Airlock started")
+    
+    -- Tween at 75 studs/s
+    executeTween(targetPos, math.abs(offset)/75)
+    
+    if State.AirlockActive then
+        hrp.Anchored = true
+    end
 end
 
--- Unairlock: Remove the anchor from the HRP so movement resumes.
 local function stopAirlock()
-    local character = player.Character or player.CharacterAdded:Wait()
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.Anchored = false
-    end
     State.AirlockActive = false
-    State.AirlockTarget = nil
-    sendChatMessage("Airlock disengaged.")
+    State.AirlockBaseY = nil
+    
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.Anchored = false
+    end
+    sendChatMessage("Airlock disabled")
 end
 
 ------------------------------------------------
--- Process Host Commands
+-- Command Processor
 ------------------------------------------------
 local function processHostCommand(msg)
     if not msg or #msg < 2 then return end
-    local firstChar = msg:sub(1,1)
-    if not table.find(allowedPrefixes, firstChar) then return end
+    local prefix = msg:sub(1,1)
+    if not table.find(allowedPrefixes, prefix) then return end
+    
     local command = msg:sub(2):lower()
-    print("Received host command: '" .. command .. "'")
     
     if command == "setup bank" then
         processSetupCommand("bank")
@@ -358,67 +351,48 @@ local function processHostCommand(msg)
     elseif command == "setup ufo" then
         processSetupCommand("ufo")
     elseif command:sub(1,4) == "drop" then
-        local arg = command:match("^drop%s+(%S+)$")
-        if arg then
-            local dropTarget = parseCashValue(arg)
-            State.CashDropTarget = dropTarget
-            sendChatMessage("Drop started. Value: " .. arg)
-        else
-            State.CashDropTarget = nil
-            sendChatMessage("Drop started.")
-        end
+        local arg = command:match("drop%s+(.+)$")
+        State.CashDropTarget = arg and parseCashValue(arg)
         State.CashDropActive = true
-        local character = player.Character or player.CharacterAdded:Wait()
-        local hrp = character:WaitForChild("HumanoidRootPart", 5)
-        local lockedPos = hrp.Position
-        spawn(function() lockedToPosition(lockedPos) end)
-        spawn(function() CashDrop() end)
+        spawn(function()
+            lockedToPosition((player.Character or player.CharacterAdded:Wait()).HumanoidRootPart.Position)
+        end)
+        spawn(CashDrop)
+        sendChatMessage("Drop started" .. (State.CashDropTarget and (" Target: " .. formatShort(State.CashDropTarget)) or ""))
     elseif command == "stop" then
         State.CashDropActive = false
-        sendChatMessage("Drop stopped.")
+        sendChatMessage("Drop stopped")
     elseif command:sub(1,7) == "airlock" then
-        local offset = command:match("^airlock%s+(%S+)$")
-        if offset then
-            startAirlock(offset)
-        else
-            print("Airlock command requires an offset value.")
-        end
+        local offset = command:match("airlock%s+([%-%d%.]+)$")
+        if offset then startAirlock(offset) end
     elseif command == "unairlock" then
         stopAirlock()
     end
 end
 
 ------------------------------------------------
--- Chat Listener (Alts Only)
+-- Chat Listener Setup
 ------------------------------------------------
 if player.UserId ~= Host.host then
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local ChatEvents = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents")
-    local success, hostName = pcall(game.Players.GetNameFromUserIdAsync, game.Players, Host.host)
-    if success and hostName then
-        ChatEvents.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
-            if messageData and messageData.FromSpeaker and messageData.Message then
-                if messageData.FromSpeaker:lower() == hostName:lower() then
-                    print("Alt (" .. player.Name .. ") received host command: " .. messageData.Message)
-                    processHostCommand(messageData.Message)
-                end
-            end
-        end)
-        print("Chat listener set up for alt " .. player.Name)
-    else
-        print("Failed to get host name for chat listening.")
-    end
+    local ChatEvents = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents")
+    local hostName = game.Players:GetNameFromUserIdAsync(Host.host)
+    
+    ChatEvents.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+        if messageData.FromSpeaker == hostName then
+            processHostCommand(messageData.Message)
+        end
+    end)
 end
 
 ------------------------------------------------
--- End of Chat Listener
+-- Initialization
 ------------------------------------------------
 local function checkPlayerRole()
     if player.UserId == Host.host then
-        print("You are the host!")
+        print("Host initialized")
         applyFpsSettings(true)
     else
-        print("You are an account and will follow the host!")
+        print("Alt account initialized")
         applyFpsSettings(false)
     end
 end
