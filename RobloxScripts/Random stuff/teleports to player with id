@@ -1,11 +1,28 @@
--- Teleport & Noclip Follower Script (expects a global `settings` table)
+--[[ 
+  Teleport & Noclip Follower Script v4
+  Place this Lua file in your GitHub and load via loadstring
+  Expects a global `getgenv().settings` table before loading, e.g.:
 
-local Players       = game:GetService("Players")
-local localPlayer   = Players.LocalPlayer
-local myUserId      = localPlayer.UserId
-local stopTeleport  = false
+      getgenv().settings = { playerId = 7706881625 }
+      loadstring(game:HttpGet("<RAW_URL_HERE>"))()
+--]]
 
--- listen for you typing "?stop"
+-- SERVICES
+local Players = game:GetService("Players")
+
+-- GLOBAL SETTINGS from getgenv
+local settings = getgenv().settings
+if not settings or type(settings.playerId) ~= "number" then
+    warn("Teleport script: getgenv().settings.playerId must be defined as a number before loading")
+    return
+end
+
+-- REFERENCES
+local localPlayer  = Players.LocalPlayer
+local myUserId     = localPlayer.UserId
+local stopTeleport = false
+
+-- CHAT COMMAND: listens for you typing "?stop" in chat to stop teleport loop
 local function setupChatListener(plr)
     plr.Chatted:Connect(function(msg)
         if plr.UserId == myUserId and msg:lower() == "?stop" then
@@ -16,7 +33,7 @@ end
 for _, plr in ipairs(Players:GetPlayers()) do setupChatListener(plr) end
 Players.PlayerAdded:Connect(setupChatListener)
 
--- disable collisions on the target so you can walk through them
+-- Noclip: disable collisions on target's parts so you can walk through them
 local function noclipTarget(char)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -25,7 +42,7 @@ local function noclipTarget(char)
     end
 end
 
--- teleport you exactly to the target’s HumanoidRootPart
+-- Teleport: move you directly to the target's position (0-stud offset)
 local function teleportToTarget(targetPlayer)
     local tChar = targetPlayer.Character
     local mChar = localPlayer.Character
@@ -39,30 +56,38 @@ local function teleportToTarget(targetPlayer)
     end
 end
 
--- main loop: 10s of teleporting every 0.1s, then 10s off, repeat
+-- Main loop: repeats 10s active (teleport every 0.1s), 10s pause
 local function startFollow()
     stopTeleport = false
-    local target = Players:GetPlayerByUserId(settings.playerId)
-    if not target then return end
+    local targetPlayer = Players:GetPlayerByUserId(settings.playerId)
+    if not targetPlayer then
+        warn("Teleport script: no player found with UserId ", settings.playerId)
+        return
+    end
 
-    if target.Character then noclipTarget(target.Character) end
-    target.CharacterAdded:Connect(function(c)
+    -- ensure noclip on spawn and respawn of target
+    if targetPlayer.Character then noclipTarget(targetPlayer.Character) end
+    targetPlayer.CharacterAdded:Connect(function(c)
         c:WaitForChild("HumanoidRootPart", 5)
         noclipTarget(c)
     end)
 
+    -- teleport/noclip cycle
     while not stopTeleport do
-        local t0 = tick()
-        while tick() - t0 < 10 and not stopTeleport do
-            teleportToTarget(target)
+        local startTime = tick()
+        -- active phase
+        while tick() - startTime < 10 and not stopTeleport do
+            teleportToTarget(targetPlayer)
             wait(0.1)
         end
-        local t1 = tick()
-        while tick() - t1 < 10 and not stopTeleport do
+        -- pause phase
+        local pauseTime = tick()
+        while tick() - pauseTime < 10 and not stopTeleport do
             wait(0.1)
         end
     end
 end
 
+-- Start on your spawn and respawn
 if localPlayer.Character then startFollow() end
 localPlayer.CharacterAdded:Connect(startFollow)
