@@ -1,22 +1,11 @@
---[[ 
-  Teleport & Noclip Follower Script v3
-  Place this as a LocalScript under StarterPlayer → StarterPlayerScripts
---]]
+-- Teleport & Noclip Follower Script (expects a global `settings` table)
 
--- SETTINGS
--- local settings = {
-  --  playerId = 7706881625  -- ← target player's UserId
- --}
+local Players       = game:GetService("Players")
+local localPlayer   = Players.LocalPlayer
+local myUserId      = localPlayer.UserId
+local stopTeleport  = false
 
--- SERVICES
-local Players = game:GetService("Players")
-
--- REFERENCES
-local localPlayer = Players.LocalPlayer
-local myUserId = localPlayer.UserId
-local stopTeleport = false
-
--- CHAT COMMAND: listens for you typing "?stop" in chat to stop teleport loop
+-- listen for you typing "?stop"
 local function setupChatListener(plr)
     plr.Chatted:Connect(function(msg)
         if plr.UserId == myUserId and msg:lower() == "?stop" then
@@ -24,14 +13,10 @@ local function setupChatListener(plr)
         end
     end)
 end
-
--- Attach listener to current and future players
-for _, plr in ipairs(Players:GetPlayers()) do
-    setupChatListener(plr)
-end
+for _, plr in ipairs(Players:GetPlayers()) do setupChatListener(plr) end
 Players.PlayerAdded:Connect(setupChatListener)
 
--- Noclip: Disable collisions on target's parts so you can walk through them
+-- disable collisions on the target so you can walk through them
 local function noclipTarget(char)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -40,55 +25,44 @@ local function noclipTarget(char)
     end
 end
 
--- Teleport: Move you directly to the target's position (0-stud offset)
+-- teleport you exactly to the target’s HumanoidRootPart
 local function teleportToTarget(targetPlayer)
-    local targetChar = targetPlayer.Character
-    local myChar = localPlayer.Character
-    if targetChar and myChar then
-        local tRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        local mRoot = myChar:FindFirstChild("HumanoidRootPart")
+    local tChar = targetPlayer.Character
+    local mChar = localPlayer.Character
+    if tChar and mChar then
+        local tRoot = tChar:FindFirstChild("HumanoidRootPart")
+        local mRoot = mChar:FindFirstChild("HumanoidRootPart")
         if tRoot and mRoot then
-            -- Ensure noclip before teleporting
-            noclipTarget(targetChar)
-            -- Teleport to exact same position
+            noclipTarget(tChar)
             mRoot.CFrame = tRoot.CFrame
         end
     end
 end
 
--- Main loop: repeats 10s active (teleport every 0.1s), 10s pause
+-- main loop: 10s of teleporting every 0.1s, then 10s off, repeat
 local function startFollow()
     stopTeleport = false
-    local targetPlayer = Players:GetPlayerByUserId(settings.playerId)
-    if not targetPlayer then return end
+    local target = Players:GetPlayerByUserId(settings.playerId)
+    if not target then return end
 
-    -- Ensure noclip on spawn and respawn of target
-    if targetPlayer.Character then
-        noclipTarget(targetPlayer.Character)
-    end
-    targetPlayer.CharacterAdded:Connect(function(c)
+    if target.Character then noclipTarget(target.Character) end
+    target.CharacterAdded:Connect(function(c)
         c:WaitForChild("HumanoidRootPart", 5)
         noclipTarget(c)
     end)
 
-    -- Teleport/Noclip cycle
     while not stopTeleport do
-        local startTime = tick()
-        -- ACTIVE PHASE: 10s
-        while tick() - startTime < 10 and not stopTeleport do
-            teleportToTarget(targetPlayer)
+        local t0 = tick()
+        while tick() - t0 < 10 and not stopTeleport do
+            teleportToTarget(target)
             wait(0.1)
         end
-        -- PAUSE PHASE: 10s
-        local pauseTime = tick()
-        while tick() - pauseTime < 10 and not stopTeleport do
+        local t1 = tick()
+        while tick() - t1 < 10 and not stopTeleport do
             wait(0.1)
         end
     end
 end
 
--- Kick off on your spawn and respawn
-if localPlayer.Character then
-    startFollow()
-end
+if localPlayer.Character then startFollow() end
 localPlayer.CharacterAdded:Connect(startFollow)
