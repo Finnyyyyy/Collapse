@@ -1,15 +1,25 @@
 --// Services
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local Players            = game:GetService("Players")
+local Workspace          = game:GetService("Workspace")
+local RunService         = game:GetService("RunService")
+local UserInputService   = game:GetService("UserInputService")
 
 --// Variables
-local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
+local LocalPlayer        = Players.LocalPlayer
+local Camera             = Workspace.CurrentCamera
+local SilentAimTarget    = nil
+local SilentAimEnabled   = true
 
-local SilentAimTarget = nil
-local SilentAimEnabled = true
+--// FOV Circle Settings
+local FOV_RADIUS         = 150
+local FOV_Circle         = Drawing.new("Circle")
+FOV_Circle.Thickness     = 1
+FOV_Circle.NumSides      = 64
+FOV_Circle.Radius        = FOV_RADIUS
+FOV_Circle.Filled        = false
+FOV_Circle.Transparency  = 1
+FOV_Circle.Color         = Color3.fromRGB(255, 255, 255)
+FOV_Circle.Visible       = true
 
 --// Functions
 local function GetDirection(origin, destination)
@@ -18,7 +28,7 @@ end
 
 local function WorldToScreen(position)
     local screenPos, onScreen = Camera:WorldToViewportPoint(position)
-    return {Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen}
+    return { Position = Vector2.new(screenPos.X, screenPos.Y), OnScreen = onScreen }
 end
 
 local function HasCharacter(player)
@@ -26,19 +36,19 @@ local function HasCharacter(player)
 end
 
 local function GetClosestPlayer()
-    local mousePos = UserInputService:GetMouseLocation()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
+    local mousePos       = UserInputService:GetMouseLocation()
+    local closestPlayer  = nil
+    local shortestDist   = math.huge
 
-    for _, player in pairs(Players:GetPlayers()) do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and HasCharacter(player) then
-            local rootPart = player.Character.HumanoidRootPart
-            local screenPos = WorldToScreen(rootPart.Position)
+            local rootPart   = player.Character.HumanoidRootPart
+            local screenInfo = WorldToScreen(rootPart.Position)
 
-            if screenPos.OnScreen then
-                local distance = (mousePos - screenPos.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
+            if screenInfo.OnScreen then
+                local dist = (mousePos - screenInfo.Position).Magnitude
+                if dist < shortestDist and dist <= FOV_RADIUS then
+                    shortestDist  = dist
                     closestPlayer = player
                 end
             end
@@ -48,12 +58,19 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
---// Update Silent Aim Target
+--// Update Silent Aim Target & Draw FOV
 RunService.RenderStepped:Connect(function()
     if SilentAimEnabled then
         SilentAimTarget = GetClosestPlayer()
+
+        -- update FOV circle position
+        local mpos = UserInputService:GetMouseLocation()
+        FOV_Circle.Position = mpos
+        FOV_Circle.Radius   = FOV_RADIUS
+        FOV_Circle.Visible  = true
     else
         SilentAimTarget = nil
+        FOV_Circle.Visible = false
     end
 end)
 
@@ -61,11 +78,11 @@ end)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
-    local args = {...}
+    local args   = { ... }
 
     if not checkcaller() and self == Workspace and method == "Raycast" and SilentAimTarget then
         local origin = args[1]
-        args[2] = GetDirection(origin, SilentAimTarget.Character.HumanoidRootPart.Position)
+        args[2]       = GetDirection(origin, SilentAimTarget.Character.HumanoidRootPart.Position)
         return oldNamecall(self, unpack(args))
     end
 
