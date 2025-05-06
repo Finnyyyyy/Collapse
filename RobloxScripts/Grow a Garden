@@ -1,79 +1,59 @@
 -- wait for the game to load
 repeat task.wait(0.25) until game:IsLoaded();
 
--- load Fluent
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+-- three loadstrings: Fluent‑Renewed library, SaveManager & InterfaceManager
+local Library          = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager      = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
--- create the window at 500×300
-local Window = Fluent:CreateWindow({
+-- create the window at 1200×800
+local Window = Library:CreateWindow{
     Title       = "Pluto | Grow a garden",
     SubTitle    = "Made by Finny<3",
     TabWidth    = 120,
-    Size        = UDim2.fromOffset(500, 300),   -- resized
+    Size        = UDim2.fromOffset(1200, 800),
+    Resize      = true,
+    MinSize     = Vector2.new(470, 380),
     Acrylic     = true,
     Theme       = "Amethyst Dark",
     MinimizeKey = Enum.KeyCode.RightShift,
+}
+
+-- create tabs exactly like the example
+local Tabs = {
+    Status   = Window:CreateTab{ Title = "Status",   Icon = "phosphor-chart-line" },
+    Farm     = Window:CreateTab{ Title = "Farm",     Icon = "phosphor-farm"       },
+    Settings = Window:CreateTab{ Title = "Settings", Icon = "settings"            },
+}
+
+-- add an uptime paragraph in the Status tab
+local UptimeParagraph = Tabs.Status:CreateParagraph("Uptime", {
+    Title   = "Uptime",
+    Content = "00:00:00"
 })
-
--- ... (earlier code unchanged)
-
+local startTime = tick()
 task.spawn(function()
-    if not getgenv().LoadedMobileUI then
-        getgenv().LoadedMobileUI = true
-        getgenv().Image    = "rbxassetid://5205790826"   -- updated icon ID
-        getgenv().ToggleUI = "RightShift"
-
-        local gui = Instance.new("ScreenGui")
-        gui.Name = "OpenUI"
-        gui.Parent = game:GetService("CoreGui")
-        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        local btn = Instance.new("ImageButton")
-        btn.Parent               = gui
-        btn.BackgroundColor3     = Color3.fromRGB(105,105,105)
-        btn.BackgroundTransparency = 0.8
-        btn.Position             = UDim2.new(0.9,0,0.1,0)
-        btn.Size                 = UDim2.new(0,50,0,50)
-        btn.Image                = getgenv().Image
-        btn.Draggable            = true
-        btn.Transparency         = 1
-
-        local cr = Instance.new("UICorner")
-        cr.CornerRadius = UDim.new(0,200)
-        cr.Parent       = btn
-
-        btn.MouseButton1Click:Connect(function()
-            game:GetService("VirtualInputManager"):SendKeyEvent(true, getgenv().ToggleUI, false, game)
-        end)
+    while true do
+        task.wait(1)
+        local elapsed = math.floor(tick() - startTime)
+        local h = math.floor(elapsed / 3600)
+        local m = math.floor((elapsed % 3600) / 60)
+        local s = elapsed % 60
+        UptimeParagraph:SetValue(string.format("%02d:%02d:%02d", h, m, s))
     end
 end)
 
-
--- notifications
-Fluent:Notify{ Title="Minimize Key", Content="Press RightShift to toggle the GUI", Duration=5 }
-Fluent:Notify{ Title="Pluto Loaded", Content="Script loaded successfully", Duration=5 }
-
--- add tabs via the library’s AddTab API 
-local Tabs = {
-    Status = Window:AddTab({ Title = "Status", Icon = "phosphor-chart-line" }),
-    Farm   = Window:AddTab({ Title = "Farm",   Icon = "phosphor-farm"   }),
-}
-
--- build out the Farm tab instead of Status 
+-- build out the Farm tab
 do
-    local T = Tabs.Farm
+    local F = Tabs.Farm
 
-    T:AddToggle("AutoCollect", {
-        Title   = "Auto Collect",
-        Default = false,
-    }):OnChanged(function(v) print("Auto Collect:", v) end)
+    F:CreateToggle("AutoCollect", { Title = "Auto Collect", Default = false })
+     :OnChanged(function(v) print("Auto Collect:", v) end)
 
-    T:AddToggle("AutoSell", {
-        Title   = "Auto Sell",
-        Default = false,
-    }):OnChanged(function(v) print("Auto Sell:", v) end)
+    F:CreateToggle("AutoSell", { Title = "Auto Sell", Default = false })
+     :OnChanged(function(v) print("Auto Sell:", v) end)
 
-    T:AddDropdown("SellItems", {
+    F:CreateDropdown("SellItems", {
         Title       = "Sell Items",
         Description = "Select which items to sell",
         Values      = {"ItemA","ItemB","ItemC"},
@@ -85,12 +65,10 @@ do
         print("Sell Items:", table.concat(out, ", "))
     end)
 
-    T:AddToggle("AutoBuyStock", {
-        Title   = "Auto Buy Stock",
-        Default = false,
-    }):OnChanged(function(v) print("Auto Buy Stock:", v) end)
+    F:CreateToggle("AutoBuyStock", { Title = "Auto Buy Stock", Default = false })
+     :OnChanged(function(v) print("Auto Buy Stock:", v) end)
 
-    T:AddDropdown("BuyStockItems", {
+    F:CreateDropdown("BuyStockItems", {
         Title       = "Auto Buy Stock",
         Description = "Select which stock to buy",
         Values      = {"StockA","StockB","StockC"},
@@ -105,3 +83,23 @@ end
 
 -- select the first tab
 Window:SelectTab(1)
+
+-- ─────── Save & Interface Config ─────────
+SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes{}
+
+InterfaceManager:SetFolder("Pluto")
+SaveManager:SetFolder("Pluto - Grow a garden")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+-- ─────── Notifications ─────────
+Library:Notify{ Title="Minimize Key", Content="Press RightShift to toggle the GUI", Duration=5 }
+Library:Notify{ Title="Pluto Loaded",  Content="Script loaded successfully",    Duration=5 }
+
+-- auto‑load any config marked for autoload
+SaveManager:LoadAutoloadConfig()
