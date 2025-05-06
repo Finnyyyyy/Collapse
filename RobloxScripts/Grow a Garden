@@ -15,11 +15,12 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightShift,
 })
 
--- mobile‑UI open button (after Fluent is ready)
+-- ... (earlier code unchanged)
+
 task.spawn(function()
     if not getgenv().LoadedMobileUI then
         getgenv().LoadedMobileUI = true
-        getgenv().Image    = "rbxassetid://7229442422"
+        getgenv().Image    = "rbxassetid://5205790826"   -- updated icon ID
         getgenv().ToggleUI = "RightShift"
 
         local gui = Instance.new("ScreenGui")
@@ -46,6 +47,7 @@ task.spawn(function()
         end)
     end
 end)
+
 
 -- notifications
 Fluent:Notify{ Title="Minimize Key", Content="Press RightShift to toggle the GUI", Duration=5 }
