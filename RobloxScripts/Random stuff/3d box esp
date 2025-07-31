@@ -1,0 +1,116 @@
+--// Final 3D Wireframe ESP Script (Symmetrical Box)
+--// Author: Software Architect GPT
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Settings
+local BOX_COLOR = Color3.fromRGB(255, 0, 0)
+local BOX_THICKNESS = 1
+
+-- Box dimensions: equal width and depth, taller height
+local BOX_SIZE = Vector3.new(4, 6, 4) -- Width (X), Height (Y), Depth (Z)
+
+-- Storage for ESP lines per player
+local ESP = {}
+
+-- Generate 8 corners of a 3D box centered on `center` position
+local function getBoxCorners(center)
+    local size = BOX_SIZE / 2
+    return {
+        center + Vector3.new(-size.X,  size.Y, -size.Z), -- 1: Top Front Left
+        center + Vector3.new( size.X,  size.Y, -size.Z), -- 2: Top Front Right
+        center + Vector3.new( size.X,  size.Y,  size.Z), -- 3: Top Back Right
+        center + Vector3.new(-size.X,  size.Y,  size.Z), -- 4: Top Back Left
+        center + Vector3.new(-size.X, -size.Y, -size.Z), -- 5: Bottom Front Left
+        center + Vector3.new( size.X, -size.Y, -size.Z), -- 6: Bottom Front Right
+        center + Vector3.new( size.X, -size.Y,  size.Z), -- 7: Bottom Back Right
+        center + Vector3.new(-size.X, -size.Y,  size.Z), -- 8: Bottom Back Left
+    }
+end
+
+-- Create 12 lines (wireframe box edges)
+local function createWireBox()
+    local lines = {}
+    for i = 1, 12 do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Color = BOX_COLOR
+        line.Thickness = BOX_THICKNESS
+        table.insert(lines, line)
+    end
+    return lines
+end
+
+-- Clean up when player leaves
+Players.PlayerRemoving:Connect(function(player)
+    if ESP[player] then
+        for _, line in ipairs(ESP[player]) do
+            line:Remove()
+        end
+        ESP[player] = nil
+    end
+end)
+
+-- Main update loop
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local corners3D = getBoxCorners(hrp.Position)
+            local corners2D = {}
+            local visible = true
+
+            -- Project 3D corners to screen space
+            for i, corner in ipairs(corners3D) do
+                local screenPos, onScreen = Camera:WorldToViewportPoint(corner)
+                if not onScreen then
+                    visible = false
+                    break
+                end
+                corners2D[i] = Vector2.new(screenPos.X, screenPos.Y)
+            end
+
+            -- Create box if not already made
+            if not ESP[player] then
+                ESP[player] = createWireBox()
+            end
+
+            local lines = ESP[player]
+            if visible then
+                -- Top face
+                lines[1].From = corners2D[1]; lines[1].To = corners2D[2]
+                lines[2].From = corners2D[2]; lines[2].To = corners2D[3]
+                lines[3].From = corners2D[3]; lines[3].To = corners2D[4]
+                lines[4].From = corners2D[4]; lines[4].To = corners2D[1]
+
+                -- Bottom face
+                lines[5].From = corners2D[5]; lines[5].To = corners2D[6]
+                lines[6].From = corners2D[6]; lines[6].To = corners2D[7]
+                lines[7].From = corners2D[7]; lines[7].To = corners2D[8]
+                lines[8].From = corners2D[8]; lines[8].To = corners2D[5]
+
+                -- Vertical edges
+                lines[9].From  = corners2D[1]; lines[9].To  = corners2D[5]
+                lines[10].From = corners2D[2]; lines[10].To = corners2D[6]
+                lines[11].From = corners2D[3]; lines[11].To = corners2D[7]
+                lines[12].From = corners2D[4]; lines[12].To = corners2D[8]
+
+                -- Show all lines
+                for _, line in ipairs(lines) do
+                    line.Visible = true
+                end
+            else
+                for _, line in ipairs(lines) do
+                    line.Visible = false
+                end
+            end
+        elseif ESP[player] then
+            for _, line in ipairs(ESP[player]) do
+                line.Visible = false
+            end
+        end
+    end
+end)
