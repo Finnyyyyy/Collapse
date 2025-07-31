@@ -1,5 +1,4 @@
---// Final 3D Wireframe ESP Script (Symmetrical Box)
---// Author: Software Architect GPT
+
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
