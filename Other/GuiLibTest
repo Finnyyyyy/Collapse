@@ -1,0 +1,340 @@
+-- ModuleScript: GuiLib
+-- place this in e.g. ReplicatedStorage.GuiLib
+
+local GuiLib = {}
+GuiLib.__index = GuiLib
+
+-- SERVICES
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+-- UTILITY: make draggable frame
+local function makeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    dragHandle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+end
+
+-- UTILITY: make resizable from corner
+local function makeResizable(frame, corner)
+    corner = corner or frame
+    local resizing, startPos, startSize, startMouse
+    corner.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            resizing = true
+            startMouse = input.Position
+            startSize = frame.Size
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    resizing = false
+                end
+            end)
+        end
+    end)
+    corner.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            RunService:BindToRenderStep(corner:GetDebugId(), 200, function()
+                if resizing then
+                    local delta = Vector2.new(
+                        input.Position.X - startMouse.X,
+                        input.Position.Y - startMouse.Y
+                    )
+                    frame.Size = UDim2.new(
+                        0,
+                        math.clamp(startSize.X.Offset + delta.X, 200, 1000),
+                        0,
+                        math.clamp(startSize.Y.Offset + delta.Y, 100, 800)
+                    )
+                end
+            end)
+        else
+            RunService:UnbindFromRenderStep(corner:GetDebugId())
+        end
+    end)
+end
+
+-- create common UI templates
+local function new(class, props)
+    local obj = Instance.new(class)
+    for k, v in pairs(props) do
+        obj[k] = v
+    end
+    return obj
+end
+
+-- Window constructor
+function GuiLib:CreateWindow(titleText)
+    -- ScreenGui
+    local screenGui = new("ScreenGui", {
+        Name = "GuiLibWindow_"..titleText,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    })
+    screenGui.Parent = game:GetService("CoreGui") -- or PlayerGui
+
+    -- Main frame
+    local main = new("Frame", {
+        Name = "Main",
+        Parent = screenGui,
+        Size = UDim2.new(0, 600, 0, 400),
+        Position = UDim2.new(0.2, 0, 0.2, 0),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0
+    })
+    -- Titlebar
+    local titleBar = new("TextLabel", {
+        Name = "TitleBar", Parent = main,
+        Size = UDim2.new(1,0,0,24),
+        BackgroundColor3 = Color3.fromRGB(25,25,25),
+        Text = titleText, TextColor3 = Color3.new(1,1,1),
+        Font = Enum.Font.UIBold, TextSize = 18,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Padding = new("UIPadding",{Parent=nil, PaddingLeft=UDim.new(0,8)})
+    })
+    titleBar.Padding.Parent = titleBar
+
+    -- Tabs container
+    local tabBar = new("Frame", {
+        Name="TabBar", Parent=main,
+        Size=UDim2.new(1,0,0,24),
+        Position=UDim2.new(0,0,0,24),
+        BackgroundTransparency=1
+    })
+    local tabLayout = new("UIListLayout",{
+        Parent=tabBar, FillDirection=Enum.FillDirection.Horizontal,
+        SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)
+    })
+
+    -- Content
+    local contentFrame = new("Frame",{
+        Name="Content", Parent=main,
+        Size=UDim2.new(1,-4,1,-52),
+        Position=UDim2.new(0,2,0,52),
+        BackgroundTransparency=1
+    })
+
+    -- Resize handle
+    local resizeGrip = new("Frame",{
+        Name="ResizeGrip", Parent=main,
+        Size=UDim2.new(0,16,0,16),
+        Position=UDim2.new(1,-16,1,-16),
+        BackgroundColor3=Color3.fromRGB(50,50,50)
+    })
+
+    -- make draggable & resizable
+    makeDraggable(main, titleBar)
+    makeResizable(main, resizeGrip)
+
+    -- window object
+    local win = {
+        ScreenGui = screenGui;
+        Main = main;
+        TabBar = tabBar;
+        Content = contentFrame;
+        Tabs = {};
+    }
+    setmetatable(win, GuiLib)
+
+    return win
+end
+
+-- CreateTab method
+function GuiLib:CreateTab(name)
+    assert(self.TabBar, "Use :CreateWindow first.")
+    -- Tab button
+    local btn = new("TextButton",{
+        Name=name.."Btn", Parent=self.TabBar,
+        Size=UDim2.new(0,100,1,0),
+        BackgroundColor3=Color3.fromRGB(40,40,40),
+        Text=name, TextColor3=Color3.new(1,1,1),
+        Font=Enum.Font.SourceSans, TextSize=16
+    })
+    btn.MouseButton1Click:Connect(function()
+        for _,t in pairs(self.Tabs) do
+            t.Frame.Visible = false
+            t.Button.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        self.Tabs[name].Frame.Visible = true
+    end)
+
+    -- Container frame
+    local tabFrame = new("Frame",{
+        Name=name, Parent=self.Content,
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1,
+        Visible = #self.Tabs==0 -- first tab shows
+    })
+
+    -- Left & Right sections
+    local leftSec = new("Frame",{
+        Name="Left", Parent=tabFrame,
+        Size=UDim2.new(0.5,-2,1,0),
+        Position=UDim2.new(0,0,0,0),
+        BackgroundTransparency=1
+    })
+    local rightSec = new("Frame",{
+        Name="Right", Parent=tabFrame,
+        Size=UDim2.new(0.5,-2,1,0),
+        Position=UDim2.new(0.5,4,0,0),
+        BackgroundTransparency=1
+    })
+
+    for _,sec in pairs({leftSec,rightSec}) do
+        local scroll = new("ScrollingFrame",{
+            Name="Scroll", Parent=sec,
+            Size=UDim2.new(1,0,1,0),
+            BackgroundTransparency=1,
+            CanvasSize=UDim2.new(0,0,1,0),
+            AutomaticCanvasSize=Enum.AutomaticSize.Y
+        })
+        new("UIListLayout",{Parent=scroll,SortOrder=Enum.SortOrder.LayoutOrder,Padding=UDim.new(0,4)})
+        new("UIPadding",{Parent=scroll,PaddingTop=UDim.new(0,4),PaddingLeft=UDim.new(0,4)})
+    end
+
+    -- Register
+    self.Tabs[name] = {
+        Button = btn;
+        Frame = tabFrame;
+        Sections = {
+            Left = leftSec.Scroll;
+            Right = rightSec.Scroll;
+        };
+    }
+    table.insert(self.Tabs, name)
+    -- if first tab: highlight
+    if #self.Tabs == 1 then
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    end
+
+    -- Tab API
+    local tabAPI = {}
+    function tabAPI:AddSection(side)
+        assert(side=="Left" or side=="Right","Side must be 'Left' or 'Right'")
+        return {
+            _parent = self.Sections[side],
+            AddToggle = function(_,label,default,cb)
+                local frame = new("Frame",{Parent=self.Sections[side],Size=UDim2.new(1,0,0,30),BackgroundTransparency=1})
+                local txt = new("TextLabel",{Parent=frame,Text=label,Size=UDim2.new(0.6,0,1,0),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16,TextXAlignment=Enum.TextXAlignment.Left})
+                local toggle = new("TextButton",{Parent=frame,Size=UDim2.new(0,30,0,30),Position=UDim2.new(1,-30,0,0),BackgroundColor3=default and Color3.fromRGB(0,200,0) or Color3.fromRGB(100,100,100)})
+                toggle.MouseButton1Click:Connect(function()
+                    default = not default
+                    toggle.BackgroundColor3 = default and Color3.fromRGB(0,200,0) or Color3.fromRGB(100,100,100)
+                    if cb then cb(default) end
+                end)
+                if cb then cb(default) end
+            end,
+            AddButton = function(_,label,cb)
+                local btn = new("TextButton",{Parent=self.Sections[side],Text=label,Size=UDim2.new(1,0,0,30),BackgroundColor3=Color3.fromRGB(70,70,70),TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16})
+                btn.MouseButton1Click:Connect(cb)
+            end,
+            AddSlider = function(_,label,min,max,default,cb)
+                local frame = new("Frame",{Parent=self.Sections[side],Size=UDim2.new(1,0,0,40),BackgroundTransparency=1})
+                new("TextLabel",{Parent=frame,Text=label,Size=UDim2.new(1,0,0,20),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16,TextXAlignment=Enum.TextXAlignment.Left})
+                local sliderBg = new("Frame",{Parent=frame,Size=UDim2.new(1,0,0,10),Position=UDim2.new(0,0,0,25),BackgroundColor3=Color3.fromRGB(80,80,80)})
+                local fill = new("Frame",{Parent=sliderBg,Size=UDim2.new((default-min)/(max-min),0,1,0),BackgroundColor3=Color3.fromRGB(0,150,200)})
+                local dragging = false
+                sliderBg.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true end end)
+                sliderBg.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end)
+                sliderBg.InputChanged:Connect(function(i)
+                    if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then
+                        local rel = math.clamp((i.Position.X - sliderBg.AbsolutePosition.X)/sliderBg.AbsoluteSize.X,0,1)
+                        fill.Size = UDim2.new(rel,0,1,0)
+                        local val = min + rel*(max-min)
+                        if cb then cb(val) end
+                    end
+                end)
+                if cb then cb(default) end
+            end,
+            AddDropdown = function(_,label,options,default,cb)
+                local frame = new("Frame",{Parent=self.Sections[side],Size=UDim2.new(1,0,0,30),BackgroundTransparency=1})
+                new("TextLabel",{Parent=frame,Text=label,Size=UDim2.new(0.6,0,1,0),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16,TextXAlignment=Enum.TextXAlignment.Left})
+                local dd = new("TextButton",{Parent=frame,Text=default or "Select",Size=UDim2.new(0.4,0,1,0),Position=UDim2.new(0.6,0,0,0),BackgroundColor3=Color3.fromRGB(60,60,60),TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16})
+                local list = new("Frame",{Parent=frame,Size=UDim2.new(0.4,0,0,#options*25),Position=UDim2.new(0.6,0,0,30),BackgroundColor3=Color3.fromRGB(50,50,50),Visible=false})
+                list.ClipsDescendants = true
+                for i,opt in ipairs(options) do
+                    local btn = new("TextButton",{Parent=list,Text=opt,Size=UDim2.new(1,0,0,25),Position=UDim2.new(0,0,0,(i-1)*25),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16})
+                    btn.MouseButton1Click:Connect(function()
+                        dd.Text = opt
+                        list.Visible = false
+                        if cb then cb(opt) end
+                    end)
+                end
+                dd.MouseButton1Click:Connect(function() list.Visible = not list.Visible end)
+                if default and cb then cb(default) end
+            end,
+            AddMultiDropdown = function(_,label,options,defaults,cb)
+                local frame = new("Frame",{Parent=self.Sections[side],Size=UDim2.new(1,0,0,30),BackgroundTransparency=1})
+                new("TextLabel",{Parent=frame,Text=label,Size=UDim2.new(0.6,0,1,0),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16,TextXAlignment=Enum.TextXAlignment.Left})
+                local dd = new("TextButton",{Parent=frame,Text="Select...",Size=UDim2.new(0.4,0,1,0),Position=UDim2.new(0.6,0,0,0),BackgroundColor3=Color3.fromRGB(60,60,60),TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16})
+                local list = new("Frame",{Parent=frame,Size=UDim2.new(0.4,0,0,#options*25),Position=UDim2.new(0.6,0,0,30),BackgroundColor3=Color3.fromRGB(50,50,50),Visible=false})
+                list.ClipsDescendants = true
+                local selected = {}
+                for _,d in ipairs(defaults or {}) do selected[d]=true end
+                local function refreshText()
+                    local t = {}
+                    for _,opt in ipairs(options) do
+                        if selected[opt] then table.insert(t,opt) end
+                    end
+                    dd.Text = #t>0 and table.concat(t,", ") or "Select..."
+                end
+                for i,opt in ipairs(options) do
+                    local cbx = new("TextButton",{Parent=list,Text=opt,Size=UDim2.new(1,0,0,25),Position=UDim2.new(0,0,0,(i-1)*25),BackgroundTransparency=1,TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSans,TextSize=16})
+                    if selected[opt] then cbx.BackgroundColor3=Color3.fromRGB(0,150,200) end
+                    cbx.MouseButton1Click:Connect(function()
+                        selected[opt] = not selected[opt]
+                        cbx.BackgroundColor3 = selected[opt] and Color3.fromRGB(0,150,200) or nil
+                        refreshText()
+                        if cb then
+                            local t={}
+                            for k,v in pairs(selected) do if v then table.insert(t,k) end end
+                            cb(t)
+                        end
+                    end)
+                end
+                dd.MouseButton1Click:Connect(function() list.Visible = not list.Visible end)
+                refreshText()
+                if cb then
+                    local t={}
+                    for k,v in pairs(selected) do if v then table.insert(t,k) end end
+                    cb(t)
+                end
+            end,
+        }
+    end
+
+    -- return the new tab API
+    return setmetatable({Sections= self.Tabs[name].Sections}, {__index = tabAPI})
+end
+
+return GuiLib
