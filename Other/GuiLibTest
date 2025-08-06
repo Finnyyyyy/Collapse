@@ -1,222 +1,473 @@
--- GuiLibTest (Single-file, client-side GUI library for exploit environment)
--- Author: Finny y
--- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/Finnyyyyy/Collapse/refs/heads/main/Other/GuiLibTest"))()
+-- FlimBOT GUI Library
+local FlimBOT = {}
+FlimBOT.__index = FlimBOT
 
-local Library = {}
-Library.__index = Library
+-- Colors
+local COLORS = {
+    Background = Color3.fromRGB(30, 30, 30),
+    TabBackground = Color3.fromRGB(40, 40, 40),
+    TabSelected = Color3.fromRGB(60, 60, 60),
+    ElementBackground = Color3.fromRGB(50, 50, 50),
+    ElementHover = Color3.fromRGB(70, 70, 70),
+    Text = Color3.fromRGB(255, 255, 255),
+    ToggleOff = Color3.fromRGB(80, 80, 80),
+    ToggleOn = Color3.fromRGB(0, 170, 255),
+    ScrollBar = Color3.fromRGB(100, 100, 100),
+    ScrollTrack = Color3.fromRGB(40, 40, 40),
+    Border = Color3.fromRGB(20, 20, 20)
+}
 
--- Auto-correct lowercase method calls (e.g. :tab() becomes :Tab())
-setmetatable(Library, {
-    __index = function(t, k)
-        local alt = k:sub(1,1):upper() .. k:sub(2)
-        return rawget(Library, alt)
+-- Utility functions
+local function createDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-})
-
-local GuiService = game:GetService("GuiService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-
--- Utility: Create new instance with properties
-local function Create(class, props)
-    local inst = Instance.new(class)
-    for i,v in pairs(props) do
-        inst[i] = v
-    end
-    return inst
-end
-
--- Main GUI Container
-local ScreenGui = Create("ScreenGui", {
-    Name = "CollapseUI",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Global,
-    Parent = CoreGui
-})
-
--- Window Frame
-local MainFrame = Create("Frame", {
-    Size = UDim2.new(0, 600, 0, 400),
-    Position = UDim2.new(0.5, -300, 0.5, -200),
-    BackgroundColor3 = Color3.fromRGB(30,30,30),
-    BorderSizePixel = 0,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Draggable = true,
-    Active = true,
-    Parent = ScreenGui
-})
-
--- Top Tab Bar
-local TabButtons = Create("Frame", {
-    Size = UDim2.new(1, 0, 0, 30),
-    BackgroundColor3 = Color3.fromRGB(25,25,25),
-    BorderSizePixel = 0,
-    Parent = MainFrame
-})
-
-local UIListLayout = Create("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    HorizontalAlignment = Enum.HorizontalAlignment.Left,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Parent = TabButtons
-})
-
--- Content holder
-local TabContentHolder = Create("Frame", {
-    Position = UDim2.new(0, 0, 0, 30),
-    Size = UDim2.new(1, 0, 1, -30),
-    BackgroundTransparency = 1,
-    Parent = MainFrame
-})
-
--- Store all tabs
-local Tabs = {}
-
-function Library:Tab(name)
-    local TabButton = Create("TextButton", {
-        Text = name,
-        Size = UDim2.new(0, 100, 1, 0),
-        BackgroundColor3 = Color3.fromRGB(40,40,40),
-        BorderSizePixel = 0,
-        TextColor3 = Color3.fromRGB(255,255,255),
-        Parent = TabButtons
-    })
-
-    local Content = Create("Frame", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = false,
-        Parent = TabContentHolder
-    })
-
-    local Left = Create("Frame", {
-        Size = UDim2.new(0.5, -5, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        BackgroundTransparency = 1,
-        Parent = Content
-    })
-
-    local Right = Create("Frame", {
-        Size = UDim2.new(0.5, -5, 1, 0),
-        Position = UDim2.new(0.5, 5, 0, 0),
-        BackgroundTransparency = 1,
-        Parent = Content
-    })
-
-    local LeftLayout = Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 5),
-        Parent = Left
-    })
-
-    local RightLayout = Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 5),
-        Parent = Right
-    })
-
-    local TabObj = {
-        Sections = {
-            ["Left"] = Left,
-            ["Right"] = Right
-        }
-    }
-
-    function TabObj:Section(name)
-        local target = self.Sections[name]
-        local API = {}
-
-        function API:Toggle(label, default, callback)
-            local btn = Create("TextButton", {
-                Text = label .. ": " .. (default and "ON" or "OFF"),
-                Size = UDim2.new(1, 0, 0, 30),
-                BackgroundColor3 = Color3.fromRGB(50,50,50),
-                BorderSizePixel = 0,
-                TextColor3 = Color3.fromRGB(255,255,255),
-                Parent = target
-            })
-
-            local state = default
-
-            btn.MouseButton1Click:Connect(function()
-                state = not state
-                btn.Text = label .. ": " .. (state and "ON" or "OFF")
-                if callback then callback(state) end
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
             end)
         end
-
-        function API:Button(label, callback)
-            local btn = Create("TextButton", {
-                Text = label,
-                Size = UDim2.new(1, 0, 0, 30),
-                BackgroundColor3 = Color3.fromRGB(70,70,70),
-                BorderSizePixel = 0,
-                TextColor3 = Color3.fromRGB(255,255,255),
-                Parent = target
-            })
-
-            btn.MouseButton1Click:Connect(function()
-                if callback then callback() end
-            end)
-        end
-
-        function API:Slider(label, min, max, default, callback)
-            local holder = Create("Frame", {
-                Size = UDim2.new(1, 0, 0, 40),
-                BackgroundTransparency = 1,
-                Parent = target
-            })
-
-            local labelTxt = Create("TextLabel", {
-                Text = label .. ": " .. tostring(default),
-                Size = UDim2.new(1, 0, 0, 20),
-                BackgroundTransparency = 1,
-                TextColor3 = Color3.fromRGB(255,255,255),
-                Parent = holder
-            })
-
-            local slider = Create("TextButton", {
-                Text = "",
-                Size = UDim2.new(1, 0, 0, 20),
-                Position = UDim2.new(0, 0, 0, 20),
-                BackgroundColor3 = Color3.fromRGB(100,100,100),
-                Parent = holder
-            })
-
-            local value = default
-
-            slider.MouseButton1Down:Connect(function()
-                local conn
-                conn = Mouse.Move:Connect(function()
-                    local relX = Mouse.X - slider.AbsolutePosition.X
-                    local percent = math.clamp(relX / slider.AbsoluteSize.X, 0, 1)
-                    value = math.floor((min + (max - min) * percent) + 0.5)
-                    labelTxt.Text = label .. ": " .. tostring(value)
-                    if callback then callback(value) end
-                end)
-
-                UserInputService.InputEnded:Wait()
-                conn:Disconnect()
-            end)
-        end
-
-        return API
-    end
-
-    TabButton.MouseButton1Click:Connect(function()
-        for _,tab in pairs(TabContentHolder:GetChildren()) do
-            if tab:IsA("Frame") then tab.Visible = false end
-        end
-        Content.Visible = true
     end)
-
-    Content.Visible = #TabContentHolder:GetChildren() == 1 -- Show first tab by default
-
-    return TabObj
+    
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
 end
 
-return Library
+local function createResizable(frame, minSize, maxSize)
+    local resizing, dragStart, startSize
+    local handle = Instance.new("Frame")
+    handle.Name = "ResizeHandle"
+    handle.Size = UDim2.new(0, 10, 0, 10)
+    handle.Position = UDim2.new(1, -10, 1, -10)
+    handle.BackgroundColor3 = COLORS.Border
+    handle.BorderSizePixel = 0
+    handle.ZIndex = 10
+    handle.Parent = frame
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            resizing = true
+            dragStart = input.Position
+            startSize = frame.Size
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    resizing = false
+                end
+            end)
+        end
+    end)
+    
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == dragInput and resizing then
+            local delta = input.Position - dragStart
+            local newSize = UDim2.new(
+                startSize.X.Scale, 
+                math.clamp(startSize.X.Offset + delta.X, minSize.X.Offset, maxSize.X.Offset),
+                startSize.Y.Scale,
+                math.clamp(startSize.Y.Offset + delta.Y, minSize.Y.Offset, maxSize.Y.Offset)
+            )
+            frame.Size = newSize
+        end
+    end)
+end
+
+-- Create main window
+function FlimBOT:CreateWindow(name)
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = name or "FlimBOT"
+    screenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainWindow"
+    mainFrame.Size = UDim2.new(0, 400, 0, 300)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+    mainFrame.BackgroundColor3 = COLORS.Background
+    mainFrame.BorderSizePixel = 1
+    mainFrame.BorderColor3 = COLORS.Border
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = screenGui
+    
+    createDraggable(mainFrame, mainFrame)
+    createResizable(mainFrame, Vector2.new(300, 200), Vector2.new(800, 600))
+    
+    local tabContainer = Instance.new("Frame")
+    tabContainer.Name = "TabContainer"
+    tabContainer.Size = UDim2.new(1, 0, 0, 30)
+    tabContainer.BackgroundColor3 = COLORS.TabBackground
+    tabContainer.BorderSizePixel = 0
+    tabContainer.Parent = mainFrame
+    
+    local tabListLayout = Instance.new("UIListLayout")
+    tabListLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabListLayout.Parent = tabContainer
+    
+    local bodyFrame = Instance.new("Frame")
+    bodyFrame.Name = "Body"
+    bodyFrame.Size = UDim2.new(1, 0, 1, -30)
+    bodyFrame.Position = UDim2.new(0, 0, 0, 30)
+    bodyFrame.BackgroundTransparency = 1
+    bodyFrame.Parent = mainFrame
+    
+    local tabContentFolder = Instance.new("Folder")
+    tabContentFolder.Name = "TabContents"
+    tabContentFolder.Parent = bodyFrame
+    
+    local window = {
+        ScreenGui = screenGui,
+        MainFrame = mainFrame,
+        Tabs = {},
+        CurrentTab = nil
+    }
+    
+    setmetatable(window, self)
+    
+    return window
+end
+
+-- Tab creation
+function FlimBOT:CreateTab(name)
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = name .. "Tab"
+    tabButton.Size = UDim2.new(0, 80, 1, 0)
+    tabButton.BackgroundColor3 = COLORS.TabBackground
+    tabButton.BorderSizePixel = 0
+    tabButton.Text = name
+    tabButton.TextColor3 = COLORS.Text
+    tabButton.Font = Enum.Font.SourceSans
+    tabButton.TextSize = 14
+    tabButton.Parent = self.MainFrame:FindFirstChild("TabContainer")
+    
+    local tabContent = Instance.new("Frame")
+    tabContent.Name = name .. "Content"
+    tabContent.Size = UDim2.new(1, 0, 1, 0)
+    tabContent.BackgroundTransparency = 1
+    tabContent.Visible = false
+    tabContent.Parent = self.MainFrame.Body.TabContents
+    
+    local columnsFrame = Instance.new("Frame")
+    columnsFrame.Name = "Columns"
+    columnsFrame.Size = UDim2.new(1, 0, 1, -40)
+    columnsFrame.BackgroundTransparency = 1
+    columnsFrame.Parent = tabContent
+    
+    local footerFrame = Instance.new("Frame")
+    footerFrame.Name = "Footer"
+    footerFrame.Size = UDim2.new(1, 0, 0, 30)
+    footerFrame.Position = UDim2.new(0, 0, 1, -30)
+    footerFrame.BackgroundTransparency = 1
+    footerFrame.Parent = tabContent
+    
+    -- Left column
+    local leftScrolling = Instance.new("ScrollingFrame")
+    leftScrolling.Name = "LeftColumn"
+    leftScrolling.Size = UDim2.new(0.5, -5, 1, 0)
+    leftScrolling.Position = UDim2.new(0, 0, 0, 0)
+    leftScrolling.BackgroundTransparency = 1
+    leftScrolling.BorderSizePixel = 0
+    leftScrolling.ScrollBarThickness = 5
+    leftScrolling.ScrollBarImageColor3 = COLORS.ScrollBar
+    leftScrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+    leftScrolling.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    leftScrolling.ScrollingDirection = Enum.ScrollingDirection.Y
+    leftScrolling.Parent = columnsFrame
+    
+    local leftLayout = Instance.new("UIListLayout")
+    leftLayout.Padding = UDim.new(0, 5)
+    leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    leftLayout.Parent = leftScrolling
+    
+    -- Right column
+    local rightScrolling = Instance.new("ScrollingFrame")
+    rightScrolling.Name = "RightColumn"
+    rightScrolling.Size = UDim2.new(0.5, -5, 1, 0)
+    rightScrolling.Position = UDim2.new(0.5, 5, 0, 0)
+    rightScrolling.BackgroundTransparency = 1
+    rightScrolling.BorderSizePixel = 0
+    rightScrolling.ScrollBarThickness = 5
+    rightScrolling.ScrollBarImageColor3 = COLORS.ScrollBar
+    rightScrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+    rightScrolling.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    rightScrolling.ScrollingDirection = Enum.ScrollingDirection.Y
+    rightScrolling.Parent = columnsFrame
+    
+    local rightLayout = Instance.new("UIListLayout")
+    rightLayout.Padding = UDim.new(0, 5)
+    rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    rightLayout.Parent = rightScrolling
+    
+    -- Footer layout
+    local footerLayout = Instance.new("UIListLayout")
+    footerLayout.FillDirection = Enum.FillDirection.Horizontal
+    footerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    footerLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    footerLayout.Padding = UDim.new(0, 10)
+    footerLayout.Parent = footerFrame
+    
+    local tab = {
+        Name = name,
+        Button = tabButton,
+        Content = tabContent,
+        LeftColumn = leftScrolling,
+        RightColumn = rightScrolling,
+        Footer = footerFrame,
+        Elements = {}
+    }
+    
+    -- Tab switching
+    tabButton.MouseButton1Click:Connect(function()
+        for _, t in pairs(self.Tabs) do
+            t.Content.Visible = false
+            t.Button.BackgroundColor3 = COLORS.TabBackground
+        end
+        tab.Content.Visible = true
+        tab.Button.BackgroundColor3 = COLORS.TabSelected
+        self.CurrentTab = tab
+    end)
+    
+    table.insert(self.Tabs, tab)
+    
+    -- Activate first tab
+    if #self.Tabs == 1 then
+        tab.Content.Visible = true
+        tab.Button.BackgroundColor3 = COLORS.TabSelected
+        self.CurrentTab = tab
+    end
+    
+    return tab
+end
+
+-- Base element creation
+local function createBaseElement(parent, height, text)
+    local element = Instance.new("Frame")
+    element.Name = text .. "Element"
+    element.Size = UDim2.new(1, 0, 0, height)
+    element.BackgroundColor3 = COLORS.ElementBackground
+    element.BorderSizePixel = 1
+    element.BorderColor3 = COLORS.Border
+    element.Parent = parent
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -10, 0.5, 0)
+    title.Position = UDim2.new(0, 5, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = text
+    title.TextColor3 = COLORS.Text
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.SourceSans
+    title.TextSize = 14
+    title.Parent = element
+    
+    return element
+end
+
+-- Toggle element
+function FlimBOT:AddToggle(tab, side, text, default, callback)
+    local column = (side == "left") and tab.LeftColumn or tab.RightColumn
+    local element = createBaseElement(column, 30, text)
+    
+    local toggle = Instance.new("Frame")
+    toggle.Name = "Toggle"
+    toggle.Size = UDim2.new(0, 40, 0, 20)
+    toggle.Position = UDim2.new(1, -45, 0.5, -10)
+    toggle.BackgroundColor3 = default and COLORS.ToggleOn or COLORS.ToggleOff
+    toggle.BorderSizePixel = 0
+    toggle.Parent = element
+    
+    local state = default
+    
+    element.MouseEnter:Connect(function()
+        element.BackgroundColor3 = COLORS.ElementHover
+    end)
+    
+    element.MouseLeave:Connect(function()
+        element.BackgroundColor3 = COLORS.ElementBackground
+    end)
+    
+    element.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            state = not state
+            toggle.BackgroundColor3 = state and COLORS.ToggleOn or COLORS.ToggleOff
+            if callback then callback(state) end
+        end
+    end)
+    
+    local toggleObj = {
+        SetState = function(newState)
+            state = newState
+            toggle.BackgroundColor3 = state and COLORS.ToggleOn or COLORS.ToggleOff
+            if callback then callback(state) end
+        end,
+        GetState = function() return state end
+    }
+    
+    table.insert(tab.Elements, toggleObj)
+    return toggleObj
+end
+
+-- Button element
+function FlimBOT:AddButton(tab, side, text, callback)
+    local column = (side == "left") and tab.LeftColumn or tab.RightColumn
+    local element = createBaseElement(column, 30, text)
+    element.BackgroundColor3 = COLORS.ElementBackground
+    
+    element.MouseEnter:Connect(function()
+        element.BackgroundColor3 = COLORS.ElementHover
+    end)
+    
+    element.MouseLeave:Connect(function()
+        element.BackgroundColor3 = COLORS.ElementBackground
+    end)
+    
+    element.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if callback then callback() end
+        end
+    end)
+    
+    local buttonObj = {
+        Fire = function()
+            if callback then callback() end
+        end
+    }
+    
+    table.insert(tab.Elements, buttonObj)
+    return buttonObj
+end
+
+-- Footer button
+function FlimBOT:AddFooterButton(tab, text, callback)
+    local button = Instance.new("TextButton")
+    button.Name = text .. "Button"
+    button.Size = UDim2.new(0, 100, 0, 25)
+    button.BackgroundColor3 = COLORS.ElementBackground
+    button.BorderSizePixel = 1
+    button.BorderColor3 = COLORS.Border
+    button.Text = text
+    button.TextColor3 = COLORS.Text
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.Parent = tab.Footer
+    
+    button.MouseEnter:Connect(function()
+        button.BackgroundColor3 = COLORS.ElementHover
+    end)
+    
+    button.MouseLeave:Connect(function()
+        button.BackgroundColor3 = COLORS.ElementBackground
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        if callback then callback() end
+    end)
+    
+    local buttonObj = {
+        Fire = function()
+            if callback then callback() end
+        end
+    }
+    
+    return buttonObj
+end
+
+-- Slider element
+function FlimBOT:AddSlider(tab, side, text, min, max, default, callback)
+    local column = (side == "left") and tab.LeftColumn or tab.RightColumn
+    local element = createBaseElement(column, 50, text)
+    
+    local slider = Instance.new("Frame")
+    slider.Name = "Slider"
+    slider.Size = UDim2.new(1, -10, 0, 20)
+    slider.Position = UDim2.new(0, 5, 1, -25)
+    slider.BackgroundColor3 = COLORS.ToggleOff
+    slider.BorderSizePixel = 0
+    slider.Parent = element
+    
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = COLORS.ToggleOn
+    fill.BorderSizePixel = 0
+    fill.Parent = slider
+    
+    local valueText = Instance.new("TextLabel")
+    valueText.Name = "Value"
+    valueText.Size = UDim2.new(1, 0, 0, 20)
+    valueText.Position = UDim2.new(0, 0, 0, -20)
+    valueText.BackgroundTransparency = 1
+    valueText.Text = tostring(default)
+    valueText.TextColor3 = COLORS.Text
+    valueText.TextXAlignment = Enum.TextXAlignment.Right
+    valueText.Font = Enum.Font.SourceSans
+    valueText.TextSize = 14
+    valueText.Parent = slider
+    
+    local dragging = false
+    local function update(input)
+        local pos = UDim2.new(0, math.clamp(input.Position.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X), 0, 0)
+        fill.Size = UDim2.new(pos.X.Offset / slider.AbsoluteSize.X, 0, 1, 0)
+        local value = math.floor(min + (max - min) * (pos.X.Offset / slider.AbsoluteSize.X))
+        valueText.Text = tostring(value)
+        if callback then callback(value) end
+    end
+    
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            update(input)
+        end
+    end)
+    
+    slider.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            update(input)
+        end
+    end)
+    
+    local sliderObj = {
+        SetValue = function(value)
+            value = math.clamp(value, min, max)
+            fill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+            valueText.Text = tostring(value)
+            if callback then callback(value) end
+        end,
+        GetValue = function()
+            return tonumber(valueText.Text)
+        end
+    }
+    
+    table.insert(tab.Elements, sliderObj)
+    return sliderObj
+end
+
+return FlimBOT
