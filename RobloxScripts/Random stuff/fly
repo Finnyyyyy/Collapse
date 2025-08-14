@@ -1,121 +1,69 @@
--- Fly‑without‑GUI LocalScript (Body stays upright)
+-- CFrame Fly Script with X key toggle
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
-local Players            = game:GetService("Players")
-local RunService         = game:GetService("RunService")
-local UserInputService   = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
-local player    = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid  = character:WaitForChild("Humanoid")
+local flyEnabled = false
+local flySpeed = 2 -- studs per frame (adjust for faster/slower)
 
--- flight state
-local flying    = false
-local speed     = 50       -- starting speed
-local maxSpeed  = 100
-local minSpeed  = 10
+local keys = { W = false, A = false, S = false, D = false, Space = false, LeftShift = false }
 
--- movement control state
-local ctrl = {f=0, b=0, l=0, r=0}
-
--- references for BodyGyro / BodyVelocity and the render loop connection
-local bg, bv, conn
-
--- toggles flight on
-local function startFly()
-    if flying then return end
-    flying = true
-
-    humanoid.PlatformStand = true
-
-    local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-    bg = Instance.new("BodyGyro", root)
-    bg.P           = 9e4
-    bg.maxTorque  = Vector3.new(9e9, 9e9, 9e9)
-
-    bv = Instance.new("BodyVelocity", root)
-    bv.maxForce   = Vector3.new(9e9, 9e9, 9e9)
-    bv.velocity   = Vector3.new(0,0,0)
-
-    conn = RunService.RenderStepped:Connect(function()
-        -- accelerate/decelerate
-        if ctrl.f + ctrl.b ~= 0 or ctrl.l + ctrl.r ~= 0 then
-            speed = math.clamp(speed + 0.5 + (speed/maxSpeed), minSpeed, maxSpeed)
-        else
-            speed = math.clamp(speed - 1, minSpeed, maxSpeed)
-        end
-
-        -- compute velocity vector relative to camera
-        local camCF = workspace.CurrentCamera.CFrame
-        local moveVec = (camCF.LookVector * (ctrl.f + ctrl.b))
-                      + ((camCF * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b)*0.2, 0).p)
-                         - camCF.p)
-        bv.velocity = moveVec * speed
-
-        -- keep body upright: yaw to camera, no pitch/roll
-        local look = camCF.LookVector
-        local flat = Vector3.new(look.X, 0, look.Z).Unit
-        bg.cframe = CFrame.new(root.Position, root.Position + flat)
-    end)
-end
-
--- toggles flight off
-local function stopFly()
-    if not flying then return end
-    flying = false
-
-    humanoid.PlatformStand = false
-    if conn then conn:Disconnect() end
-    if bg   then bg:Destroy() end
-    if bv   then bv:Destroy() end
-end
-
--- toggle function
-local function toggleFly()
-    if flying then
-        stopFly()
-    else
-        startFly()
-    end
-end
-
--- capture movement keys
+-- Toggle fly on keypress (X key)
 UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    local code = input.KeyCode
-    if code == Enum.KeyCode.W or code == Enum.KeyCode.Up    then ctrl.f =  1 end
-    if code == Enum.KeyCode.S or code == Enum.KeyCode.Down  then ctrl.b = -1 end
-    if code == Enum.KeyCode.A or code == Enum.KeyCode.Left  then ctrl.l = -1 end
-    if code == Enum.KeyCode.D or code == Enum.KeyCode.Right then ctrl.r =  1 end
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.X then
+		flyEnabled = not flyEnabled
+		if not flyEnabled then
+			-- reset velocity so you don't keep floating
+			local char = LocalPlayer.Character
+			if char and char:FindFirstChild("HumanoidRootPart") then
+				char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+	end
 
-    -- toggle fly
-    if code == Enum.KeyCode.F then
-        toggleFly()
-    end
-    -- speed controls
-    if code == Enum.KeyCode.E then
-        maxSpeed = maxSpeed + 10
-        speed    = math.clamp(speed + 10, minSpeed, maxSpeed)
-        warn("Fly speed:", speed)
-    end
-    if code == Enum.KeyCode.Q then
-        maxSpeed = math.clamp(maxSpeed - 10, minSpeed, maxSpeed)
-        speed    = math.clamp(speed - 10, minSpeed, maxSpeed)
-        warn("Fly speed:", speed)
-    end
+	local key = input.KeyCode.Name
+	if keys[key] ~= nil then
+		keys[key] = true
+	end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gpe)
-    if gpe then return end
-    local code = input.KeyCode
-    if code == Enum.KeyCode.W or code == Enum.KeyCode.Up    then ctrl.f = 0 end
-    if code == Enum.KeyCode.S or code == Enum.KeyCode.Down  then ctrl.b = 0 end
-    if code == Enum.KeyCode.A or code == Enum.KeyCode.Left  then ctrl.l = 0 end
-    if code == Enum.KeyCode.D or code == Enum.KeyCode.Right then ctrl.r = 0 end
+	if gpe then return end
+	local key = input.KeyCode.Name
+	if keys[key] ~= nil then
+		keys[key] = false
+	end
 end)
 
--- cleanup on respawn
-player.CharacterAdded:Connect(function(char)
-    character = char
-    humanoid  = char:WaitForChild("Humanoid")
-    stopFly()
+-- Fly loop
+RunService.RenderStepped:Connect(function()
+	if flyEnabled then
+		local char = LocalPlayer.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			local hrp = char.HumanoidRootPart
+
+			-- direction based on camera
+			local moveDir = Vector3.zero
+			local camCF = Camera.CFrame
+
+			if keys.W then moveDir += camCF.LookVector end
+			if keys.S then moveDir -= camCF.LookVector end
+			if keys.A then moveDir -= camCF.RightVector end
+			if keys.D then moveDir += camCF.RightVector end
+			if keys.Space then moveDir += camCF.UpVector end
+			if keys.LeftShift then moveDir -= camCF.UpVector end
+
+			if moveDir.Magnitude > 0 then
+				moveDir = moveDir.Unit * flySpeed
+				hrp.CFrame = hrp.CFrame + moveDir
+			end
+
+			-- cancel normal physics fall
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
 end)
