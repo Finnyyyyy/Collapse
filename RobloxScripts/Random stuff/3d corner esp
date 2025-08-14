@@ -1,0 +1,174 @@
+-- Corner 3D ESP (Drawing) - optimized from a full 3D box ESP
+-- Draws short corner segments instead of full edges for better performance.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Settings
+local BOX_COLOR = Color3.fromRGB(255, 0, 0)
+local BOX_THICKNESS = 1
+
+-- Box dimensions: equal width and depth, taller height
+local BOX_SIZE = Vector3.new(4, 6, 4) -- Width (X), Height (Y), Depth (Z)
+
+-- How much of each edge is drawn from each corner (0..0.5). 0.25 = 25% from each end.
+local CORNER_FRACTION = 0.25
+
+-- Max distance (in studs) to draw ESP for performance. Set to nil to disable.
+local MAX_DISTANCE = 300
+
+-- Storage for ESP lines per player
+-- Each player -> {lines = {Drawing objects}, lastCharacter = Instance}
+local ESP = {}
+
+-- Generate 8 corners of a 3D box centered on `center` position
+local function getBoxCorners(center)
+    local size = BOX_SIZE / 2
+    return {
+        center + Vector3.new(-size.X,  size.Y, -size.Z), -- 1: Top Front Left
+        center + Vector3.new( size.X,  size.Y, -size.Z), -- 2: Top Front Right
+        center + Vector3.new( size.X,  size.Y,  size.Z), -- 3: Top Back Right
+        center + Vector3.new(-size.X,  size.Y,  size.Z), -- 4: Top Back Left
+        center + Vector3.new(-size.X, -size.Y, -size.Z), -- 5: Bottom Front Left
+        center + Vector3.new( size.X, -size.Y, -size.Z), -- 6: Bottom Front Right
+        center + Vector3.new( size.X, -size.Y,  size.Z), -- 7: Bottom Back Right
+        center + Vector3.new(-size.X, -size.Y,  size.Z), -- 8: Bottom Back Left
+    }
+end
+
+-- Edge pairs (indexes into corners table)
+local EDGES = {
+    {1,2},{2,3},{3,4},{4,1}, -- top
+    {5,6},{6,7},{7,8},{8,5}, -- bottom
+    {1,5},{2,6},{3,7},{4,8}, -- verticals
+}
+
+-- Create 12 edges * 2 short segments (one at each end) = 24 lines
+local function createCornerLines()
+    local lines = {}
+    for i = 1, (#EDGES * 2) do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Color = BOX_COLOR
+        line.Thickness = BOX_THICKNESS
+        table.insert(lines, line)
+    end
+    return lines
+end
+
+-- Remove lines cleanly
+local function removeLines(lines)
+    for _, line in ipairs(lines) do
+        pcall(function()
+            line:Remove()
+        end)
+    end
+end
+
+-- Clean up when player leaves
+Players.PlayerRemoving:Connect(function(player)
+    if ESP[player] then
+        removeLines(ESP[player].lines)
+        ESP[player] = nil
+    end
+end)
+
+-- Helper: project world Vector3 to 2D, return position and onScreen boolean
+local function project(v3)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(v3)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+end
+
+-- Main update loop
+RunService.RenderStepped:Connect(function()
+    local players = Players:GetPlayers()
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            -- distance cull
+            if MAX_DISTANCE and (hrp.Position - Camera.CFrame.Position).Magnitude > MAX_DISTANCE then
+                if ESP[player] then
+                    for _, line in ipairs(ESP[player].lines) do
+                        line.Visible = false
+                    end
+                end
+                goto continue_player
+            end
+
+            local corners3D = getBoxCorners(hrp.Position)
+            local corners2D = {}
+            local anyOnScreen = false
+            local anyInFront = false
+
+            -- Project 3D corners to screen space (we still keep them even if offscreen,
+            -- because corner segments may be partially on-screen)
+            for i, corner in ipairs(corners3D) do
+                local v2, onScreen, z = project(corner)
+                corners2D[i] = v2
+                if onScreen then anyOnScreen = true end
+                if z > 0 then anyInFront = true end -- z > 0 means in front of camera
+            end
+
+            -- If nothing visible or not in front, hide
+            if not anyOnScreen or not anyInFront then
+                if ESP[player] then
+                    for _, line in ipairs(ESP[player].lines) do
+                        line.Visible = false
+                    end
+                end
+                goto continue_player
+            end
+
+            -- Create lines if not present
+            if not ESP[player] then
+                ESP[player] = { lines = createCornerLines() }
+            end
+
+            local lines = ESP[player].lines
+            -- For each edge, draw two short segments: one starting at A towards B, and one at B towards A
+            local lineIndex = 1
+            for _, edge in ipairs(EDGES) do
+                local ia, ib = edge[1], edge[2]
+                local A, B = corners2D[ia], corners2D[ib]
+
+                -- if projection degenerated (same point), skip
+                if (A - B).Magnitude <= 0.0001 then
+                    lines[lineIndex].Visible = false
+                    lines[lineIndex + 1].Visible = false
+                    lineIndex = lineIndex + 2
+                else
+                    local fullVec = (B - A)
+                    local fullLen = fullVec.Magnitude
+                    local dir = fullVec.Unit
+
+                    local segLen = fullLen * CORNER_FRACTION
+                    -- first short segment: from A towards B
+                    lines[lineIndex].From = A
+                    lines[lineIndex].To = A + dir * segLen
+                    lines[lineIndex].Color = BOX_COLOR
+                    lines[lineIndex].Thickness = BOX_THICKNESS
+                    lines[lineIndex].Visible = true
+
+                    -- second short segment: from B towards A
+                    lines[lineIndex + 1].From = B
+                    lines[lineIndex + 1].To = B - dir * segLen
+                    lines[lineIndex + 1].Color = BOX_COLOR
+                    lines[lineIndex + 1].Thickness = BOX_THICKNESS
+                    lines[lineIndex + 1].Visible = true
+
+                    lineIndex = lineIndex + 2
+                end
+            end
+        else
+            if ESP[player] then
+                for _, line in ipairs(ESP[player].lines) do
+                    line.Visible = false
+                end
+            end
+        end
+
+        ::continue_player::
+    end
+end)
