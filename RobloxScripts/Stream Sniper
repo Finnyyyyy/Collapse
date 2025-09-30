@@ -327,13 +327,13 @@ end
 
 -- Function to start sniper
 local function startSniper()
-    print("[SNIPER] Sniper setup initiated...")
+    print("[SNIPER] Sniper setup Finished")
     
     local config = loadConfig()
     
     if config.SniperCheck then
-        print("[SNIPER] Sniper is now ACTIVE")
-        print("[SNIPER] Monitoring username: " .. (config.Usernames[1] or "None"))
+        print("[SNIPER] Sniper is Running")
+        print("[SNIPER] Checking username: " .. (config.Usernames[1] or "None"))
         
         -- Your actual sniper logic would go here
         spawn(function()
@@ -448,7 +448,7 @@ if config.SniperCheck then
     startSniper()
 end
 
-print("[SNIPER] Compact GUI loaded successfully!")
-print("[SNIPER] Config folder: " .. sniperFolder)
-print("[SNIPER] Config file: " .. configFile)
+print("[SNIPER] GUI loaded successfully!")
+print("[SNIPER] Config folder Created: " .. sniperFolder)
+print("[SNIPER] Config file Created: " .. configFile)
 print("[SNIPER] Click the eye icon to open/close the GUI")
