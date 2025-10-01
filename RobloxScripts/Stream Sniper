@@ -1,4 +1,4 @@
--- Sniper Control GUI Script - Compact Design
+-- Sniper Control GUI Script - Compact Design with Railway Integration
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
@@ -41,7 +41,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
-MainFrame.Visible = false
+MainFrame.Visible = true  -- Show by default
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
@@ -239,10 +239,36 @@ ButtonStroke.Parent = ActionButton
 local sniperFolder = "sniper"
 local configFile = sniperFolder .. "/config.json"
 
+-- Railway URL
+local RAILWAY_URL = "https://roblox-sniper-production.up.railway.app/message"
+
 -- Animation variables
 local hoverTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local buttonHoverTween = nil
 local pulseConnection = nil
+
+-- Function to get current formatted time
+local function getFormattedTime()
+    return os.date("%Y-%m-%d %H:%M:%S")
+end
+
+-- Function to get HWID
+local function getHWID()
+    if gethwid then
+        return gethwid()
+    else
+        return "HWID_NOT_AVAILABLE"
+    end
+end
+
+-- Function to identify executor
+local function identifyExecutor()
+    if identifyexecutor then
+        return identifyexecutor()
+    else
+        return "EXECUTOR_NOT_AVAILABLE", "UNKNOWN"
+    end
+end
 
 -- Function to ensure folder exists
 local function ensureFolder()
@@ -283,6 +309,43 @@ local function saveConfig(config)
     end)
     
     return success
+end
+
+-- Function to send data to Railway
+local function sendToRailway(data)
+    if not request then
+        warn("Railway: No HTTP function available")
+        return false
+    end
+    
+    -- Add timestamp and additional info
+    data.timestamp_formatted = getFormattedTime()
+    data.hwid = getHWID()
+    
+    local executorName, executorVersion = identifyExecutor()
+    data.executor_name = executorName
+    data.executor_version = executorVersion
+    
+    local response = request({
+        Url = RAILWAY_URL,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "RobloxExploit"
+        },
+        Body = HttpService:JSONEncode(data)
+    })
+    
+    if response and response.Success then
+        print("✅ Railway: Data sent successfully")
+        return true
+    else
+        warn("❌ Railway: Failed to send data")
+        if response then
+            warn("Status:", response.StatusCode)
+        end
+        return false
+    end
 end
 
 -- Function to update UI state
@@ -326,14 +389,31 @@ local function processUsername(text)
 end
 
 -- Function to start sniper
-local function startSniper()
-    print("[SNIPER] Sniper setup Finished")
+local function startSniper(username)
+    local currentTime = getFormattedTime()
+    
+    -- Print to Roblox console
+    print("🚀 [PLAYER TOUCHER] Sniper Started")
+    print("🕒 Time:", currentTime)
+    print("🎯 Target Username:", username or "None")
+    print("📊 Status: ACTIVE")
+    print("🆔 HWID:", getHWID())
+    
+    local executorName, executorVersion = identifyExecutor()
+    print("⚡ Executor:", executorName, executorVersion)
+    print("----------------------------------------")
     
     local config = loadConfig()
     
     if config.SniperCheck then
-        print("[SNIPER] Sniper is Running")
-        print("[SNIPER] Checking username: " .. (config.Usernames[1] or "None"))
+        -- Send to Railway
+        sendToRailway({
+            action = "start",
+            player = Players.LocalPlayer.Name,
+            target = username,
+            status = "ACTIVE",
+            source = "player_toucher_gui"
+        })
         
         -- Your actual sniper logic would go here
         spawn(function()
@@ -352,7 +432,48 @@ end
 
 -- Function to stop sniper
 local function stopSniper()
-    print("[SNIPER] Sniper stopped")
+    local currentTime = getFormattedTime()
+    
+    -- Print to Roblox console
+    print("🛑 [PLAYER TOUCHER] Sniper Stopped")
+    print("🕒 Time:", currentTime)
+    print("📊 Status: INACTIVE")
+    print("🆔 HWID:", getHWID())
+    
+    local executorName, executorVersion = identifyExecutor()
+    print("⚡ Executor:", executorName, executorVersion)
+    print("----------------------------------------")
+    
+    -- Send to Railway
+    sendToRailway({
+        action = "stop", 
+        player = Players.LocalPlayer.Name,
+        status = "INACTIVE",
+        source = "player_toucher_gui"
+    })
+end
+
+-- Send initial info to Railway and console
+local function sendInitialInfo()
+    local currentTime = getFormattedTime()
+    local hwid = getHWID()
+    local executorName, executorVersion = identifyExecutor()
+    
+    -- Print to Roblox console
+    print("🔧 [PLAYER TOUCHER] GUI Initialized")
+    print("🕒 Time:", currentTime)
+    print("🆔 HWID:", hwid)
+    print("⚡ Executor:", executorName, executorVersion)
+    print("🌐 Railway Integration: ACTIVE")
+    print("----------------------------------------")
+    
+    -- Send to Railway
+    sendToRailway({
+        action = "initialization",
+        player = Players.LocalPlayer.Name,
+        status = "GUI_LOADED",
+        source = "player_toucher_gui"
+    })
 end
 
 -- Button hover effects
@@ -409,7 +530,7 @@ ActionButton.MouseButton1Click:Connect(function()
         updateUI()
         
         if config.SniperCheck then
-            startSniper()
+            startSniper(username)
         else
             stopSniper()
         end
@@ -443,12 +564,16 @@ end
 
 updateUI()
 
+-- Send initial info
+sendInitialInfo()
+
 -- If sniper was already running when script starts, start it
 if config.SniperCheck then
-    startSniper()
+    startSniper(config.Usernames[1])
 end
 
 print("[SNIPER] GUI loaded successfully!")
 print("[SNIPER] Config folder Created: " .. sniperFolder)
 print("[SNIPER] Config file Created: " .. configFile)
+print("[SNIPER] Railway integration: ACTIVE")
 print("[SNIPER] Click the eye icon to open/close the GUI")
