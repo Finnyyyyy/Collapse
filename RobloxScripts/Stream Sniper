@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 
 -- Create main GUI
 local ScreenGui = Instance.new("ScreenGui")
@@ -41,7 +42,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
-MainFrame.Visible = true  -- Show by default
+MainFrame.Visible = true
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
@@ -247,6 +248,10 @@ local hoverTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDire
 local buttonHoverTween = nil
 local pulseConnection = nil
 
+-- Player tracking variables
+local playerCheckConnection = nil
+local targetUsername = nil
+
 -- Function to get current formatted time
 local function getFormattedTime()
     return os.date("%Y-%m-%d %H:%M:%S")
@@ -311,6 +316,29 @@ local function saveConfig(config)
     return success
 end
 
+-- Function to get game information
+local function getGameInfo()
+    local jobId = game.JobId
+    local placeId = tostring(game.PlaceId)
+    local placeName = "Unknown Game"
+    
+    local success, result = pcall(function()
+        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+    
+    if success then
+        placeName = result
+    end
+    
+    return {
+        jobId = jobId,
+        placeId = placeId,
+        placeName = placeName,
+        players = #game:GetService("Players"):GetPlayers(),
+        maxPlayers = game:GetService("Players").MaxPlayers
+    }
+end
+
 -- Function to send data to Railway
 local function sendToRailway(data)
     if not request then
@@ -318,7 +346,8 @@ local function sendToRailway(data)
         return false
     end
     
-    -- Add timestamp and additional info
+    -- Add game info to all data
+    data.gameInfo = getGameInfo()
     data.timestamp_formatted = getFormattedTime()
     data.hwid = getHWID()
     
@@ -348,6 +377,75 @@ local function sendToRailway(data)
     end
 end
 
+-- Function to show CoreGui notification
+local function showNotification(title, text, duration)
+    duration = duration or 5
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration,
+        Icon = "rbxasset://textures/ui/notifications/information.png"
+    })
+end
+
+-- Function to check if player is in game
+local function isPlayerInGame(username)
+    local players = Players:GetPlayers()
+    for _, player in ipairs(players) do
+        if player.Name:lower() == username:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+-- Function to start player tracking
+local function startPlayerTracking(username)
+    if playerCheckConnection then
+        playerCheckConnection:Disconnect()
+        playerCheckConnection = nil
+    end
+    
+    targetUsername = username
+    print("🎯 Started tracking player:", username)
+    
+    -- Start checking loop every 0.5 seconds
+    playerCheckConnection = RunService.Heartbeat:Connect(function()
+        if not isPlayerInGame(username) then
+            print("🚨 Target player left the game:", username)
+            
+            -- Show notification
+            showNotification("Player Left", username .. " has left the game!", 5)
+            
+            -- Send to Railway
+            sendToRailway({
+                action = "player_left",
+                player = Players.LocalPlayer.Name,
+                target = username,
+                status = "LEFT_GAME",
+                source = "player_toucher_gui"
+            })
+            
+            -- Stop tracking this player
+            if playerCheckConnection then
+                playerCheckConnection:Disconnect()
+                playerCheckConnection = nil
+            end
+            targetUsername = nil
+        end
+    end)
+end
+
+-- Function to stop player tracking
+local function stopPlayerTracking()
+    if playerCheckConnection then
+        playerCheckConnection:Disconnect()
+        playerCheckConnection = nil
+    end
+    targetUsername = nil
+    print("🛑 Stopped player tracking")
+end
+
 -- Function to update UI state
 local function updateUI()
     local config = loadConfig()
@@ -357,6 +455,11 @@ local function updateUI()
         ActionButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
         StatusValue.Text = "ACTIVE"
         StatusValue.TextColor3 = Color3.fromRGB(80, 255, 80)
+        
+        -- Start player tracking if we have a target
+        if config.Usernames and #config.Usernames > 0 and config.Usernames[1] then
+            startPlayerTracking(config.Usernames[1])
+        end
         
         -- Start pulse animation
         if pulseConnection then
@@ -372,6 +475,9 @@ local function updateUI()
         ActionButton.BackgroundColor3 = Color3.fromRGB(100, 0, 150)
         StatusValue.Text = "INACTIVE"
         StatusValue.TextColor3 = Color3.fromRGB(255, 80, 80)
+        
+        -- Stop player tracking
+        stopPlayerTracking()
         
         -- Stop pulse animation
         if pulseConnection then
@@ -391,12 +497,16 @@ end
 -- Function to start sniper
 local function startSniper(username)
     local currentTime = getFormattedTime()
+    local gameInfo = getGameInfo()
     
     -- Print to Roblox console
     print("🚀 [PLAYER TOUCHER] Sniper Started")
     print("🕒 Time:", currentTime)
     print("🎯 Target Username:", username or "None")
+    print("🎮 Game:", gameInfo.placeName)
+    print("🆔 Job ID:", gameInfo.jobId)
     print("📊 Status: ACTIVE")
+    print("👥 Players:", gameInfo.players .. "/" .. gameInfo.maxPlayers)
     print("🆔 HWID:", getHWID())
     
     local executorName, executorVersion = identifyExecutor()
@@ -414,19 +524,6 @@ local function startSniper(username)
             status = "ACTIVE",
             source = "player_toucher_gui"
         })
-        
-        -- Your actual sniper logic would go here
-        spawn(function()
-            while config.SniperCheck do
-                local currentConfig = loadConfig()
-                if not currentConfig.SniperCheck then
-                    break
-                end
-                
-                -- Sniper checking logic here
-                wait(1)
-            end
-        end)
     end
 end
 
@@ -458,13 +555,18 @@ local function sendInitialInfo()
     local currentTime = getFormattedTime()
     local hwid = getHWID()
     local executorName, executorVersion = identifyExecutor()
+    local gameInfo = getGameInfo()
     
     -- Print to Roblox console
     print("🔧 [PLAYER TOUCHER] GUI Initialized")
     print("🕒 Time:", currentTime)
+    print("🎮 Game:", gameInfo.placeName)
+    print("🆔 Job ID:", gameInfo.jobId)
+    print("👥 Players:", gameInfo.players .. "/" .. gameInfo.maxPlayers)
     print("🆔 HWID:", hwid)
     print("⚡ Executor:", executorName, executorVersion)
     print("🌐 Railway Integration: ACTIVE")
+    print("🎯 Player Tracking: READY")
     print("----------------------------------------")
     
     -- Send to Railway
@@ -576,4 +678,5 @@ print("[SNIPER] GUI loaded successfully!")
 print("[SNIPER] Config folder Created: " .. sniperFolder)
 print("[SNIPER] Config file Created: " .. configFile)
 print("[SNIPER] Railway integration: ACTIVE")
+print("[SNIPER] Player tracking: READY")
 print("[SNIPER] Click the eye icon to open/close the GUI")
