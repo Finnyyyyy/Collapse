@@ -1,0 +1,135 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+local autoJump = false
+local isCrouching = false
+
+local prevOnAir = false
+local lastLandTime = -math.huge
+
+local function getCharParts()
+	local char = player.Character
+	if not char then return nil end
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	return char, humanoid, hrp
+end
+
+local function setupCharacter(char)
+	local humanoid = char:WaitForChild("Humanoid")
+	humanoid.WalkSpeed = 20
+	humanoid.JumpPower = 70
+
+	humanoid.StateChanged:Connect(function(_, newState)
+		if newState == Enum.HumanoidStateType.Landed and autoJump then
+			if humanoid.FloorMaterial ~= Enum.Material.Air then
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			end
+		end
+	end)
+end
+
+if player.Character then
+	setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(setupCharacter)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space then
+		autoJump = true
+		local _, humanoid = getCharParts()
+		if humanoid and humanoid.FloorMaterial ~= Enum.Material.Air then
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	elseif input.KeyCode == Enum.KeyCode.LeftControl then
+		local _, humanoid = getCharParts()
+		if humanoid and not isCrouching then
+			isCrouching = true
+			humanoid.WalkSpeed = 10
+		end
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space then
+		autoJump = false
+	elseif input.KeyCode == Enum.KeyCode.LeftControl then
+		local _, humanoid = getCharParts()
+		if humanoid and isCrouching then
+			isCrouching = false
+			humanoid.WalkSpeed = 20
+		end
+	end
+end)
+
+local function isAirborne(state)
+	return state == Enum.HumanoidStateType.Freefall
+		or state == Enum.HumanoidStateType.Jumping
+		or state == Enum.HumanoidStateType.FallingDown
+end
+
+RunService.RenderStepped:Connect(function(dt)
+	local char, humanoid, hrp = getCharParts()
+	if not (char and humanoid and hrp) then return end
+
+	local moveDir = humanoid.MoveDirection
+	local state = humanoid:GetState()
+	local onAir = isAirborne(state)
+
+	if prevOnAir and not onAir then
+		lastLandTime = tick()
+	end
+	prevOnAir = onAir
+
+	local currentH = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+	local currentMag = currentH.Magnitude
+
+	if moveDir.Magnitude > 0 then
+		local desiredDir = moveDir.Unit
+
+		if not onAir then
+			local amount = (isCrouching and 0.35) or 0.7
+			local desiredMag = amount * 70
+
+			local newMag
+			if tick() - lastLandTime < 0.12 then
+				newMag = math.max(currentMag, desiredMag)
+			else
+				newMag = desiredMag
+			end
+
+			if newMag > 60 then
+				newMag = 60
+			end
+
+			local newH = desiredDir * newMag
+			hrp.Velocity = Vector3.new(newH.X, hrp.Velocity.Y, newH.Z)
+		else
+			local newMag = math.min(currentMag + (600 * dt), 60)
+			if newMag < 0.01 then
+				newMag = 70 * 0.9 * 0.5
+			end
+
+			local newH = desiredDir * newMag
+			hrp.Velocity = Vector3.new(newH.X, hrp.Velocity.Y, newH.Z)
+		end
+	else
+		local vel = hrp.Velocity
+		if onAir then
+			vel = Vector3.new(vel.X * 0.985, vel.Y, vel.Z * 0.985)
+		else
+			vel = Vector3.new(vel.X * 0.9, vel.Y, vel.Z * 0.9)
+		end
+		hrp.Velocity = vel
+	end
+
+	local targetWalk = (isCrouching and 10) or 20
+	if humanoid.WalkSpeed ~= targetWalk then
+		humanoid.WalkSpeed = targetWalk
+	end
+end)
