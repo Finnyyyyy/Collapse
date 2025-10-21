@@ -21,7 +21,7 @@ end
 local function setupCharacter(char)
 	local humanoid = char:WaitForChild("Humanoid")
 	humanoid.WalkSpeed = 20
-	humanoid.JumpPower = 70
+	humanoid.JumpPower = 60
 
 	humanoid.StateChanged:Connect(function(_, newState)
 		if newState == Enum.HumanoidStateType.Landed and autoJump then
