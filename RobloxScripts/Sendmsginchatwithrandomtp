@@ -1,32 +1,25 @@
+local config = _G.CollapseConfig or {
+    message = "test",
+    TimePerPlayer = 15,
+    TeleportOffset = 10,
+}
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
-local isLegacyChat = TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
-
+local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 local localPlayer = Players.LocalPlayer
-if not localPlayer then
-    repeat task.wait() until Players.LocalPlayer
-    localPlayer = Players.LocalPlayer
-end
 
 local function sendChatMessage(message)
-    message = tostring(message or "")
-    if message == "" then return end
+    message = tostring(message)
     if not isLegacyChat then
         pcall(function()
-            if TextChatService and TextChatService.TextChannels and TextChatService.TextChannels.RBXGeneral then
-                TextChatService.TextChannels.RBXGeneral:SendAsync(message)
-            end
+            TextChatService.TextChannels.RBXGeneral:SendAsync(message)
         end)
     else
         pcall(function()
-            if ReplicatedStorage and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") then
-                local chatFolder = ReplicatedStorage.DefaultChatSystemChatEvents
-                if chatFolder and chatFolder:FindFirstChild("SayMessageRequest") then
-                    chatFolder.SayMessageRequest:FireServer(message, "All")
-                end
-            end
+            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
         end)
     end
 end
@@ -44,26 +37,17 @@ end
 local currentLock = {}
 local function clearLock()
     if currentLock.heartbeatConn then
-        pcall(function() currentLock.heartbeatConn:Disconnect() end)
+        currentLock.heartbeatConn:Disconnect()
         currentLock.heartbeatConn = nil
     end
-    if currentLock.alignPos and currentLock.alignPos.Parent then
-        pcall(function() currentLock.alignPos:Destroy() end)
-    end
-    if currentLock.alignOri and currentLock.alignOri.Parent then
-        pcall(function() currentLock.alignOri:Destroy() end)
-    end
-    if currentLock.attachMy and currentLock.attachMy.Parent then
-        pcall(function() currentLock.attachMy:Destroy() end)
-    end
-    if currentLock.attachTarget and currentLock.attachTarget.Parent then
-        pcall(function() currentLock.attachTarget:Destroy() end)
-    end
+    if currentLock.alignPos and currentLock.alignPos.Parent then currentLock.alignPos:Destroy() end
+    if currentLock.alignOri and currentLock.alignOri.Parent then currentLock.alignOri:Destroy() end
+    if currentLock.attachMy and currentLock.attachMy.Parent then currentLock.attachMy:Destroy() end
+    if currentLock.attachTarget and currentLock.attachTarget.Parent then currentLock.attachTarget:Destroy() end
     currentLock = {}
 end
 
-local function createLock(target, offset)
-    offset = tonumber(offset) or 10
+local function createLock(target)
     clearLock()
     if not target or not target.Character then return end
     local myChar = localPlayer.Character
@@ -71,7 +55,7 @@ local function createLock(target, offset)
     local targetHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     if not myHrp or not targetHrp then return end
 
-    pcall(function() myHrp.CanCollide = false end)
+    myHrp.CanCollide = false
 
     local attachMy = Instance.new("Attachment")
     attachMy.Name = "__lock_attach_my"
@@ -81,7 +65,7 @@ local function createLock(target, offset)
     local attachTarget = Instance.new("Attachment")
     attachTarget.Name = "__lock_attach_target"
     attachTarget.Parent = targetHrp
-    attachTarget.Position = Vector3.new(0, offset, 0)
+    attachTarget.Position = Vector3.new(0, config.TeleportOffset, 0)
 
     local alignPos = Instance.new("AlignPosition")
     alignPos.Name = "__lock_align_pos"
@@ -112,63 +96,55 @@ local function createLock(target, offset)
             clearLock()
             return
         end
-        local targetHrp2 = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+        local targetHrp2 = target.Character:FindFirstChild("HumanoidRootPart")
         local myHrp2 = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myHrp2 and targetHrp2 then
             pcall(function()
-                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, offset, 0)
+                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, config.TeleportOffset, 0)
             end)
         end
     end)
 end
 
-local function teleportAbove(target, offset)
-    offset = tonumber(offset) or 10
+local function teleportAbove(target)
     if not target or not target.Character then return false end
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
+
     local myChar = localPlayer.Character
     if not myChar then return false end
     local myHrp = myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return false end
+
     local success, err = pcall(function()
-        myHrp.CFrame = hrp.CFrame + Vector3.new(0, offset, 0)
+        myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0)
     end)
     if not success then
         warn("Teleport failed: ", err)
     end
-    createLock(target, offset)
+    createLock(target)
     return success
 end
 
-task.spawn(function()
+spawn(function()
     math.randomseed(tick())
     while true do
         if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
             repeat task.wait() until localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         end
-
-        local cfg = (type(config) == "table") and config or {}
-        local message = tostring(cfg.message or "test")
-        local timePer = tonumber(cfg.TimePerPlayer) or 15
-        local offset = tonumber(cfg.TeleportOffset) or 10
-
         local targets = getValidTargets()
         if #targets == 0 then
             task.wait(2)
             continue
         end
-
         local target = targets[math.random(1, #targets)]
-        teleportAbove(target, offset)
-
+        teleportAbove(target)
         for i = 1, 3 do
-            sendChatMessage(message)
+            sendChatMessage(config.message)
             task.wait(3)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
-
-        local remainder = timePer - (3 * 3)
+        local remainder = config.TimePerPlayer - (3 * 3)
         if remainder > 0 then
             local startTick = tick()
             while tick() - startTick < remainder do
@@ -176,8 +152,9 @@ task.spawn(function()
                 task.wait(0.5)
             end
         end
-
         clearLock()
         task.wait(0.2)
     end
 end)
+
+return config
