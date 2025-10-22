@@ -1,5 +1,7 @@
 local config = _G.CollapseConfig or {
-    message = "test",
+    message1 = "First message",
+    message2 = "Second message",
+    message3 = "Third message",
     TimePerPlayer = 15,
     TeleportOffset = 10,
 }
@@ -139,11 +141,20 @@ spawn(function()
         end
         local target = targets[math.random(1, #targets)]
         teleportAbove(target)
-        for i = 1, 3 do
-            sendChatMessage(config.message)
-            task.wait(3)
-            if not target.Parent or not target.Character or not localPlayer.Character then break end
-        end
+        
+        -- Send 3 different messages
+        sendChatMessage(config.message1)
+        task.wait(3)
+        if not target.Parent or not target.Character or not localPlayer.Character then break end
+        
+        sendChatMessage(config.message2)
+        task.wait(3)
+        if not target.Parent or not target.Character or not localPlayer.Character then break end
+        
+        sendChatMessage(config.message3)
+        task.wait(3)
+        if not target.Parent or not target.Character or not localPlayer.Character then break end
+        
         local remainder = config.TimePerPlayer - (3 * 3)
         if remainder > 0 then
             local startTick = tick()
