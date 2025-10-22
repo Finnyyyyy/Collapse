@@ -1,9 +1,7 @@
-
-
-local config = externalConfig or {
-    message1 = "First message",
-    message2 = "Second message",
-    message3 = "Third message",
+\local config = _G.CollapseConfig or {
+    message1 = "TEST",
+    message2 = "TEST2",
+    message3 = "TEST3",
     TimePerPlayer = 15,
     TeleportOffset = 10,
 }
@@ -145,17 +143,12 @@ spawn(function()
         teleportAbove(target)
         
         -- Send 3 different messages
-        sendChatMessage(config.message1)
-        task.wait(3)
-        if not target.Parent or not target.Character or not localPlayer.Character then break end
-        
-        sendChatMessage(config.message2)
-        task.wait(3)
-        if not target.Parent or not target.Character or not localPlayer.Character then break end
-        
-        sendChatMessage(config.message3)
-        task.wait(3)
-        if not target.Parent or not target.Character or not localPlayer.Character then break end
+        local messages = {config.message1, config.message2, config.message3}
+        for i = 1, 3 do
+            sendChatMessage(messages[i])
+            task.wait(3)
+            if not target.Parent or not target.Character or not localPlayer.Character then break end
+        end
         
         local remainder = config.TimePerPlayer - (3 * 3)
         if remainder > 0 then
@@ -169,5 +162,3 @@ spawn(function()
         task.wait(0.2)
     end
 end)
-
-return {Config = config}
