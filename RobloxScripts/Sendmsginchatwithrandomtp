@@ -1,5 +1,5 @@
--- Get config from outside or use defaults
-local externalConfig = (...).Config
+
+
 local config = externalConfig or {
     message1 = "First message",
     message2 = "Second message",
