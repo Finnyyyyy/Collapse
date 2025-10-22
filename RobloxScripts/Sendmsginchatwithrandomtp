@@ -1,7 +1,8 @@
-\local config = _G.CollapseConfig or {
-    message1 = "TEST",
-    message2 = "TEST2",
-    message3 = "TEST3",
+-- This will use the config passed from outside, or create empty defaults
+local config = getfenv(1).config or {
+    message1 = "",
+    message2 = "",
+    message3 = "",
     TimePerPlayer = 15,
     TeleportOffset = 10,
 }
