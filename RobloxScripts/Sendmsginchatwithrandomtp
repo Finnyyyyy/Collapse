@@ -2,7 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
-local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
+local isLegacyChat = TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 
 local localPlayer = Players.LocalPlayer
 if not localPlayer then
@@ -15,11 +15,18 @@ local function sendChatMessage(message)
     if message == "" then return end
     if not isLegacyChat then
         pcall(function()
-            TextChatService.TextChannels.RBXGeneral:SendAsync(message)
+            if TextChatService and TextChatService.TextChannels and TextChatService.TextChannels.RBXGeneral then
+                TextChatService.TextChannels.RBXGeneral:SendAsync(message)
+            end
         end)
     else
         pcall(function()
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
+            if ReplicatedStorage and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") then
+                local chatFolder = ReplicatedStorage.DefaultChatSystemChatEvents
+                if chatFolder and chatFolder:FindFirstChild("SayMessageRequest") then
+                    chatFolder.SayMessageRequest:FireServer(message, "All")
+                end
+            end
         end)
     end
 end
@@ -40,14 +47,23 @@ local function clearLock()
         pcall(function() currentLock.heartbeatConn:Disconnect() end)
         currentLock.heartbeatConn = nil
     end
-    if currentLock.alignPos and currentLock.alignPos.Parent then currentLock.alignPos:Destroy() end
-    if currentLock.alignOri and currentLock.alignOri.Parent then currentLock.alignOri:Destroy() end
-    if currentLock.attachMy and currentLock.attachMy.Parent then currentLock.attachMy:Destroy() end
-    if currentLock.attachTarget and currentLock.attachTarget.Parent then currentLock.attachTarget:Destroy() end
+    if currentLock.alignPos and currentLock.alignPos.Parent then
+        pcall(function() currentLock.alignPos:Destroy() end)
+    end
+    if currentLock.alignOri and currentLock.alignOri.Parent then
+        pcall(function() currentLock.alignOri:Destroy() end)
+    end
+    if currentLock.attachMy and currentLock.attachMy.Parent then
+        pcall(function() currentLock.attachMy:Destroy() end)
+    end
+    if currentLock.attachTarget and currentLock.attachTarget.Parent then
+        pcall(function() currentLock.attachTarget:Destroy() end)
+    end
     currentLock = {}
 end
 
 local function createLock(target, offset)
+    offset = tonumber(offset) or 10
     clearLock()
     if not target or not target.Character then return end
     local myChar = localPlayer.Character
@@ -55,7 +71,7 @@ local function createLock(target, offset)
     local targetHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     if not myHrp or not targetHrp then return end
 
-    myHrp.CanCollide = false
+    pcall(function() myHrp.CanCollide = false end)
 
     local attachMy = Instance.new("Attachment")
     attachMy.Name = "__lock_attach_my"
@@ -65,7 +81,7 @@ local function createLock(target, offset)
     local attachTarget = Instance.new("Attachment")
     attachTarget.Name = "__lock_attach_target"
     attachTarget.Parent = targetHrp
-    attachTarget.Position = Vector3.new(0, offset or 10, 0)
+    attachTarget.Position = Vector3.new(0, offset, 0)
 
     local alignPos = Instance.new("AlignPosition")
     alignPos.Name = "__lock_align_pos"
@@ -96,17 +112,18 @@ local function createLock(target, offset)
             clearLock()
             return
         end
-        local targetHrp2 = target.Character:FindFirstChild("HumanoidRootPart")
+        local targetHrp2 = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
         local myHrp2 = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myHrp2 and targetHrp2 then
             pcall(function()
-                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, offset or 10, 0)
+                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, offset, 0)
             end)
         end
     end)
 end
 
 local function teleportAbove(target, offset)
+    offset = tonumber(offset) or 10
     if not target or not target.Character then return false end
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
@@ -115,7 +132,7 @@ local function teleportAbove(target, offset)
     local myHrp = myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return false end
     local success, err = pcall(function()
-        myHrp.CFrame = hrp.CFrame + Vector3.new(0, offset or 10, 0)
+        myHrp.CFrame = hrp.CFrame + Vector3.new(0, offset, 0)
     end)
     if not success then
         warn("Teleport failed: ", err)
