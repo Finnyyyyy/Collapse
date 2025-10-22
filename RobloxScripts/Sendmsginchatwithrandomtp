@@ -1,4 +1,6 @@
-local config = _G.CollapseConfig or {
+-- Get config from outside or use defaults
+local externalConfig = (...).Config
+local config = externalConfig or {
     message1 = "First message",
     message2 = "Second message",
     message3 = "Third message",
@@ -168,4 +170,4 @@ spawn(function()
     end
 end)
 
-return config
+return {Config = config}
