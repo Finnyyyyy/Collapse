@@ -29,26 +29,30 @@ local function sendChatMessage(message)
 end
 
 local WORDS = {
-"sky","sun","cat","fox","oak","ice","ash","zen","moon","star","nova","echo","drift","blaze","spark","rift","storm","ember","glint","quark","pixel","glyph","orbit","phase","whirl","flick","bloom","chime","crest","forge","gleam","harbor","shade","prism","vector","canyon","sprig","twill","grove","plume","marsh","sable","lyric","caper","whisk","mirth","slate","minty","clasp","gazer","haven","kudos","lumen","muse","noble","glade","brook","brine","crone","frond","grume","prong","trine","blurt","clave","flour","gloat","slant","skiff","stoke","spire","swain","shank","chord","thrum","whorl","wrack","quash","knoll","gnash","smite","snood","scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft","proxy","truss","clank","flank","plumb","scoop","skarn","stint","spike","swoop","shorn","thorn","whine","wring","quail","knave","snipe","scour","twirl","brawl","briar","druid","frank","grace","prowl","trend","bleat","flute","gloss","sweep","skier","spore","swift","shard","wharf","quick","knell","smock","sneer","sloop","quell","splay","brisk","frill","glen","plait","smirk","snarl","scald","twain","drown","pride","trice","crisp","droll","frost","gripe","prank","blent","clime","plush","slink","skulk","swill","whisp","quern","knout","gnarl","smote","scowl","tread","bravo","crux","drape","grasp","tramp","bleak","floss","snoop","skimp","stale","swank","shred","chive","thine","whiff","qualm","gnome","sniff","scape","harrow","dapper","frisk","laden","cairn","blare","gild","oscar","vapor","stalk","spate","swore","shale","thole","wrath","knurl","giddy","cameo","bezel"
+"sky","sun","cat","fox","oak","ice","ash","zen","moon","star","nova","echo","drift","blaze","spark","rift",
+"storm","ember","glint","quark","pixel","glyph","orbit","phase","whirl","flick","bloom","chime","crest","forge","gleam","harbor",
+"shade","prism","vector","canyon","sprig","twill","grove","plume","marsh","sable","lyric","caper","whisk","mirth","slate","minty",
+"clasp","gazer","haven","kudos","lumen","muse","noble","glade","brook","brine","crone","frond","grume","prong","trine","blurt",
+"clave","flour","gloat","slant","skiff","stoke","spire","swain","shank","chord","thrum","whorl","wrack","quash","knoll","gnash",
+"smite","snood","scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft","proxy","truss","clank","flank","plumb",
+"scoop","skarn","stint","spike","swoop","shorn","thorn","whine","wring","quail","knave","snipe","scour","twirl","brawl","briar",
+"druid","frank","grace","prowl","trend","bleat","flute","gloss","sweep","skier","spore","swift","shard","wharf","quick","knell",
+"smock","sneer","sloop","quell","splay","brisk","frill","glen","plait","smirk","snarl","scald","twain","drown","pride","trice",
+"crisp","droll","frost","gripe","prank","blent","clime","plush","slink","skulk","swill","whisp","quern","knout","gnarl","smote",
+"scowl","tread","bravo","crux","drape","grasp","tramp","bleak","floss","snoop","skimp","stale","swank","shred","chive","thine",
+"whiff","qualm","gnome","sniff","scape","harrow","dapper","frisk","laden","cairn","blare","gild","oscar","vapor","stalk","spate",
+"swore","shale","thole","wrath","knurl","giddy","cameo","bezel"
 }
 
-local function rint(a,b) return math.random(a,b) end
-
 local function randomSuffix()
-    local len = rint(3,7)
+    local len = math.random(3,7)
     local pickWordChance = 0.45
     if math.random() < pickWordChance and #WORDS > 0 then
-        local tries = 0
-        while tries < 40 do
-            local w = WORDS[math.random(1,#WORDS)]
-            if #w >= 3 and #w <= 7 then
-                if math.random() < 0.35 then w = w:sub(1,1):upper() .. w:sub(2) end
-                if math.random() < 0.12 then w = w .. tostring(math.random(0,9)) end
-                if math.random() < 0.08 then w = w .. "!"; end
-                return w
-            end
-            tries = tries + 1
-        end
+        local w = WORDS[math.random(1,#WORDS)]
+        if math.random() < 0.35 then w = w:sub(1,1):upper() .. w:sub(2) end
+        if math.random() < 0.12 then w = w .. tostring(math.random(0,9)) end
+        if math.random() < 0.08 then w = w .. "!" end
+        return w
     end
     local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/"
     local out = {}
@@ -102,40 +106,24 @@ local function createLock(target)
     local targetHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     if not myHrp or not targetHrp then return end
     myHrp.CanCollide = false
-    local attachMy = Instance.new("Attachment")
-    attachMy.Name = "__lock_attach_my"
-    attachMy.Parent = myHrp
-    attachMy.Position = Vector3.new(0, 0, 0)
-    local attachTarget = Instance.new("Attachment")
-    attachTarget.Name = "__lock_attach_target"
-    attachTarget.Parent = targetHrp
+    local attachMy = Instance.new("Attachment", myHrp)
+    local attachTarget = Instance.new("Attachment", targetHrp)
     attachTarget.Position = Vector3.new(0, config.TeleportOffset, 0)
-    local alignPos = Instance.new("AlignPosition")
-    alignPos.Name = "__lock_align_pos"
+    local alignPos = Instance.new("AlignPosition", myHrp)
     alignPos.Attachment0 = attachMy
     alignPos.Attachment1 = attachTarget
     alignPos.RigidityEnabled = true
     alignPos.MaxForce = 9e9
     alignPos.Responsiveness = 200
-    alignPos.ReactionForceEnabled = true
-    alignPos.Parent = myHrp
-    local alignOri = Instance.new("AlignOrientation")
-    alignOri.Name = "__lock_align_ori"
+    local alignOri = Instance.new("AlignOrientation", myHrp)
     alignOri.Attachment0 = attachMy
     alignOri.Attachment1 = attachTarget
     alignOri.RigidityEnabled = true
     alignOri.MaxTorque = 9e9
     alignOri.Responsiveness = 200
-    alignOri.Parent = myHrp
-    currentLock.attachMy = attachMy
-    currentLock.attachTarget = attachTarget
-    currentLock.alignPos = alignPos
-    currentLock.alignOri = alignOri
+    currentLock = {attachMy=attachMy,attachTarget=attachTarget,alignPos=alignPos,alignOri=alignOri}
     currentLock.heartbeatConn = RunService.Heartbeat:Connect(function()
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
-            clearLock()
-            return
-        end
+        if not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then clearLock() return end
         local targetHrp2 = target.Character:FindFirstChild("HumanoidRootPart")
         local myHrp2 = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myHrp2 and targetHrp2 then
@@ -152,10 +140,9 @@ local function teleportAbove(target)
     if not myChar then return false end
     local myHrp = myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return false end
-    local success, err = pcall(function() myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
-    if not success then warn("Teleport failed: ", err) end
+    pcall(function() myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
     createLock(target)
-    return success
+    return true
 end
 
 local function startServerHopIfConfigured()
@@ -165,20 +152,30 @@ local function startServerHopIfConfigured()
     local minutes = tonumber(sh.minutes) or 0
     local delaySec = hours * 3600 + minutes * 60
     if delaySec <= 0 then return end
+
     spawn(function()
+        local finishAt = tick() + delaySec
+        print(("Server-hop scheduled in %d seconds (%dh %dm)"):format(delaySec, hours, minutes))
         while true do
-            local start = tick()
-            while tick() - start < delaySec do task.wait(1) end
-            pcall(clearLock)
-            pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+            local remaining = math.max(0, math.ceil(finishAt - tick()))
+            if remaining <= 0 then break end
+            if remaining <= 5 or remaining % 10 == 0 then
+                local h = math.floor(remaining / 3600)
+                local m = math.floor((remaining % 3600) / 60)
+                local s = remaining % 60
+                print(("Server-hop in %02dh:%02dm:%02ds"):format(h, m, s))
+            end
+            task.wait(1)
         end
+        print("Server-hop timer reached — teleporting now...")
+        pcall(clearLock)
+        pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
     end)
 end
 
 startServerHopIfConfigured()
 
 spawn(function()
-    math.randomseed(tick())
     while true do
         if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
             repeat task.wait() until localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -189,10 +186,8 @@ spawn(function()
         teleportAbove(target)
         local messages = getMessages()
         for i = 1, #messages do
-            local msgToSend = withRandomSuffix(messages[i])
-            sendChatMessage(msgToSend)
+            sendChatMessage(withRandomSuffix(messages[i]))
             task.wait(3)
-            if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
         local remainder = (config.TimePerPlayer or 15) - (#messages * 3)
         if remainder > 0 then
