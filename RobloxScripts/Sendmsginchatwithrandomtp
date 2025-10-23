@@ -16,6 +16,9 @@ local TextChatService = game:GetService("TextChatService")
 local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 local localPlayer = Players.LocalPlayer
 
+-- seed randomness (keeps results varied across sessions)
+pcall(function() math.randomseed(tick() % 1e9) end)
+
 local function sendChatMessage(message)
     message = tostring(message)
     if not isLegacyChat then
@@ -29,12 +32,25 @@ local function sendChatMessage(message)
     end
 end
 
+-- generate an alphanumeric random suffix of given length (default 5)
+local function randomSuffix(len)
+    len = len or 5
+    -- include lowercase, uppercase and digits
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local out = {}
+    for i = 1, len do
+        local idx = math.random(1, #chars)
+        out[#out + 1] = chars:sub(idx, idx)
+    end
+    return table.concat(out)
+end
+
 -- build messages list (prefer message1/2/3; fallback to message repeated)
 local function getMessages()
     local msgs = {}
-    if config.message1 and tostring(config.message1) ~= "" then table.insert(msgs, config.message1) end
-    if config.message2 and tostring(config.message2) ~= "" then table.insert(msgs, config.message2) end
-    if config.message3 and tostring(config.message3) ~= "" then table.insert(msgs, config.message3) end
+    if config.message1 and tostring(config.message1) ~= "" then table.insert(msgs, tostring(config.message1)) end
+    if config.message2 and tostring(config.message2) ~= "" then table.insert(msgs, tostring(config.message2)) end
+    if config.message3 and tostring(config.message3) ~= "" then table.insert(msgs, tostring(config.message3)) end
 
     if #msgs == 0 then
         -- fallback: send config.message three times (keeps old behavior if user didn't specify)
@@ -43,6 +59,11 @@ local function getMessages()
     end
 
     return msgs
+end
+
+-- append a random suffix to a message (space separated)
+local function withRandomSuffix(msg)
+    return msg .. " " .. randomSuffix(5)
 end
 
 local function getValidTargets()
@@ -161,10 +182,11 @@ spawn(function()
         local target = targets[math.random(1, #targets)]
         teleportAbove(target)
 
-        -- get configured messages and send them individually
+        -- get configured messages and send them individually with random suffixes
         local messages = getMessages()
         for i = 1, #messages do
-            sendChatMessage(messages[i])
+            local msgToSend = withRandomSuffix(messages[i])
+            sendChatMessage(msgToSend)
             task.wait(3)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
