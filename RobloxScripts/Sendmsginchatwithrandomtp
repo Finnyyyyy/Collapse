@@ -5,8 +5,8 @@ local config = _G.CollapseConfig or {
     message1 = nil,
     message2 = nil,
     message3 = nil,
-    TimePerPlayer = 10,
-    TeleportOffset =7,
+    TimePerPlayer = 15,
+    TeleportOffset = 10,
 }
 
 local Players = game:GetService("Players")
@@ -16,8 +16,10 @@ local TextChatService = game:GetService("TextChatService")
 local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 local localPlayer = Players.LocalPlayer
 
--- seed randomness (keeps results varied across sessions)
-pcall(function() math.randomseed(tick() % 1e9) end)
+-- seed randomness
+pcall(function() math.randomseed(tick() * 1000) end)
+-- warm RNG a little
+math.random(); math.random(); math.random()
 
 local function sendChatMessage(message)
     message = tostring(message)
@@ -32,17 +34,48 @@ local function sendChatMessage(message)
     end
 end
 
--- generate an alphanumeric random suffix of given length (default 5)
-local function randomSuffix(len)
-    len = len or 5
-    -- include lowercase, uppercase and digits
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local out = {}
-    for i = 1, len do
-        local idx = math.random(1, #chars)
-        out[#out + 1] = chars:sub(idx, idx)
+-- small wordlist for random dictionary picks (3-7 letters)
+local WORDS = {
+    "sky","sun","cat","fox","oak","ice","ash","zen",
+    "moon","star","nova","echo","drift","blaze","spark","rift",
+    "storm","ember","glint","quark","pixel","glyph","orbit","phase",
+    "whirl","flick","bloom","chime","crest","forge","gleam","harbor"
+}
+
+-- helper: return a random integer between a and b (inclusive)
+local function rint(a,b)
+    return math.random(a,b)
+end
+
+-- generate an alphanumeric+symbol random suffix or a dictionary word.
+-- length will vary randomly between 3 and 7 characters.
+local function randomSuffix()
+    local len = rint(3,7)
+
+    -- 40% chance to return a dictionary word (filtered by length if possible),
+    -- otherwise generate a random mix of letters, digits and symbols.
+    local pickWordChance = 0.4
+    if math.random() < pickWordChance then
+        -- try to pick a word with length in [3,7]; fallback to any if none
+        local candidates = {}
+        for _,w in ipairs(WORDS) do
+            if #w >= 3 and #w <= 7 then
+                table.insert(candidates, w)
+            end
+        end
+        if #candidates == 0 then
+            return WORDS[math.random(1, #WORDS)]
+        end
+        return candidates[math.random(1, #candidates)]
+    else
+        local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/"
+        local out = {}
+        for i = 1, len do
+            local idx = math.random(1, #chars)
+            out[#out + 1] = chars:sub(idx, idx)
+        end
+        return table.concat(out)
     end
-    return table.concat(out)
 end
 
 -- build messages list (prefer message1/2/3; fallback to message repeated)
@@ -63,7 +96,7 @@ end
 
 -- append a random suffix to a message (space separated)
 local function withRandomSuffix(msg)
-    return msg .. " " .. randomSuffix(5)
+    return msg .. " " .. randomSuffix()
 end
 
 local function getValidTargets()
