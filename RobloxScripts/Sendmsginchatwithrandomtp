@@ -5,8 +5,8 @@ local config = _G.CollapseConfig or {
     message1 = nil,
     message2 = nil,
     message3 = nil,
-    TimePerPlayer = 15,
-    TeleportOffset = 10,
+    TimePerPlayer = 10,
+    TeleportOffset =7,
 }
 
 local Players = game:GetService("Players")
