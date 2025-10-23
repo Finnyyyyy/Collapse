@@ -1,102 +1,77 @@
--- start of loaded script
 local config = _G.CollapseConfig or {
-    -- backwards-compat fallback
-    message = "test", -- used if message1/2/3 not provided
+    message = "test",
     message1 = nil,
     message2 = nil,
     message3 = nil,
     TimePerPlayer = 15,
     TeleportOffset = 10,
+    ServerHop = nil,
 }
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
+local TeleportService = game:GetService("TeleportService")
 local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 local localPlayer = Players.LocalPlayer
 
--- seed randomness
 pcall(function() math.randomseed(tick() * 1000) end)
--- warm RNG a little
 math.random(); math.random(); math.random()
 
 local function sendChatMessage(message)
     message = tostring(message)
     if not isLegacyChat then
-        pcall(function()
-            TextChatService.TextChannels.RBXGeneral:SendAsync(message)
-        end)
+        pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(message) end)
     else
-        pcall(function()
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-        end)
+        pcall(function() ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All") end)
     end
 end
 
--- small wordlist for random dictionary picks (3-7 letters)
 local WORDS = {
-    "sky","sun","cat","fox","oak","ice","ash","zen",
-    "moon","star","nova","echo","drift","blaze","spark","rift",
-    "storm","ember","glint","quark","pixel","glyph","orbit","phase",
-    "whirl","flick","bloom","chime","crest","forge","gleam","harbor"
+"sky","sun","cat","fox","oak","ice","ash","zen","moon","star","nova","echo","drift","blaze","spark","rift","storm","ember","glint","quark","pixel","glyph","orbit","phase","whirl","flick","bloom","chime","crest","forge","gleam","harbor","shade","prism","vector","canyon","sprig","twill","grove","plume","marsh","sable","lyric","caper","whisk","mirth","slate","minty","clasp","gazer","haven","kudos","lumen","muse","noble","glade","brook","brine","crone","frond","grume","prong","trine","blurt","clave","flour","gloat","slant","skiff","stoke","spire","swain","shank","chord","thrum","whorl","wrack","quash","knoll","gnash","smite","snood","scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft","proxy","truss","clank","flank","plumb","scoop","skarn","stint","spike","swoop","shorn","thorn","whine","wring","quail","knave","snipe","scour","twirl","brawl","briar","druid","frank","grace","prowl","trend","bleat","flute","gloss","sweep","skier","spore","swift","shard","wharf","quick","knell","smock","sneer","sloop","quell","splay","brisk","frill","glen","plait","smirk","snarl","scald","twain","drown","pride","trice","crisp","droll","frost","gripe","prank","blent","clime","plush","slink","skulk","swill","whisp","quern","knout","gnarl","smote","scowl","tread","bravo","crux","drape","grasp","tramp","bleak","floss","snoop","skimp","stale","swank","shred","chive","thine","whiff","qualm","gnome","sniff","scape","harrow","dapper","frisk","laden","cairn","blare","gild","oscar","vapor","stalk","spate","swore","shale","thole","wrath","knurl","giddy","cameo","bezel"
 }
 
--- helper: return a random integer between a and b (inclusive)
-local function rint(a,b)
-    return math.random(a,b)
-end
+local function rint(a,b) return math.random(a,b) end
 
--- generate an alphanumeric+symbol random suffix or a dictionary word.
--- length will vary randomly between 3 and 7 characters.
 local function randomSuffix()
     local len = rint(3,7)
-
-    -- 40% chance to return a dictionary word (filtered by length if possible),
-    -- otherwise generate a random mix of letters, digits and symbols.
-    local pickWordChance = 0.4
-    if math.random() < pickWordChance then
-        -- try to pick a word with length in [3,7]; fallback to any if none
-        local candidates = {}
-        for _,w in ipairs(WORDS) do
+    local pickWordChance = 0.45
+    if math.random() < pickWordChance and #WORDS > 0 then
+        local tries = 0
+        while tries < 40 do
+            local w = WORDS[math.random(1,#WORDS)]
             if #w >= 3 and #w <= 7 then
-                table.insert(candidates, w)
+                if math.random() < 0.35 then w = w:sub(1,1):upper() .. w:sub(2) end
+                if math.random() < 0.12 then w = w .. tostring(math.random(0,9)) end
+                if math.random() < 0.08 then w = w .. "!"; end
+                return w
             end
+            tries = tries + 1
         end
-        if #candidates == 0 then
-            return WORDS[math.random(1, #WORDS)]
-        end
-        return candidates[math.random(1, #candidates)]
-    else
-        local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/"
-        local out = {}
-        for i = 1, len do
-            local idx = math.random(1, #chars)
-            out[#out + 1] = chars:sub(idx, idx)
-        end
-        return table.concat(out)
     end
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/"
+    local out = {}
+    for i = 1, len do
+        out[#out + 1] = chars:sub(math.random(1, #chars), math.random(1, #chars))
+    end
+    return table.concat(out)
 end
 
--- build messages list (prefer message1/2/3; fallback to message repeated)
+local function withRandomSuffix(msg)
+    return tostring(msg) .. " " .. randomSuffix()
+end
+
 local function getMessages()
     local msgs = {}
     if config.message1 and tostring(config.message1) ~= "" then table.insert(msgs, tostring(config.message1)) end
     if config.message2 and tostring(config.message2) ~= "" then table.insert(msgs, tostring(config.message2)) end
     if config.message3 and tostring(config.message3) ~= "" then table.insert(msgs, tostring(config.message3)) end
-
     if #msgs == 0 then
-        -- fallback: send config.message three times (keeps old behavior if user didn't specify)
         local fallback = tostring(config.message or "test")
         for i = 1, 3 do table.insert(msgs, fallback) end
     end
-
     return msgs
-end
-
--- append a random suffix to a message (space separated)
-local function withRandomSuffix(msg)
-    return msg .. " " .. randomSuffix()
 end
 
 local function getValidTargets()
@@ -111,10 +86,7 @@ end
 
 local currentLock = {}
 local function clearLock()
-    if currentLock.heartbeatConn then
-        currentLock.heartbeatConn:Disconnect()
-        currentLock.heartbeatConn = nil
-    end
+    if currentLock.heartbeatConn then currentLock.heartbeatConn:Disconnect() currentLock.heartbeatConn = nil end
     if currentLock.alignPos and currentLock.alignPos.Parent then currentLock.alignPos:Destroy() end
     if currentLock.alignOri and currentLock.alignOri.Parent then currentLock.alignOri:Destroy() end
     if currentLock.attachMy and currentLock.attachMy.Parent then currentLock.attachMy:Destroy() end
@@ -129,19 +101,15 @@ local function createLock(target)
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local targetHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     if not myHrp or not targetHrp then return end
-
     myHrp.CanCollide = false
-
     local attachMy = Instance.new("Attachment")
     attachMy.Name = "__lock_attach_my"
     attachMy.Parent = myHrp
     attachMy.Position = Vector3.new(0, 0, 0)
-
     local attachTarget = Instance.new("Attachment")
     attachTarget.Name = "__lock_attach_target"
     attachTarget.Parent = targetHrp
     attachTarget.Position = Vector3.new(0, config.TeleportOffset, 0)
-
     local alignPos = Instance.new("AlignPosition")
     alignPos.Name = "__lock_align_pos"
     alignPos.Attachment0 = attachMy
@@ -151,7 +119,6 @@ local function createLock(target)
     alignPos.Responsiveness = 200
     alignPos.ReactionForceEnabled = true
     alignPos.Parent = myHrp
-
     local alignOri = Instance.new("AlignOrientation")
     alignOri.Name = "__lock_align_ori"
     alignOri.Attachment0 = attachMy
@@ -160,12 +127,10 @@ local function createLock(target)
     alignOri.MaxTorque = 9e9
     alignOri.Responsiveness = 200
     alignOri.Parent = myHrp
-
     currentLock.attachMy = attachMy
     currentLock.attachTarget = attachTarget
     currentLock.alignPos = alignPos
     currentLock.alignOri = alignOri
-
     currentLock.heartbeatConn = RunService.Heartbeat:Connect(function()
         if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
             clearLock()
@@ -174,9 +139,7 @@ local function createLock(target)
         local targetHrp2 = target.Character:FindFirstChild("HumanoidRootPart")
         local myHrp2 = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myHrp2 and targetHrp2 then
-            pcall(function()
-                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, config.TeleportOffset, 0)
-            end)
+            pcall(function() myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
         end
     end)
 end
@@ -185,21 +148,34 @@ local function teleportAbove(target)
     if not target or not target.Character then return false end
     local hrp = target.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-
     local myChar = localPlayer.Character
     if not myChar then return false end
     local myHrp = myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return false end
-
-    local success, err = pcall(function()
-        myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0)
-    end)
-    if not success then
-        warn("Teleport failed: ", err)
-    end
+    local success, err = pcall(function() myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
+    if not success then warn("Teleport failed: ", err) end
     createLock(target)
     return success
 end
+
+local function startServerHopIfConfigured()
+    local sh = config.ServerHop
+    if type(sh) ~= "table" then return end
+    local hours = tonumber(sh.hours) or 0
+    local minutes = tonumber(sh.minutes) or 0
+    local delaySec = hours * 3600 + minutes * 60
+    if delaySec <= 0 then return end
+    spawn(function()
+        while true do
+            local start = tick()
+            while tick() - start < delaySec do task.wait(1) end
+            pcall(clearLock)
+            pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+        end
+    end)
+end
+
+startServerHopIfConfigured()
 
 spawn(function()
     math.randomseed(tick())
@@ -208,14 +184,9 @@ spawn(function()
             repeat task.wait() until localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         end
         local targets = getValidTargets()
-        if #targets == 0 then
-            task.wait(2)
-            continue
-        end
+        if #targets == 0 then task.wait(2) continue end
         local target = targets[math.random(1, #targets)]
         teleportAbove(target)
-
-        -- get configured messages and send them individually with random suffixes
         local messages = getMessages()
         for i = 1, #messages do
             local msgToSend = withRandomSuffix(messages[i])
@@ -223,7 +194,6 @@ spawn(function()
             task.wait(3)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
-
         local remainder = (config.TimePerPlayer or 15) - (#messages * 3)
         if remainder > 0 then
             local startTick = tick()
@@ -232,7 +202,6 @@ spawn(function()
                 task.wait(0.5)
             end
         end
-
         clearLock()
         task.wait(0.2)
     end
