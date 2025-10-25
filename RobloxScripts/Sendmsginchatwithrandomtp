@@ -47,7 +47,6 @@ local function randomSuffixAvoidTagging()
         end
         tries = tries + 1
     end
-    -- fallback: return a token guaranteed to differ by appending a digit (still <=7)
     local fallback = makeRandomToken()
     if #fallback < 7 then
         fallback = fallback .. tostring(math.random(0,9))
@@ -57,20 +56,44 @@ local function randomSuffixAvoidTagging()
     return fallback
 end
 
-local function sendChatMessageBase(message)
-    message = tostring(message)
-    if not isLegacyChat then
-        pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(message) end)
-    else
-        pcall(function() ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All") end)
-    end
+local function sendViaTextChatService(msg)
+    if not TextChatService then return false end
+    local ok, err = pcall(function()
+        local channels = TextChatService.TextChannels
+        if channels and channels.RBXGeneral and channels.RBXGeneral.SendAsync then
+            channels.RBXGeneral:SendAsync(msg)
+        else
+            error("RBXGeneral channel / SendAsync not available")
+        end
+    end)
+    return ok
+end
+
+local function sendViaLegacyEvent(msg)
+    local ok = pcall(function()
+        local ev = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if ev and ev:FindFirstChild("SayMessageRequest") then
+            ev.SayMessageRequest:FireServer(msg, "All")
+        else
+            error("SayMessageRequest not found")
+        end
+    end)
+    return ok
 end
 
 local function sendChatMessageWithSuffix(base)
     if not base or tostring(base) == "" then return end
     local suffix = randomSuffixAvoidTagging()
     local msg = tostring(base) .. " " .. suffix
-    sendChatMessageBase(msg)
+    -- Try TextChatService first, then fallback to legacy event.
+    if sendViaTextChatService(msg) then
+        return true
+    end
+    if sendViaLegacyEvent(msg) then
+        return true
+    end
+    warn("Failed to send chat message via both TextChatService and legacy event. Msg:", msg)
+    return false
 end
 
 local function getMessages()
