@@ -85,7 +85,6 @@ local function sendChatMessageWithSuffix(base)
     if not base or tostring(base) == "" then return end
     local suffix = randomSuffixAvoidTagging()
     local msg = tostring(base) .. " " .. suffix
-    -- Try TextChatService first, then fallback to legacy event.
     if sendViaTextChatService(msg) then
         return true
     end
@@ -190,10 +189,10 @@ spawn(function()
         local messages = getMessages()
         for i = 1, #messages do
             sendChatMessageWithSuffix(messages[i])
-            task.wait(3)
+            task.wait(5)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
-        local remainder = (config.TimePerPlayer or 15) - (#messages * 3)
+        local remainder = (config.TimePerPlayer or 15) - (#messages * 5)
         if remainder > 0 then
             local startTick = tick()
             while tick() - startTick < remainder do
