@@ -7,43 +7,6 @@ local config = _G.CollapseConfig or {
     ServerHop = { hours = 0, minutes = 1 },
 }
 
-local WORDS = {
-    "sky","sun","cat","fox","oak","ice","ash","zen",
-    "moon","star","nova","echo","drift","blaze","spark","rift",
-    "storm","ember","glint","quark","pixel","glyph","orbit","phase",
-    "whirl","flick","bloom","chime","crest","forge","gleam","harbor",
-    "shade","prism","vector","canyon","sprig","twill","grove","plume",
-    "marsh","sable","lyric","caper","whisk","mirth","slate","minty",
-    "clasp","gazer","haven","kudos","lumen","muse","noble","aura",
-    "breeze","cascade","glow","hollow","isle","jewel","knot",
-    "luster","meadow","nimbus","opal","quartz","ripple","silk",
-    "thrive","unity","velvet","wander","yonder","zephyr","bramble","crisp",
-    "dune","fable","harvest","ignite","jester","keystone","lucid","nectar",
-    "onyx","petal","quiver","radiant","serene","timber","uplift","vivid",
-    "whisper","yearn","zenith","amber","cinder","frost","glee","indigo",
-    "jade","kindle","lotus","mirage","pearl","quill","raven","tide",
-    "verdant","xenon","zeal","aether","brisk","daisy","elm","flare",
-    "gust","iris","jolt","lunar","mist","pulse","quest","rune","spore",
-    "umbra","veil","yarn","glade","brook","brine","crone","frond","prong",
-    "trine","blurt","clave","gloat","slant","skiff","spire","swain","shank",
-    "chord","thrum","whorl","wrack","quash","knoll","gnash","smite","snood",
-    "scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft",
-    "proxy","truss","clank","flank","plumb","scoop","skarn","stint","spike",
-    "swoop","thorn","whine","wring","quail","knave","snipe","scour","twirl",
-    "brawl","briar","druid","frank","grace","prowl","trend","bleat","flute",
-    "gloss","sweep","skier","swift","shard","wharf","quick","knell","smock",
-    "sneer","sloop","quell","splay","brisk","frill","glen","plait","smirk",
-    "snarl","scald","twain","pride","trice","crisp","droll","gripe","prank",
-    "blent","clime","plush","slink","skulk","swill","whisp","quern","knout",
-    "gnarl","smote","scowl","tread","bravo","crux","drape","grasp","tramp",
-    "bleak","floss","snoop","skimp","stale","swank","shred","chive","thine",
-    "whiff","qualm","gnome","sniff","scape","harrow","dapper","frisk","laden",
-    "cairn","blare","gild","vapor","stalk","spate","swore","shale","thole",
-    "wrath","knurl","giddy","cameo","bezel","auric","cantle","deriv","helix",
-    "inert","krill","loren","manto","nudge","olea","pique","ravel","senda",
-    "turbo","undra","vinta","waver","yulon","zeta"
-}
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -55,55 +18,59 @@ local localPlayer = Players.LocalPlayer
 math.randomseed(tick() * 1000)
 math.random(); math.random(); math.random()
 
-local function pickCandidateWord()
-    local candidates = {}
-    for _,w in ipairs(WORDS) do
-        local s = tostring(w):gsub("%s+", "")
-        if #s >= 3 and #s <= 7 then table.insert(candidates, s) end
+local function getAllPlayerNamesLower()
+    local out = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Name then out[string.lower(p.Name)] = true end
     end
-    if #candidates == 0 then
-        local any = tostring(WORDS[math.random(1, #WORDS)] or "a")
-        any = any:gsub("%s+", "")
-        if #any > 7 then any = any:sub(1,7) end
-        return any
-    end
-    return candidates[math.random(1, #candidates)]
+    return out
 end
 
-local function randomSuffix()
-    if math.random() < 0.5 and #WORDS > 0 then
-        local w = pickCandidateWord()
-        if math.random() < 0.4 then w = w:sub(1,1):upper() .. w:sub(2) end
-        local spaceLeft = 7 - #w
-        if spaceLeft > 0 then
-            if math.random() < 0.12 then
-                w = w .. string.char(33 + math.random(0,14)) -- symbol 33..47
-            elseif math.random() < 0.25 then
-                w = w .. tostring(math.random(0,9))
-            end
+local function makeRandomToken()
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local len = math.random(1, 7)
+    local t = {}
+    for i = 1, len do
+        local idx = math.random(1, #chars)
+        t[i] = chars:sub(idx, idx)
+    end
+    return table.concat(t)
+end
+
+local function randomSuffixAvoidTagging()
+    local playersLower = getAllPlayerNamesLower()
+    local tries = 0
+    while tries < 40 do
+        local token = makeRandomToken()
+        if not playersLower[string.lower(token)] then
+            return token
         end
-        if #w > 7 then w = w:sub(1,7) end
-        return w
+        tries = tries + 1
+    end
+    -- fallback: return a token guaranteed to differ by appending a digit (still <=7)
+    local fallback = makeRandomToken()
+    if #fallback < 7 then
+        fallback = fallback .. tostring(math.random(0,9))
     else
-        local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_-+="
-        local len = math.random(1,7)
-        local out = {}
-        for i = 1, len do
-            local idx = math.random(1, #chars)
-            out[i] = chars:sub(idx, idx)
-        end
-        return table.concat(out)
+        fallback = fallback:sub(1,6) .. tostring(math.random(0,9))
     end
+    return fallback
 end
 
-local function sendChatMessage(base)
-    if not base or tostring(base) == "" then return end
-    local msg = tostring(base) .. " " .. randomSuffix()
+local function sendChatMessageBase(message)
+    message = tostring(message)
     if not isLegacyChat then
-        pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(msg) end)
+        pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(message) end)
     else
-        pcall(function() ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All") end)
+        pcall(function() ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All") end)
     end
+end
+
+local function sendChatMessageWithSuffix(base)
+    if not base or tostring(base) == "" then return end
+    local suffix = randomSuffixAvoidTagging()
+    local msg = tostring(base) .. " " .. suffix
+    sendChatMessageBase(msg)
 end
 
 local function getMessages()
@@ -199,7 +166,7 @@ spawn(function()
         teleportAbove(target)
         local messages = getMessages()
         for i = 1, #messages do
-            sendChatMessage(messages[i])
+            sendChatMessageWithSuffix(messages[i])
             task.wait(3)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
