@@ -4,7 +4,7 @@ local config = _G.CollapseConfig or {
     message3 = "t3",
     TimePerPlayer = 15,
     TeleportOffset = 10,
-    ServerHop = { hours = 0, minutes = 1 }, -- server-hop timer (1 minute)
+    ServerHop = { hours = 0, minutes = 1 },
 }
 
 local WORDS = {
@@ -18,15 +18,37 @@ local WORDS = {
     "breeze","cascade","emberly","glow","hollow","isle","jewel","knot",
     "luster","meadow","nimbus","opal","pioneer","quartz","ripple","silk",
     "thrive","unity","velvet","wander","yonder","zephyr","bramble","crisp",
-    "dune","echoes","fable","grove","harvest","ignite","jester","keystone",
+    "dune","echoes","fable","grove2","harvest","ignite","jester","keystone",
     "lucid","mirthful","nectar","onyx","petal","quiver","radiant","serene",
-    "timber","uplift","vivid","whisper","yearn","zenith","amber","bloom",
+    "timber","uplift","vivid","whisper","yearn","zenith","amber","bloom2",
     "cinder","dew","emberon","frost","glee","havenly","indigo","jade",
     "kindle","lotus","mirage","noblely","orbiton","pearl","quill","raven",
-    "silica","tide","unity","verdant","wanderer","xenon","yoke","zeal",
+    "silica","tide","unity2","verdant","wanderer","xenon","yoke","zeal",
     "aether","brisk","crystal","daisy","elm","flare","gust","harboring",
     "iris","jolt","keel","lunar","mist","novae","opaline","pulse","quest",
-    "rune","spore","tangle","umbra","veil","whisker","yarn","zenful"
+    "rune","spore","tangle","umbra","veil","whisker","yarn","zenful",
+    "glade","brook","brine","crone","frond","grume","prong","trine","blurt",
+    "clave","flour","gloat","slant","skiff","stoke","spire","swain","shank",
+    "chord","thrum","whorl","wrack","quash","knoll","gnash","smite","snood",
+    "scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft",
+    "proxy","truss","clank","flank","plumb","scoop","skarn","stint","spike",
+    "swoop","shorn","thorn","whine","wring","quail","knave","snipe","scour",
+    "twirl","brawl","briar","druid","frank","grace","prowl","trend","bleat",
+    "flute","gloss","sweep","skier","spore2","swift","shard","wharf","quick",
+    "knell","smock","sneer","sloop","quell","splay","brisk","frill","glen",
+    "plait","smirk","snarl","scald","twain","drown","pride","trice","crisp",
+    "droll","frost","gripe","prank","blent","clime","plush","slink","skulk",
+    "swill","whisp","quern","knout","gnarl","smote","scowl","tread","bravo",
+    "crux","drape","grasp","tramp","bleak","floss","snoop","skimp","stale",
+    "swank","shred","chive","thine","whiff","qualm","gnome","sniff","scape",
+    "harrow","dapper","frisk","laden","cairn","blare","gild","oscar","vapor",
+    "stalk","spate","swore","shale","thole","wrath","knurl","giddy","cameo",
+    "bezel","auric","bentho","cantle","deriv","eled","fayne","groven","helix",
+    "inert","juren","kervo","lento","malar","nibor","ortho","prismy","quory",
+    "remit","selva","tenda","ultra","vexil","wendo","xeris","yula","zephy",
+    "amble","brava","coro","dista","embera","foray","grita","holla","imbed",
+    "jovia","krill","loren","manto"," nudge","olea","pique","quale","ravel",
+    "senda","turbo","undra","vinta","waver","xeno","yulon","zeta"
 }
 
 local Players = game:GetService("Players")
@@ -37,42 +59,46 @@ local TextChatService = game:GetService("TextChatService")
 local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 local localPlayer = Players.LocalPlayer
 
+math.randomseed(tick() * 1000)
+math.random(); math.random(); math.random()
+
 local function randomSuffix()
-    local useWord = math.random() < 0.5
-    if useWord then
+    if math.random() < 0.5 and #WORDS > 0 then
         local w = WORDS[math.random(1, #WORDS)]
-        if math.random() < 0.4 then
-            w = w:sub(1,1):upper() .. w:sub(2)
-        end
-        if math.random() < 0.3 then
-            w = w .. string.char(math.random(33, 47))
-        elseif math.random() < 0.5 then
-            w = w .. tostring(math.random(0, 9))
-        end
+        if math.random() < 0.4 then w = w:sub(1,1):upper() .. w:sub(2) end
+        if math.random() < 0.3 then w = w .. string.char(33 + math.random(0,14)) end
+        if math.random() < 0.25 then w = w .. tostring(math.random(0,9)) end
         return w
     else
         local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_-+="
-        local len = math.random(1, 7)
-        local result = {}
+        local len = math.random(1,7)
+        local out = {}
         for i = 1, len do
-            local idx = math.random(1, #chars)
-            result[i] = chars:sub(idx, idx)
+            out[i] = chars:sub(math.random(1, #chars), math.random(1, #chars))
         end
-        return table.concat(result)
+        return table.concat(out)
     end
 end
 
 local function sendChatMessage(message)
-    message = tostring(message) .. " " .. randomSuffix()
+    local msg = tostring(message) .. " " .. randomSuffix()
     if not isLegacyChat then
-        pcall(function()
-            TextChatService.TextChannels.RBXGeneral:SendAsync(message)
-        end)
+        pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(msg) end)
     else
-        pcall(function()
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-        end)
+        pcall(function() ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All") end)
     end
+end
+
+local function getMessages()
+    local msgs = {}
+    if config.message1 and tostring(config.message1) ~= "" then table.insert(msgs, tostring(config.message1)) end
+    if config.message2 and tostring(config.message2) ~= "" then table.insert(msgs, tostring(config.message2)) end
+    if config.message3 and tostring(config.message3) ~= "" then table.insert(msgs, tostring(config.message3)) end
+    if #msgs == 0 then
+        local fallback = tostring(config.message or "test")
+        for i = 1, 3 do table.insert(msgs, fallback) end
+    end
+    return msgs
 end
 
 local function getValidTargets()
@@ -87,10 +113,7 @@ end
 
 local currentLock = {}
 local function clearLock()
-    if currentLock.heartbeatConn then
-        currentLock.heartbeatConn:Disconnect()
-        currentLock.heartbeatConn = nil
-    end
+    if currentLock.heartbeatConn then currentLock.heartbeatConn:Disconnect() currentLock.heartbeatConn = nil end
     if currentLock.alignPos and currentLock.alignPos.Parent then currentLock.alignPos:Destroy() end
     if currentLock.alignOri and currentLock.alignOri.Parent then currentLock.alignOri:Destroy() end
     if currentLock.attachMy and currentLock.attachMy.Parent then currentLock.attachMy:Destroy() end
@@ -106,11 +129,9 @@ local function createLock(target)
     local targetHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     if not myHrp or not targetHrp then return end
     myHrp.CanCollide = false
-
     local attachMy = Instance.new("Attachment", myHrp)
     local attachTarget = Instance.new("Attachment", targetHrp)
     attachTarget.Position = Vector3.new(0, config.TeleportOffset, 0)
-
     local alignPos = Instance.new("AlignPosition", myHrp)
     alignPos.Attachment0 = attachMy
     alignPos.Attachment1 = attachTarget
@@ -118,32 +139,19 @@ local function createLock(target)
     alignPos.MaxForce = 9e9
     alignPos.Responsiveness = 200
     alignPos.ReactionForceEnabled = true
-
     local alignOri = Instance.new("AlignOrientation", myHrp)
     alignOri.Attachment0 = attachMy
     alignOri.Attachment1 = attachTarget
     alignOri.RigidityEnabled = true
     alignOri.MaxTorque = 9e9
     alignOri.Responsiveness = 200
-
-    currentLock = {
-        attachMy = attachMy,
-        attachTarget = attachTarget,
-        alignPos = alignPos,
-        alignOri = alignOri
-    }
-
+    currentLock = { attachMy = attachMy, attachTarget = attachTarget, alignPos = alignPos, alignOri = alignOri }
     currentLock.heartbeatConn = RunService.Heartbeat:Connect(function()
-        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
-            clearLock()
-            return
-        end
+        if not target or not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then clearLock() return end
         local targetHrp2 = target.Character:FindFirstChild("HumanoidRootPart")
         local myHrp2 = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myHrp2 and targetHrp2 then
-            pcall(function()
-                myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, config.TeleportOffset, 0)
-            end)
+            pcall(function() myHrp2.CFrame = targetHrp2.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
         end
     end)
 end
@@ -156,10 +164,7 @@ local function teleportAbove(target)
     if not myChar then return false end
     local myHrp = myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return false end
-
-    local success, err = pcall(function()
-        myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0)
-    end)
+    local success, err = pcall(function() myHrp.CFrame = hrp.CFrame + Vector3.new(0, config.TeleportOffset, 0) end)
     if not success then warn("Teleport failed: ", err) end
     createLock(target)
     return success
@@ -172,18 +177,16 @@ spawn(function()
             repeat task.wait() until localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         end
         local targets = getValidTargets()
-        if #targets == 0 then
-            task.wait(2)
-            continue
-        end
+        if #targets == 0 then task.wait(2) continue end
         local target = targets[math.random(1, #targets)]
         teleportAbove(target)
-        for _, msg in ipairs({config.message1, config.message2, config.message3}) do
-            sendChatMessage(msg)
+        local messages = getMessages()
+        for i = 1, #messages do
+            sendChatMessage(messages[i])
             task.wait(3)
             if not target.Parent or not target.Character or not localPlayer.Character then break end
         end
-        local remainder = config.TimePerPlayer - (3 * 3)
+        local remainder = (config.TimePerPlayer or 15) - (#messages * 3)
         if remainder > 0 then
             local startTick = tick()
             while tick() - startTick < remainder do
@@ -196,10 +199,9 @@ spawn(function()
     end
 end)
 
--- Server-hop timer built into main script
 if config.ServerHop then
-    local hours = config.ServerHop.hours or 0
-    local minutes = config.ServerHop.minutes or 0
+    local hours = tonumber(config.ServerHop.hours) or 0
+    local minutes = tonumber(config.ServerHop.minutes) or 0
     local totalTime = (hours * 3600) + (minutes * 60)
     if totalTime > 0 then
         task.spawn(function()
@@ -216,11 +218,24 @@ if config.ServerHop then
                 task.wait(1)
             end
             print("Server-hop timer reached — teleporting to new server...")
-            pcall(function()
-                TeleportService:Teleport(game.PlaceId, localPlayer)
-            end)
+            pcall(clearLock)
+            pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
         end)
     end
 end
+
+spawn(function()
+    while true do
+        task.wait(0.3)
+        if not localPlayer.Character then continue end
+        local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then continue end
+        local maxH = humanoid.MaxHealth
+        local curH = humanoid.Health
+        if maxH > 0 and curH / maxH <= 0.2 then
+            pcall(function() humanoid.Health = 0 end)
+        end
+    end
+end)
 
 return config
