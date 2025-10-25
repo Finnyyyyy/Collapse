@@ -15,40 +15,33 @@ local WORDS = {
     "shade","prism","vector","canyon","sprig","twill","grove","plume",
     "marsh","sable","lyric","caper","whisk","mirth","slate","minty",
     "clasp","gazer","haven","kudos","lumen","muse","noble","aura",
-    "breeze","cascade","emberly","glow","hollow","isle","jewel","knot",
-    "luster","meadow","nimbus","opal","pioneer","quartz","ripple","silk",
+    "breeze","cascade","glow","hollow","isle","jewel","knot",
+    "luster","meadow","nimbus","opal","quartz","ripple","silk",
     "thrive","unity","velvet","wander","yonder","zephyr","bramble","crisp",
-    "dune","echoes","fable","grove2","harvest","ignite","jester","keystone",
-    "lucid","mirthful","nectar","onyx","petal","quiver","radiant","serene",
-    "timber","uplift","vivid","whisper","yearn","zenith","amber","bloom2",
-    "cinder","dew","emberon","frost","glee","havenly","indigo","jade",
-    "kindle","lotus","mirage","noblely","orbiton","pearl","quill","raven",
-    "silica","tide","unity2","verdant","wanderer","xenon","yoke","zeal",
-    "aether","brisk","crystal","daisy","elm","flare","gust","harboring",
-    "iris","jolt","keel","lunar","mist","novae","opaline","pulse","quest",
-    "rune","spore","tangle","umbra","veil","whisker","yarn","zenful",
-    "glade","brook","brine","crone","frond","grume","prong","trine","blurt",
-    "clave","flour","gloat","slant","skiff","stoke","spire","swain","shank",
+    "dune","fable","harvest","ignite","jester","keystone","lucid","nectar",
+    "onyx","petal","quiver","radiant","serene","timber","uplift","vivid",
+    "whisper","yearn","zenith","amber","cinder","frost","glee","indigo",
+    "jade","kindle","lotus","mirage","pearl","quill","raven","tide",
+    "verdant","xenon","zeal","aether","brisk","daisy","elm","flare",
+    "gust","iris","jolt","lunar","mist","pulse","quest","rune","spore",
+    "umbra","veil","yarn","glade","brook","brine","crone","frond","prong",
+    "trine","blurt","clave","gloat","slant","skiff","spire","swain","shank",
     "chord","thrum","whorl","wrack","quash","knoll","gnash","smite","snood",
     "scamp","dwarf","twine","dread","brunt","crimp","drake","freon","graft",
     "proxy","truss","clank","flank","plumb","scoop","skarn","stint","spike",
-    "swoop","shorn","thorn","whine","wring","quail","knave","snipe","scour",
-    "twirl","brawl","briar","druid","frank","grace","prowl","trend","bleat",
-    "flute","gloss","sweep","skier","spore2","swift","shard","wharf","quick",
-    "knell","smock","sneer","sloop","quell","splay","brisk","frill","glen",
-    "plait","smirk","snarl","scald","twain","drown","pride","trice","crisp",
-    "droll","frost","gripe","prank","blent","clime","plush","slink","skulk",
-    "swill","whisp","quern","knout","gnarl","smote","scowl","tread","bravo",
-    "crux","drape","grasp","tramp","bleak","floss","snoop","skimp","stale",
-    "swank","shred","chive","thine","whiff","qualm","gnome","sniff","scape",
-    "harrow","dapper","frisk","laden","cairn","blare","gild","oscar","vapor",
-    "stalk","spate","swore","shale","thole","wrath","knurl","giddy","cameo",
-    "bezel","auric","bentho","cantle","deriv","eled","fayne","groven","helix",
-    "inert","juren","kervo","lento","malar","nibor","ortho","prismy","quory",
-    "remit","selva","tenda","ultra","vexil","wendo","xeris","yula","zephy",
-    "amble","brava","coro","dista","embera","foray","grita","holla","imbed",
-    "jovia","krill","loren","manto"," nudge","olea","pique","quale","ravel",
-    "senda","turbo","undra","vinta","waver","xeno","yulon","zeta"
+    "swoop","thorn","whine","wring","quail","knave","snipe","scour","twirl",
+    "brawl","briar","druid","frank","grace","prowl","trend","bleat","flute",
+    "gloss","sweep","skier","swift","shard","wharf","quick","knell","smock",
+    "sneer","sloop","quell","splay","brisk","frill","glen","plait","smirk",
+    "snarl","scald","twain","pride","trice","crisp","droll","gripe","prank",
+    "blent","clime","plush","slink","skulk","swill","whisp","quern","knout",
+    "gnarl","smote","scowl","tread","bravo","crux","drape","grasp","tramp",
+    "bleak","floss","snoop","skimp","stale","swank","shred","chive","thine",
+    "whiff","qualm","gnome","sniff","scape","harrow","dapper","frisk","laden",
+    "cairn","blare","gild","vapor","stalk","spate","swore","shale","thole",
+    "wrath","knurl","giddy","cameo","bezel","auric","cantle","deriv","helix",
+    "inert","krill","loren","manto","nudge","olea","pique","ravel","senda",
+    "turbo","undra","vinta","waver","yulon","zeta"
 }
 
 local Players = game:GetService("Players")
@@ -62,26 +55,50 @@ local localPlayer = Players.LocalPlayer
 math.randomseed(tick() * 1000)
 math.random(); math.random(); math.random()
 
+local function pickCandidateWord()
+    local candidates = {}
+    for _,w in ipairs(WORDS) do
+        local s = tostring(w):gsub("%s+", "")
+        if #s >= 3 and #s <= 7 then table.insert(candidates, s) end
+    end
+    if #candidates == 0 then
+        local any = tostring(WORDS[math.random(1, #WORDS)] or "a")
+        any = any:gsub("%s+", "")
+        if #any > 7 then any = any:sub(1,7) end
+        return any
+    end
+    return candidates[math.random(1, #candidates)]
+end
+
 local function randomSuffix()
     if math.random() < 0.5 and #WORDS > 0 then
-        local w = WORDS[math.random(1, #WORDS)]
+        local w = pickCandidateWord()
         if math.random() < 0.4 then w = w:sub(1,1):upper() .. w:sub(2) end
-        if math.random() < 0.3 then w = w .. string.char(33 + math.random(0,14)) end
-        if math.random() < 0.25 then w = w .. tostring(math.random(0,9)) end
+        local spaceLeft = 7 - #w
+        if spaceLeft > 0 then
+            if math.random() < 0.12 then
+                w = w .. string.char(33 + math.random(0,14)) -- symbol 33..47
+            elseif math.random() < 0.25 then
+                w = w .. tostring(math.random(0,9))
+            end
+        end
+        if #w > 7 then w = w:sub(1,7) end
         return w
     else
         local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_-+="
         local len = math.random(1,7)
         local out = {}
         for i = 1, len do
-            out[i] = chars:sub(math.random(1, #chars), math.random(1, #chars))
+            local idx = math.random(1, #chars)
+            out[i] = chars:sub(idx, idx)
         end
         return table.concat(out)
     end
 end
 
-local function sendChatMessage(message)
-    local msg = tostring(message) .. " " .. randomSuffix()
+local function sendChatMessage(base)
+    if not base or tostring(base) == "" then return end
+    local msg = tostring(base) .. " " .. randomSuffix()
     if not isLegacyChat then
         pcall(function() TextChatService.TextChannels.RBXGeneral:SendAsync(msg) end)
     else
