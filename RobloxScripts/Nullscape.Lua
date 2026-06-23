@@ -14,13 +14,14 @@ local EnemiesFolder = workspace:WaitForChild("Enemies")
 local Beacon = workspace:WaitForChild("Beacon")
 local AltarsFolder = workspace:FindFirstChild("Altars") 
 
-local SPEED = 100
+local SPEED = 250
 local HOVER_OFFSET = 2
 local MAX_DISTANCE = 20000
 local PREVIEW_COUNT = 10 
 
 local isFarmOn = false 
 local isAltarOn = false
+local isMedalOn = false
 local isIntermissionPause = false
 
 -- === HELPER: NOTIFICATIONS ===
@@ -42,7 +43,7 @@ local success = pcall(function() ScreenGui.Parent = CoreGui end)
 if not success then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 160)
+MainFrame.Size = UDim2.new(0, 220, 0, 180) 
 MainFrame.Position = UDim2.new(0.5, -110, 0.7, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
@@ -63,7 +64,7 @@ Title.TextSize = 16
 Title.Parent = MainFrame
 
 local ToggleContainer = Instance.new("ScrollingFrame")
-ToggleContainer.Size = UDim2.new(1, 0, 1, -40)
+ToggleContainer.Size = UDim2.new(1, 0, 1, -45)
 ToggleContainer.Position = UDim2.new(0, 0, 0, 40)
 ToggleContainer.BackgroundTransparency = 1
 ToggleContainer.ScrollBarThickness = 4
@@ -75,6 +76,11 @@ ListLayout.Parent = ToggleContainer
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ListLayout.Padding = UDim.new(0, 8)
 ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Auto-adjust canvas size so scrolling is completely fluid
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ToggleContainer.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
+end)
 
 -- === 2. WORLD SETUP & BLOCKERS ===
 local pathFolder = Instance.new("Folder", workspace)
@@ -98,7 +104,7 @@ rayParams.FilterType = Enum.RaycastFilterType.Include
 rayParams.FilterDescendantsInstances = {BlockersFolder}
 
 local function updateBlockerVisibility()
-    if isFarmOn or isAltarOn then
+    if isFarmOn or isAltarOn or isMedalOn then
         BlockersFolder.Parent = workspace
     else
         BlockersFolder.Parent = nil
@@ -143,6 +149,7 @@ end
 
 createToggle("Farm presents", 1, function(state) isFarmOn = state end)
 createToggle("Auto Alters", 2, function(state) isAltarOn = state end)
+createToggle("Auto Medal", 3, function(state) isMedalOn = state end)
 
 -- === 3. DRAGGABLE GUI ===
 local dragging, dragInput, dragStart, startPos
@@ -156,6 +163,7 @@ MainFrame.InputBegan:Connect(function(input)
         end)
     end
 end)
+-- FIXED: Removed the extra .MainFrame here
 MainFrame.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
 end)
@@ -166,28 +174,13 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- === 4. OPTIMIZED ENGINE ===
-local cachedCharParts = {}
-Player.CharacterAdded:Connect(function(char)
-    cachedCharParts = {}
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then table.insert(cachedCharParts, part) end
-    end
-    char.DescendantAdded:Connect(function(part)
-        if part:IsA("BasePart") then table.insert(cachedCharParts, part) end
-    end)
-end)
-
-if Player.Character then
-    for _, part in ipairs(Player.Character:GetDescendants()) do
-        if part:IsA("BasePart") then table.insert(cachedCharParts, part) end
-    end
-end
-
+-- === 4. ENGINE ===
 RunService.Stepped:Connect(function()
-    if (isFarmOn or isAltarOn) then
-        for _, part in ipairs(cachedCharParts) do
-            if part.CanCollide then part.CanCollide = false end
+    if (isFarmOn or isAltarOn or isMedalOn) and Player.Character then
+        for _, part in ipairs(Player.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
         end
     end
 end)
@@ -196,7 +189,7 @@ local function clearExistingEnemies()
     for _, enemy in ipairs(EnemiesFolder:GetChildren()) do enemy:Destroy() end
 end
 EnemiesFolder.ChildAdded:Connect(function(child)
-    if isFarmOn or isAltarOn then task.defer(function() child:Destroy() end) end
+    if isFarmOn or isAltarOn or isMedalOn then task.defer(function() child:Destroy() end) end
 end)
 
 task.spawn(function()
@@ -207,8 +200,9 @@ task.spawn(function()
 end)
 
 local function getRoot()
-    local char = Player.Character or Player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
+    local char = Player.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
 end
 
 local function getRootOffset(root)
@@ -219,10 +213,20 @@ end
 -- ==========================================
 -- LOGIC & MATH 
 -- ==========================================
+local function getMedalInstance()
+    local beaconsFolder = workspace:FindFirstChild("Beacons")
+    if beaconsFolder then
+        return beaconsFolder:FindFirstChild("Medal")
+    end
+    return nil
+end
+
 local function getAltarPrompts()
     local prompts = {}
-    local currentRooms = workspace:FindFirstChild("CurrentRooms") or AltarsFolder or workspace
-    for _, p in ipairs(currentRooms:GetDescendants()) do
+    local searchArea = workspace:FindFirstChild("CurrentRooms") or AltarsFolder
+    if not searchArea then return prompts end
+
+    for _, p in ipairs(searchArea:GetDescendants()) do
         if p:IsA("ProximityPrompt") and p.Enabled then
             table.insert(prompts, p)
         end
@@ -253,6 +257,7 @@ end
 
 local function isLineOfSightClear(startPos, endPos)
     local direction = endPos - startPos
+    if direction.Magnitude == 0 then return false end
     local result = workspace:Raycast(startPos, direction, rayParams)
     return result == nil
 end
@@ -273,6 +278,8 @@ end
 
 local function pathBlocked(pos, activeTripmines, activeEnemies)
     local root = getRoot()
+    if not root then return false end
+    
     local startPos = root.Position
     
     local minX = math.min(startPos.X, pos.X) - 1
@@ -284,11 +291,24 @@ local function pathBlocked(pos, activeTripmines, activeEnemies)
 
     local function checkOverlap(obj)
         local mPos, mSize
+        
         if obj:IsA("BasePart") then
             mPos = obj.Position
-            mSize = obj.Size
         elseif obj:IsA("Model") then
             mPos = obj:GetPivot().Position
+        end
+        
+        if not mPos then return false end
+        
+        if mPos.X < minX - 15 or mPos.X > maxX + 15 or 
+           mPos.Y < minY - 15 or mPos.Y > maxY + 15 or 
+           mPos.Z < minZ - 15 or mPos.Z > maxZ + 15 then
+            return false
+        end
+        
+        if obj:IsA("BasePart") then
+            mSize = obj.Size
+        elseif obj:IsA("Model") then
             local _, s = obj:GetBoundingBox()
             mSize = s
         end
@@ -332,8 +352,9 @@ local function computePath(startPos, finishPos)
     return nil 
 end
 
--- UPDATED: Accommodates both Gifts and Altar Prompts smoothly
 local function tweenToWaypoint(root, targetPos, yOffset, action, targetObj)
+    if not root or not root.Parent then return false end
+
     local pos = targetPos + Vector3.new(0, yOffset, 0)
 
     if action == Enum.PathWaypointAction.Jump then
@@ -344,7 +365,6 @@ local function tweenToWaypoint(root, targetPos, yOffset, action, targetObj)
     local activeTripmines = getActiveTripmines()
     local activeEnemies = EnemiesFolder:GetChildren()
 
-    -- Pre-tween interception logic (strictly for gifts)
     local blocked = pathBlocked(pos, activeTripmines, activeEnemies)
     if blocked and targetObj and (targetObj.Name == "Gift" or targetObj.Name == "GoldenGift") then
         root.Position = pos
@@ -361,6 +381,8 @@ local function tweenToWaypoint(root, targetPos, yOffset, action, targetObj)
     local isBlockedMidway = false
     local monitorThread = task.spawn(function()
         while tween.PlaybackState == Enum.PlaybackState.Playing do
+            if not root or not root.Parent then break end
+            
             if pathBlocked(pos, getActiveTripmines(), EnemiesFolder:GetChildren()) then
                 tween:Cancel()
                 isBlockedMidway = true
@@ -373,6 +395,8 @@ local function tweenToWaypoint(root, targetPos, yOffset, action, targetObj)
     tween:Play()
     tween.Completed:Wait()
 
+    if not root or not root.Parent then return false end
+
     if isBlockedMidway then
         root.Position = pos
         task.wait(0.3)
@@ -384,12 +408,13 @@ local function tweenToWaypoint(root, targetPos, yOffset, action, targetObj)
         if targetObj:IsA("ProximityPrompt") and not targetObj.Enabled then return true end
     end
     
-    if (not isFarmOn and not isAltarOn) or isIntermissionPause then return false end 
+    if (not isFarmOn and not isAltarOn and not isMedalOn) or isIntermissionPause then return false end 
 
     return true
 end
 
 local function followPath(root, waypoints, targetObj)
+    if not root then return false end
     local yOffset = getRootOffset(root)
 
     for i = 2, #waypoints do
@@ -397,6 +422,8 @@ local function followPath(root, waypoints, targetObj)
             if (targetObj.Name == "Gift" or targetObj.Name == "GoldenGift") and not isValidGift(targetObj) then return true end
             if targetObj:IsA("ProximityPrompt") and not targetObj.Enabled then return true end
         end
+        
+        if not root or not root.Parent then return false end
         
         if not tweenToWaypoint(root, waypoints[i].Position, yOffset, waypoints[i].Action, targetObj) then
             return false
@@ -406,6 +433,7 @@ local function followPath(root, waypoints, targetObj)
 end
 
 local function teleportToBeacon(root)
+    if not root then return end
     local pos = Beacon.Position + Vector3.new(0, 4, 0)
     root.CFrame = CFrame.new(pos)
 end
@@ -415,16 +443,62 @@ task.spawn(function()
     updateBlockerVisibility()
     
     while true do
-        if (not isFarmOn and not isAltarOn) or isIntermissionPause then
+        if (not isFarmOn and not isAltarOn and not isMedalOn) or isIntermissionPause then
             task.wait(0.2)
             continue
         end
 
         local root = getRoot()
+        if not root then 
+            task.wait(1) 
+            continue 
+        end
+
         PhysicalBlocker.CFrame = Beacon.CFrame
         clearExistingEnemies() 
 
-        -- FIXED: Altar Tweening Activation & Non-Teleport Return Setup
+        -- === PRIORITY 1: AUTO MEDAL ===
+        if isMedalOn then
+            local medal = getMedalInstance()
+            if medal and medal:IsA("BasePart") then
+                local targetPos = medal.Position
+                
+                local waypoints = nil
+                if isLineOfSightClear(root.Position, targetPos) then
+                    waypoints = {
+                        PathWaypoint.new(root.Position, Enum.PathWaypointAction.Walk),
+                        PathWaypoint.new(targetPos, Enum.PathWaypointAction.Walk)
+                    }
+                else
+                    waypoints = computePath(root.Position, targetPos)
+                end
+
+                if not waypoints then
+                    waypoints = {
+                        PathWaypoint.new(root.Position, Enum.PathWaypointAction.Walk),
+                        PathWaypoint.new(targetPos, Enum.PathWaypointAction.Walk)
+                    }
+                end
+
+                local success = followPath(root, waypoints, medal)
+                if success and isMedalOn then
+                    local prompt = medal:FindFirstChildOfClass("ProximityPrompt")
+                    if prompt and prompt.Enabled then
+                        if fireproximityprompt then
+                            fireproximityprompt(prompt)
+                            task.wait(prompt.HoldDuration)
+                        end
+                    else
+                        task.wait(0.1) -- Quick breather for touch-collections
+                    end
+                end
+                
+                RunService.Heartbeat:Wait()
+                continue -- Skips down to loop and immediately drops back into farming gifts
+            end
+        end
+
+        -- === PRIORITY 2: AUTO ALTARS ===
         if isAltarOn then
             local prompts = getAltarPrompts()
             if #prompts > 0 then
@@ -450,7 +524,6 @@ task.spawn(function()
                         }
                     end
 
-                    -- Tweens seamlessly directly onto the Altar point
                     local success = followPath(root, waypoints, selectedPrompt)
                     if success and isAltarOn and selectedPrompt.Enabled then
                         if fireproximityprompt then
@@ -459,11 +532,13 @@ task.spawn(function()
                         end
                     end
                 end
-                -- Left without CFrame reversions so it falls immediately into present routines nearby
+                
+                RunService.Heartbeat:Wait()
                 continue 
             end
         end
 
+        -- === PRIORITY 3: AUTO GIFT FARM ===
         if isFarmOn then
             local gifts = getNearestGifts(root.Position, PREVIEW_COUNT)
 
@@ -476,6 +551,8 @@ task.spawn(function()
                     teleportToBeacon(root)
                     task.wait(1.5) 
                 end
+                
+                RunService.Heartbeat:Wait()
                 continue
             end
 
@@ -513,11 +590,9 @@ task.spawn(function()
 
             if waypoints then
                 followPath(root, waypoints, gift)
-            else
-                task.wait(0.1)
             end
-        else
-            task.wait(0.1)
         end
+        
+        RunService.Heartbeat:Wait() 
     end
 end)
