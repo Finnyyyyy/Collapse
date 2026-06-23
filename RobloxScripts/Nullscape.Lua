@@ -14,7 +14,7 @@ local EnemiesFolder = workspace:WaitForChild("Enemies")
 local Beacon = workspace:WaitForChild("Beacon")
 local AltarsFolder = workspace:FindFirstChild("Altars") 
 
-local SPEED = 80
+local SPEED = 100
 local HOVER_OFFSET = 2
 local MAX_DISTANCE = 20000
 local PREVIEW_COUNT = 10 
